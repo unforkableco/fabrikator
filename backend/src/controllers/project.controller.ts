@@ -32,6 +32,7 @@ export class ProjectController {
         },
         materials: analysis.suggestedMaterials.map(m => ({
           ...m,
+          id: uuidv4(),
           status: MaterialStatus.SUGGESTED,
         })),
         selectedParts: [],

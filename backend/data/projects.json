@@ -1163,5 +1163,517 @@
     "status": "planning",
     "createdAt": "2025-05-13T12:24:14.650Z",
     "updatedAt": "2025-05-13T12:24:14.650Z"
+  },
+  {
+    "id": "fa41f24b-0826-499e-b78f-229e88b3e1ee",
+    "name": "Test",
+    "description": "I want to build an automated watering system for my garden. It will be solar powered and connected to a water pipe always turned on. It will measure the soil humidity and trigger watter flow for a configurable amount of minutes before turning the water off, then waiting some time and measuring humidity again. It must be able to operate at night too",
+    "requirements": {
+      "needsMaterials": true,
+      "materialTypes": [
+        {
+          "name": "Integration with smart home platforms (e.g., Alexa, Google Home)",
+          "description": "Required for integration with smart home platforms (e.g., alexa, google home)",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Wireless communication protocols (e.g., Wi-Fi, Bluetooth)",
+          "description": "Required for wireless communication protocols (e.g., wi-fi, bluetooth)",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Sensor integration for detecting motion, light levels, and temperature",
+          "description": "Required for sensor integration for detecting motion, light levels, and temperature",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Reliable power management system",
+          "description": "Required for reliable power management system",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Secure data transmission and storage",
+          "description": "Required for secure data transmission and storage",
+          "suggestedOptions": [],
+          "requirements": {}
+        }
+      ],
+      "needs3DEditor": false,
+      "needsWiringCircuit": false,
+      "needsSoftwareCode": false
+    },
+    "materials": [
+      {
+        "id": "1747666053235",
+        "type": "Microcontroller",
+        "name": "Microcontroller",
+        "description": "Select a microcontroller with sufficient GPIO pins and processing power for sensor integration.",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "5V DC",
+          "size": "Standard Arduino size"
+        }
+      },
+      {
+        "id": "1747666053235",
+        "type": "Sensors",
+        "name": "Sensors",
+        "description": "Include motion sensors, light sensors, and temperature sensors for automation triggers.",
+        "quantity": 5,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "3.3V - 5V DC",
+          "size": "Varies by sensor type"
+        }
+      },
+      {
+        "id": "1747666053235",
+        "type": "Wireless Module",
+        "name": "Wireless Module",
+        "description": "Integrate Wi-Fi or Bluetooth module for communication with smart home platforms.",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "3.3V - 5V DC",
+          "size": "Small form factor"
+        }
+      },
+      {
+        "id": "1747666053235",
+        "type": "Relay Module",
+        "name": "Relay Module",
+        "description": "Control lighting and appliances through relay modules for automation.",
+        "quantity": 3,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "5V DC",
+          "size": "Compact"
+        }
+      },
+      {
+        "id": "1747666053235",
+        "type": "Security Camera",
+        "name": "Security Camera",
+        "description": "Install security cameras for monitoring and surveillance.",
+        "quantity": 2,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "12V DC",
+          "size": "Varies by camera model"
+        }
+      }
+    ],
+    "selectedParts": [],
+    "conversations": [
+      {
+        "id": "854e9e6c-c53f-4476-a6da-4b267e0f3ebf",
+        "messages": [
+          {
+            "id": "ba605983-bfcf-4185-b116-f20fd58cbd2f",
+            "role": "assistant",
+            "content": "Initial project analysis:\n\nProject Analysis Summary:\nThis project involves building a smart home automation system that controls lighting, temperature, and security.\n\nTechnical Requirements:\n- Integration with smart home platforms (e.g., Alexa, Google Home)\n- Wireless communication protocols (e.g., Wi-Fi, Bluetooth)\n- Sensor integration for detecting motion, light levels, and temperature\n- Reliable power management system\n- Secure data transmission and storage\n\nPotential Challenges:\n- Ensuring compatibility with various smart home platforms\n- Managing multiple wireless communication protocols\n- Integrating and calibrating sensors for accurate readings\n- Designing an efficient power management system\n- Implementing robust security measures to protect user data\n\nRecommendations:\n- Use modular components for easy scalability and maintenance\n- Regularly update software and firmware for security patches\n- Test the system thoroughly before deployment in a live environment",
+            "timestamp": "2025-05-19T14:47:33.236Z"
+          }
+        ],
+        "context": "initial_analysis",
+        "createdAt": "2025-05-19T14:47:33.236Z",
+        "updatedAt": "2025-05-19T14:47:33.236Z"
+      }
+    ],
+    "status": "planning",
+    "createdAt": "2025-05-19T14:47:33.236Z",
+    "updatedAt": "2025-05-19T14:47:33.236Z"
+  },
+  {
+    "id": "a74ac074-0a76-482a-9f1c-2141045db93b",
+    "name": "Test",
+    "description": "I want to build an automated watering system for my garden. It will be solar powered and connected to a water pipe always turned on. It will measure the soil humidity and trigger watter flow for a configurable amount of minutes before turning the water off, then waiting some time and measuring humidity again. It must be able to operate at night too",
+    "requirements": {
+      "needsMaterials": true,
+      "materialTypes": [
+        {
+          "name": "Temperature sensor",
+          "description": "Required for temperature sensor",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Humidity sensor",
+          "description": "Required for humidity sensor",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Anemometer for wind speed measurement",
+          "description": "Required for anemometer for wind speed measurement",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Microcontroller for data processing",
+          "description": "Required for microcontroller for data processing",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Display unit for showing weather data",
+          "description": "Required for display unit for showing weather data",
+          "suggestedOptions": [],
+          "requirements": {}
+        }
+      ],
+      "needs3DEditor": false,
+      "needsWiringCircuit": false,
+      "needsSoftwareCode": false
+    },
+    "materials": [
+      {
+        "id": "1747666080048",
+        "type": "Temperature Sensor",
+        "name": "Temperature Sensor",
+        "description": "Ensure high accuracy for reliable temperature readings",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "5V DC",
+          "size": "Small form factor"
+        }
+      },
+      {
+        "id": "1747666080048",
+        "type": "Humidity Sensor",
+        "name": "Humidity Sensor",
+        "description": "Choose a sensor with fast response time",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "3.3V DC",
+          "size": "Compact size"
+        }
+      },
+      {
+        "id": "1747666080048",
+        "type": "Anemometer",
+        "name": "Anemometer",
+        "description": "Check compatibility with microcontroller for data acquisition",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "12V DC",
+          "size": "Medium-sized"
+        }
+      },
+      {
+        "id": "1747666080048",
+        "type": "Microcontroller",
+        "name": "Microcontroller",
+        "description": "Select a microcontroller with sufficient analog and digital pins",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "5V DC",
+          "size": "Standard Arduino size"
+        }
+      },
+      {
+        "id": "1747666080048",
+        "type": "Display Unit",
+        "name": "Display Unit",
+        "description": "Ensure good visibility in outdoor conditions",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "5V DC",
+          "size": "Medium-sized screen"
+        }
+      }
+    ],
+    "selectedParts": [],
+    "conversations": [
+      {
+        "id": "109134a5-d97c-4966-bb7b-1a02b19f0ec3",
+        "messages": [
+          {
+            "id": "ee9a93a9-d4b8-4022-baa2-63621e22e0fe",
+            "role": "assistant",
+            "content": "Initial project analysis:\n\nProject Analysis Summary:\nThis project involves building a weather monitoring station that can measure temperature, humidity, and wind speed.\n\nTechnical Requirements:\n- Temperature sensor\n- Humidity sensor\n- Anemometer for wind speed measurement\n- Microcontroller for data processing\n- Display unit for showing weather data\n\nPotential Challenges:\n- Calibrating sensors for accurate measurements\n- Ensuring data communication between components\n- Weatherproofing the station for outdoor use\n\nRecommendations:\n- Use sensors with digital output for easier interfacing with the microcontroller\n- Select a microcontroller with sufficient I/O pins for sensor connections",
+            "timestamp": "2025-05-19T14:48:00.048Z"
+          }
+        ],
+        "context": "initial_analysis",
+        "createdAt": "2025-05-19T14:48:00.048Z",
+        "updatedAt": "2025-05-19T14:48:00.048Z"
+      }
+    ],
+    "status": "planning",
+    "createdAt": "2025-05-19T14:48:00.048Z",
+    "updatedAt": "2025-05-19T14:48:00.048Z"
+  },
+  {
+    "id": "8a5be195-4455-42ad-8b8c-71f0fa6c167d",
+    "name": "Test",
+    "description": "I want to build an automated watering system for my garden. It will be solar powered and connected to a water pipe always turned on. It will measure the soil humidity and trigger watter flow for a configurable amount of minutes before turning the water off, then waiting some time and measuring humidity again. It must be able to operate at night too",
+    "requirements": {
+      "needsMaterials": true,
+      "materialTypes": [
+        {
+          "name": "Soil moisture sensor",
+          "description": "Required for soil moisture sensor",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Microcontroller for data processing",
+          "description": "Required for microcontroller for data processing",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Water pump",
+          "description": "Required for water pump",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Relay module for controlling water flow",
+          "description": "Required for relay module for controlling water flow",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Power source",
+          "description": "Required for power source",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Internet connectivity for remote monitoring/control",
+          "description": "Required for internet connectivity for remote monitoring/control",
+          "suggestedOptions": [],
+          "requirements": {}
+        }
+      ],
+      "needs3DEditor": false,
+      "needsWiringCircuit": false,
+      "needsSoftwareCode": false
+    },
+    "materials": [
+      {
+        "id": "95383c9f-cdaa-4585-99ce-833e89d6b44e",
+        "type": "Soil Moisture Sensor",
+        "name": "Soil Moisture Sensor",
+        "description": "Choose sensor with analog output for better accuracy",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "5V DC",
+          "size": "Various sizes available"
+        }
+      },
+      {
+        "id": "817ea5f6-03e1-4ab7-a0c0-3ab336296cfd",
+        "type": "Microcontroller",
+        "name": "Microcontroller",
+        "description": "Arduino Uno or similar board recommended",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "5V DC",
+          "size": "Standard Arduino size"
+        }
+      },
+      {
+        "id": "3452945f-402c-4295-9c69-50d122ae4ec4",
+        "type": "Water Pump",
+        "name": "Water Pump",
+        "description": "Select pump based on irrigation area and water pressure requirements",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "12V DC",
+          "size": "Depends on water flow rate needed"
+        }
+      },
+      {
+        "id": "ab40eeba-b249-4852-b72a-36fb64ed86bb",
+        "type": "Relay Module",
+        "name": "Relay Module",
+        "description": "Ensure compatibility with microcontroller and water pump",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "5V DC",
+          "size": "Compact size"
+        }
+      },
+      {
+        "id": "70eba081-9730-44d3-9146-d1d15ccb5ced",
+        "type": "Power Source",
+        "name": "Power Source",
+        "description": "Select power source with sufficient capacity for all components",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "AC/DC adapter",
+          "size": "Depends on total power consumption"
+        }
+      },
+      {
+        "id": "0578235e-0196-4b1a-b69e-de0c4172aa67",
+        "type": "Internet Connectivity Module",
+        "name": "Internet Connectivity Module",
+        "description": "Consider using Wi-Fi or GSM module for remote monitoring capabilities",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "5V DC",
+          "size": "Compact size"
+        }
+      }
+    ],
+    "selectedParts": [],
+    "conversations": [
+      {
+        "id": "f452f0d2-8da7-4050-bb1c-e59e6feb9549",
+        "messages": [
+          {
+            "id": "5a2d352a-6bc3-4849-aa17-4cdbad920b8f",
+            "role": "assistant",
+            "content": "Initial project analysis:\n\nProject Analysis Summary:\nThis project aims to create a smart irrigation system that can monitor soil moisture levels and automatically water plants when needed.\n\nTechnical Requirements:\n- Soil moisture sensor\n- Microcontroller for data processing\n- Water pump\n- Relay module for controlling water flow\n- Power source\n- Internet connectivity for remote monitoring/control\n\nPotential Challenges:\n- Ensuring accurate soil moisture readings\n- Integrating the various components for seamless operation\n- Implementing a reliable communication system for remote monitoring\n\nRecommendations:\n- Select high-quality components to ensure reliability\n- Consider using waterproof components where necessary\n- Test the system thoroughly before deployment",
+            "timestamp": "2025-05-19T14:49:12.617Z"
+          }
+        ],
+        "context": "initial_analysis",
+        "createdAt": "2025-05-19T14:49:12.617Z",
+        "updatedAt": "2025-05-19T14:49:12.617Z"
+      }
+    ],
+    "status": "planning",
+    "createdAt": "2025-05-19T14:49:12.617Z",
+    "updatedAt": "2025-05-19T14:49:12.617Z"
+  },
+  {
+    "id": "780570a7-3e36-4bd0-a5df-c3be1c37be77",
+    "name": "Test",
+    "description": "I want to build an automated watering system for my garden. It will be solar powered and connected to a water pipe always turned on. It will measure the soil humidity and trigger watter flow for a configurable amount of minutes before turning the water off, then waiting some time and measuring humidity again. It must be able to operate at night too",
+    "requirements": {
+      "needsMaterials": true,
+      "materialTypes": [
+        {
+          "name": "Wireless communication (e.g., Wi-Fi, Bluetooth)",
+          "description": "Required for wireless communication (e.g., wi-fi, bluetooth)",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Sensor integration (temperature, humidity, motion)",
+          "description": "Required for sensor integration (temperature, humidity, motion)",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Microcontroller programming",
+          "description": "Required for microcontroller programming",
+          "suggestedOptions": [],
+          "requirements": {}
+        },
+        {
+          "name": "Cloud connectivity for remote control",
+          "description": "Required for cloud connectivity for remote control",
+          "suggestedOptions": [],
+          "requirements": {}
+        }
+      ],
+      "needs3DEditor": false,
+      "needsWiringCircuit": false,
+      "needsSoftwareCode": false
+    },
+    "materials": [
+      {
+        "id": "9ecaaa49-0cef-4ce0-abf3-6ff9ca59fd19",
+        "type": "Microcontroller",
+        "name": "Microcontroller",
+        "description": "Ensure compatibility with selected sensors and wireless modules",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "5V DC",
+          "size": "Standard Arduino size"
+        }
+      },
+      {
+        "id": "8ad3a274-7625-4742-8202-7355ad92fe71",
+        "type": "Temperature and Humidity Sensor",
+        "name": "Temperature and Humidity Sensor",
+        "description": "Check accuracy and calibration",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "3.3-5V DC",
+          "size": "Small form factor"
+        }
+      },
+      {
+        "id": "b19a01ec-90c1-4419-89b1-4bfab3498ec5",
+        "type": "Motion Sensor",
+        "name": "Motion Sensor",
+        "description": "Adjust sensitivity as per requirements",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "5V DC",
+          "size": "Compact size"
+        }
+      },
+      {
+        "id": "1cb93315-7682-46f0-8fb0-91f526777f3a",
+        "type": "Wireless Module",
+        "name": "Wireless Module",
+        "description": "Select appropriate protocol for range and data transfer speed",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "3.3-5V DC",
+          "size": "Varies based on selected protocol"
+        }
+      },
+      {
+        "id": "2dcfb53f-d144-4211-adf3-e1bcdec4c897",
+        "type": "Cloud Connectivity Module",
+        "name": "Cloud Connectivity Module",
+        "description": "Implement secure communication protocols",
+        "quantity": 1,
+        "status": "suggested",
+        "requirements": {
+          "powerInput": "3.3-5V DC",
+          "size": "Compact size"
+        }
+      }
+    ],
+    "selectedParts": [],
+    "conversations": [
+      {
+        "id": "37816842-cfb4-490c-9bc0-0cbbd2a716c3",
+        "messages": [
+          {
+            "id": "994bba6e-332b-442c-a429-263131a1c43e",
+            "role": "assistant",
+            "content": "Initial project analysis:\n\nProject Analysis Summary:\nThe project requires designing an IoT smart home system that includes temperature and humidity monitoring, motion detection, and remote control functionalities.\n\nTechnical Requirements:\n- Wireless communication (e.g., Wi-Fi, Bluetooth)\n- Sensor integration (temperature, humidity, motion)\n- Microcontroller programming\n- Cloud connectivity for remote control\n\nPotential Challenges:\n- Ensuring reliable wireless communication\n- Integrating multiple sensors and ensuring data accuracy\n- Implementing secure cloud connectivity\n\nRecommendations:\n- Use reliable and secure communication protocols\n- Test sensor accuracy and calibration thoroughly\n- Implement encryption for cloud communication",
+            "timestamp": "2025-05-20T07:12:36.458Z"
+          }
+        ],
+        "context": "initial_analysis",
+        "createdAt": "2025-05-20T07:12:36.458Z",
+        "updatedAt": "2025-05-20T07:12:36.458Z"
+      }
+    ],
+    "status": "planning",
+    "createdAt": "2025-05-20T07:12:36.458Z",
+    "updatedAt": "2025-05-20T07:12:36.458Z"
   }
 ]

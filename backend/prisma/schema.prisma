@@ -1,0 +1,196 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  description   String?
+  status        String
+  createdAt     DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime       @default(now()) @db.Timestamptz(6)
+  components    Component[]
+  conversations Conversation[]
+  documents     Document[]
+  product3Ds    Product3D[]
+  requirements  Requirement[]
+  suggestions   Suggestion[]
+  wiringSchemas WiringSchema[]
+}
+
+model Requirement {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String       @db.Uuid
+  currentVersionId String?      @db.Uuid
+  versions         ReqVersion[]
+  currentVersion   ReqVersion?  @relation("currentReqVersion", fields: [currentVersionId], references: [id])
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ReqVersion {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requirementId String        @db.Uuid
+  versionNumber Int
+  createdBy     String
+  createdAt     DateTime      @default(now()) @db.Timestamptz(6)
+  details       Json
+  changeLogs    ChangeLog[]
+  requirement   Requirement   @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  currentFor    Requirement[] @relation("currentReqVersion")
+
+  @@unique([requirementId, versionNumber])
+}
+
+model Component {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String        @db.Uuid
+  currentVersionId String?       @db.Uuid
+  versions         CompVersion[]
+  currentVersion   CompVersion?  @relation("currentCompVersion", fields: [currentVersionId], references: [id])
+  project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model CompVersion {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  componentId   String      @db.Uuid
+  versionNumber Int
+  createdBy     String
+  createdAt     DateTime    @default(now()) @db.Timestamptz(6)
+  specs         Json
+  changeLogs    ChangeLog[]
+  component     Component   @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  currentFor    Component[] @relation("currentCompVersion")
+
+  @@unique([componentId, versionNumber])
+}
+
+model Product3D {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String       @db.Uuid
+  currentVersionId String?      @db.Uuid
+  versions         P3DVersion[]
+  currentVersion   P3DVersion?  @relation("currentP3DVersion", fields: [currentVersionId], references: [id])
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model P3DVersion {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product3DId   String      @db.Uuid
+  versionNumber Int
+  createdBy     String
+  createdAt     DateTime    @default(now()) @db.Timestamptz(6)
+  modelData     Json
+  changeLogs    ChangeLog[]
+  product3D     Product3D   @relation(fields: [product3DId], references: [id], onDelete: Cascade)
+  currentFor    Product3D[] @relation("currentP3DVersion")
+
+  @@unique([product3DId, versionNumber])
+}
+
+model WiringSchema {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String        @db.Uuid
+  currentVersionId String?       @db.Uuid
+  versions         WireVersion[]
+  currentVersion   WireVersion?  @relation("currentWireVersion", fields: [currentVersionId], references: [id])
+  project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model WireVersion {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  wiringSchemaId String         @db.Uuid
+  versionNumber  Int
+  createdBy      String
+  createdAt      DateTime       @default(now()) @db.Timestamptz(6)
+  wiringData     Json
+  changeLogs     ChangeLog[]
+  wiringSchema   WiringSchema   @relation(fields: [wiringSchemaId], references: [id], onDelete: Cascade)
+  currentFor     WiringSchema[] @relation("currentWireVersion")
+
+  @@unique([wiringSchemaId, versionNumber])
+}
+
+model Document {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId        String       @db.Uuid
+  currentVersionId String?      @db.Uuid
+  versions         DocVersion[]
+  currentVersion   DocVersion?  @relation("currentDocVersion", fields: [currentVersionId], references: [id])
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model DocVersion {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId    String      @db.Uuid
+  versionNumber Int
+  createdBy     String
+  createdAt     DateTime    @default(now()) @db.Timestamptz(6)
+  content       Json
+  changeLogs    ChangeLog[]
+  document      Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  currentFor    Document[]  @relation("currentDocVersion")
+
+  @@unique([documentId, versionNumber])
+}
+
+model Suggestion {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId       String           @db.Uuid
+  context         String
+  status          String
+  promptPayload   Json
+  responsePayload Json
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items           SuggestionItem[]
+}
+
+model SuggestionItem {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  suggestionId String     @db.Uuid
+  itemPayload  Json
+  action       String
+  suggestion   Suggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+}
+
+model ChangeLog {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity        String
+  changeType    String
+  author        String
+  diffPayload   Json?
+  createdAt     DateTime     @default(now()) @db.Timestamptz(6)
+  compVersionId String?      @db.Uuid
+  docVersionId  String?      @db.Uuid
+  p3dVersionId  String?      @db.Uuid
+  reqVersionId  String?      @db.Uuid
+  wireVersionId String?      @db.Uuid
+  compVersion   CompVersion? @relation(fields: [compVersionId], references: [id], onDelete: Restrict)
+  docVersion    DocVersion?  @relation(fields: [docVersionId], references: [id], onDelete: Restrict)
+  p3dVersion    P3DVersion?  @relation(fields: [p3dVersionId], references: [id], onDelete: Restrict)
+  reqVersion    ReqVersion?  @relation(fields: [reqVersionId], references: [id], onDelete: Restrict)
+  wireVersion   WireVersion? @relation(fields: [wireVersionId], references: [id], onDelete: Restrict)
+}
+
+model Conversation {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId String    @db.Uuid
+  context   String
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages  Message[]
+}
+
+model Message {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String       @db.Uuid
+  role           String
+  content        String
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}

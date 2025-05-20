@@ -3,6 +3,7 @@ import { prompts } from '../config/prompts';
 import dotenv from 'dotenv';
 import path from 'path';
 import fetch from 'node-fetch';
+import { v4 as uuidv4 } from 'uuid';
 
 // Load environment variables from the backend directory
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -203,7 +204,7 @@ Ensure the response is a valid JSON object with no additional text.`
           requirements: {}
         })),
         suggestedMaterials: parsedResponse.components.map((comp: any) => ({
-          id: Date.now().toString(),
+          id: uuidv4(),
           type: comp.type,
           name: comp.type,
           description: comp.details.notes || '',
@@ -322,7 +323,7 @@ Ensure the response is a valid JSON object with no additional text.`
     // TODO: Parse AI response and extract changes
     return {
       message: {
-        id: Date.now().toString(),
+        id: uuidv4(),
         role: 'assistant',
         content: response,
         timestamp: new Date().toISOString(),
