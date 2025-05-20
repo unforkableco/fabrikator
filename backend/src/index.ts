@@ -1,3 +1,7 @@
+// Load environment variables from .env file
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import { ProjectController } from './controllers/project.controller';
@@ -9,6 +13,12 @@ import { DocumentController } from './controllers/document.controller';
 import { SuggestionController } from './controllers/suggestion.controller';
 import { ConversationController } from './controllers/conversation.controller';
 import { prisma } from './services/prisma.service';
+
+// Database URL check
+if (!process.env.DATABASE_URL) {
+  console.warn('DATABASE_URL not found in environment. Using default connection string from database config.');
+  process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/fabrikator';
+}
 
 const app = express();
 const port = process.env.PORT || 3001;
