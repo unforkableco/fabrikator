@@ -42,6 +42,7 @@ app.post('/api/projects', projectController.createProject.bind(projectController
 app.get('/api/projects/:id', projectController.getProject.bind(projectController));
 app.put('/api/projects/:id', projectController.updateProject.bind(projectController));
 app.get('/api/projects', projectController.listProjects.bind(projectController));
+app.post('/api/projects/from-prompt', projectController.createFromPrompt.bind(projectController));
 
 // Requirement routes
 app.get('/api/projects/:projectId/requirements', requirementController.listRequirements.bind(requirementController));
@@ -109,5 +110,5 @@ process.on('SIGTERM', async () => {
   console.log('Closing database connections...');
   await prisma.$disconnect();
   console.log('Database connections closed');
-  process.exit(0);
+  process.exit(0); 
 }); 

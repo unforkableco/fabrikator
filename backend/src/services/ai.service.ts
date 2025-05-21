@@ -28,6 +28,17 @@ interface AIAnalysisResponse {
   response: string;
 }
 
+interface ProjectPromptResponse {
+  name: string;
+  description: string;
+  requirements: any[];
+  components: any[];
+  product3D?: any;
+  wiringSchema?: any;
+  documents?: any[];
+  response: string;
+}
+
 export class AIService {
   private readonly projectAnalysisApiKey: string;
   private readonly projectAnalysisApiEndpoint: string;
@@ -330,5 +341,72 @@ Ensure the response is a valid JSON object with no additional text.`
       },
       changes: [],
     };
+  }
+
+  async analyzeProjectPrompt(prompt: string): Promise<ProjectPromptResponse> {
+    try {
+      const projectPromptTemplate = `
+        Analyze the following project prompt and generate a structured project specification:
+        
+        Prompt: ${prompt}
+        
+        Please provide your analysis in the following JSON format:
+        {
+          "name": "Project name",
+          "description": "Detailed project description",
+          "requirements": [
+            {
+              "name": "Requirement name",
+              "description": "Requirement description",
+              "details": {
+                "priority": "high/medium/low",
+                "category": "functional/technical/performance/etc",
+                "notes": "Additional notes"
+              }
+            }
+          ],
+          "components": [
+            {
+              "type": "Component type",
+              "details": {
+                "powerInput": "Power requirements",
+                "size": "Physical dimensions",
+                "quantity": 1,
+                "notes": "Additional notes"
+              }
+            }
+          ]
+        }
+        
+        Ensure the response is a valid JSON object with no additional text.
+      `;
+
+      const response = await this.callAI(
+        projectPromptTemplate,
+        { prompt },
+        this.projectAnalysisApiKey,
+        this.projectAnalysisApiEndpoint
+      );
+
+      console.log('Raw AI response:', response);
+
+      // Extract JSON from the response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON object found in AI response');
+      }
+
+      const jsonStr = jsonMatch[0];
+      const parsedResponse = JSON.parse(jsonStr);
+
+      // Add the original response text
+      return {
+        ...parsedResponse,
+        response
+      };
+    } catch (error) {
+      console.error('Error in analyzeProjectPrompt:', error);
+      throw error;
+    }
   }
 } 

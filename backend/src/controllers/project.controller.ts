@@ -3,7 +3,8 @@ import {
   ProjectService, 
   MaterialService, 
   ConversationService, 
-  SuggestionService 
+  SuggestionService,
+  ProjectAIService
 } from '../services';
 
 export class ProjectController {
@@ -11,12 +12,14 @@ export class ProjectController {
   private materialService: MaterialService;
   private conversationService: ConversationService;
   private suggestionService: SuggestionService;
+  private projectAIService: ProjectAIService;
 
   constructor() {
     this.projectService = new ProjectService();
     this.materialService = new MaterialService();
     this.conversationService = new ConversationService();
     this.suggestionService = new SuggestionService();
+    this.projectAIService = new ProjectAIService();
   }
 
   /**
@@ -241,6 +244,20 @@ export class ProjectController {
     } catch (error) {
       console.error('Error adding message:', error);
       res.status(500).json({ error: 'Failed to add message' });
+    }
+  }
+
+  /**
+   * Create a project from an AI prompt
+   */
+  async createFromPrompt(req: Request, res: Response) {
+    try {
+      const { prompt } = req.body;
+      const project = await this.projectAIService.createProjectFromPrompt(prompt);
+      res.status(201).json(project);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'AI ingestion failed' });
     }
   }
 } 
