@@ -47,17 +47,17 @@ const UserPrompt: React.FC<UserPromptProps> = ({ project, onUpdateProject }) => 
         Project Assistant
       </Typography>
 
-      {project.conversations.length > 0 && (
+      {project.messages && project.messages.length > 0 && (
         <List sx={{ mb: 2, maxHeight: 300, overflow: 'auto' }}>
-          {project.conversations[project.conversations.length - 1].messages.map((message) => (
+          {project.messages.map((message) => (
             <ListItem key={message.id}>
               <ListItemText
-                primary={message.role === 'assistant' ? 'Assistant' : 'You'}
+                primary={message.context}
                 secondary={message.content}
                 sx={{
                   '& .MuiListItemText-primary': {
                     fontWeight: 'bold',
-                    color: message.role === 'assistant' ? 'primary.main' : 'text.primary',
+                    color: message.context === 'assistant' ? 'primary.main' : 'text.primary',
                   },
                 }}
               />

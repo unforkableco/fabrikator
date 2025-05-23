@@ -153,7 +153,7 @@ const ProjectView: React.FC = () => {
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 4, height: 'calc(100vh - 100px)', position: 'sticky', top: 20 }}>
             <AIResponsesPanel 
-              messages={project.conversations.flatMap(conv => conv.messages)} 
+              messages={project.messages} 
               materials={project.materials}
               onUpdateMaterials={handleUpdateMaterials}
             />

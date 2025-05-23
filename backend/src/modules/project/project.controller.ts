@@ -1,0 +1,183 @@
+import { Request, Response } from 'express';
+import { ProjectService } from './project.service';
+import { AIService } from '../../services/ai.service';
+
+export class ProjectController {
+  private projectService: ProjectService;
+  private aiService: AIService;
+
+  constructor() {
+    this.projectService = new ProjectService();
+    this.aiService = new AIService();
+  }
+
+  /**
+   * Récupérer tous les projets
+   */
+  async getAllProjects(req: Request, res: Response) {
+    try {
+      const projects = await this.projectService.getAllProjects();
+      res.json(projects);
+    } catch (error) {
+      console.error('Error getting all projects:', error);
+      res.status(500).json({ error: 'Failed to get projects' });
+    }
+  }
+
+  /**
+   * Créer un nouveau projet
+   */
+  async createProject(req: Request, res: Response) {
+    try {
+      const projectData = req.body;
+      const project = await this.projectService.createProject(projectData);
+      res.status(201).json(project);
+    } catch (error) {
+      console.error('Error creating project:', error);
+      res.status(500).json({ error: 'Failed to create project' });
+    }
+  }
+
+  /**
+   * Récupérer un projet par son ID
+   */
+  async getProjectById(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const project = await this.projectService.getProjectById(id);
+      
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+      
+      res.json(project);
+    } catch (error) {
+      console.error('Error getting project by ID:', error);
+      res.status(500).json({ error: 'Failed to get project' });
+    }
+  }
+
+  /**
+   * Mettre à jour un projet
+   */
+  async updateProject(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const projectData = req.body;
+      
+      const project = await this.projectService.updateProject(id, projectData);
+      
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+      
+      res.json(project);
+    } catch (error) {
+      console.error('Error updating project:', error);
+      res.status(500).json({ error: 'Failed to update project' });
+    }
+  }
+
+  /**
+   * Supprimer un projet
+   */
+  async deleteProject(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      await this.projectService.deleteProject(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      res.status(500).json({ error: 'Failed to delete project' });
+    }
+  }
+
+  /**
+   * Créer un projet à partir d'un prompt utilisateur
+   */
+  async createFromPrompt(req: Request, res: Response) {
+    try {
+      const { prompt } = req.body;
+      
+      if (!prompt) {
+        return res.status(400).json({ error: 'Le prompt est requis' });
+      }
+      
+      // Analyser le prompt avec l'IA
+      const analysisResult = await this.aiService.analyzeProjectPrompt(prompt);
+      
+      // Tenter d'extraire les informations en fonction de la structure de réponse
+      let projectName = 'Nouveau projet';
+      let projectDescription = prompt;
+      
+      try {
+        if (analysisResult && typeof analysisResult === 'object') {
+          // Check if response property exists and use it to extract data
+          const resultData = 'response' in analysisResult ? analysisResult.response : analysisResult;
+          
+          // Extraire les composants si disponibles
+          const components = Array.isArray(resultData.components) ? resultData.components : [];
+          
+          // Extraire l'analyse si disponible
+          const analysis = resultData.analysis || {};
+          
+          // Générer un nom de projet à partir du résumé si disponible
+          if (analysis.summary) {
+            projectName = `Projet: ${analysis.summary.split('.')[0]}`;
+          }
+          
+          // Enrichir la description si possible
+          if (analysis.technicalRequirements && Array.isArray(analysis.technicalRequirements)) {
+            projectDescription = `${prompt}\n\nExigences techniques identifiées:\n${analysis.technicalRequirements.join('\n')}`;
+          }
+        }
+      } catch (parseError) {
+        console.warn('Error parsing AI response structure:', parseError);
+        // Continuer avec les valeurs par défaut
+      }
+      
+      // Extraire les données nécessaires pour créer le projet
+      const projectData = {
+        name: projectName,
+        description: projectDescription,
+        status: 'planning'
+      };
+      
+      // Créer le projet
+      const project = await this.projectService.createProject(projectData);
+      
+      // Retourner le résultat complet
+      res.status(201).json({
+        project,
+        analysisResult
+      });
+    } catch (error) {
+      console.error('Error creating project from prompt:', error);
+      res.status(500).json({ error: 'Failed to create project from prompt' });
+    }
+  }
+
+  /**
+   * Ajouter un message à un projet
+   */
+  async addMessageToProject(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { context, content } = req.body;
+      
+      if (!content) {
+        return res.status(400).json({ error: 'Le contenu du message est requis' });
+      }
+      
+      const message = await this.projectService.addMessageToProject(id, {
+        context: context || 'general',
+        content
+      });
+      
+      res.status(201).json(message);
+    } catch (error) {
+      console.error('Error adding message to project:', error);
+      res.status(500).json({ error: 'Failed to add message to project' });
+    }
+  }
+}

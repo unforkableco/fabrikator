@@ -6,7 +6,7 @@ export interface Project {
   materials: Material[];
   selectedParts: SelectedPart[];
   wiringPlan?: WiringPlan;
-  conversations: Conversation[];
+  messages: Message[];
   status: ProjectStatus;
   createdAt: string;
   updatedAt: string;
@@ -74,19 +74,12 @@ export interface WiringPlan {
   version: number;
 }
 
-export interface Conversation {
-  id: string;
-  messages: Message[];
-  context: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  projectId: string;
+  context: string;
   content: string;
-  timestamp: string;
+  createdAt: string;
   relatedChanges?: ProjectChange[];
 }
 

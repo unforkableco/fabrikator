@@ -1,10 +1,38 @@
 export const prompts = {
   projectAnalysis: `
-    Analyze the following project description and provide a comprehensive analysis in both structured and human-readable format:
-    {{description}}
-    
-    You must respond with a valid JSON object. Do not include any text before or after the JSON.
-    The JSON should have this exact structure:
+  Analyze the following project description and provide a comprehensive analysis in both structured and human-readable format:
+  {{description}}
+
+  Generate only:
+  1. A concise, impactful "name" for the project
+  2. A detailed "description" that restates and enriches the idea
+
+  **Your response must be strictly a JSON object**:
+  {
+    "name": "string",
+    "description": "string",
+    "analysis": {
+      "summary": "string",
+      "technicalRequirements": ["string"],
+      "challenges": ["string"],
+      "recommendations": ["string"]
+    }
+  }
+  `,
+  materialsSearch: `
+    Project:
+    Name: {{projectName}}
+    Description: {{projectDescription}}
+
+    Last three component suggestions (CompVersion JSON format):
+    {{previousComponents}}
+
+    Refine your search with this user input:
+    {{userPrompt}}
+
+    Based on all of this, generate a NEW list of components,
+    adhering **exactly** to this JSON structure (CompVersion):
+
     {
       "components": [
         {
@@ -16,70 +44,45 @@ export const prompts = {
             "notes": "string"
           }
         }
-      ],
-      "analysis": {
-        "summary": "string",
-        "technicalRequirements": ["string"],
-        "challenges": ["string"],
-        "recommendations": ["string"]
-      }
+      ]
     }
 
     Guidelines for analysis:
     1. Power Requirements:
-       - Consider both day and night operation
-       - For solar-powered systems, include battery backup requirements
-       - Calculate power consumption and storage needs
-       - Consider power efficiency and sleep modes
+      - Consider both day and night operation
+      - For solar-powered systems, include battery backup requirements
+      - Calculate power consumption and storage needs
+      - Consider power efficiency and sleep modes
 
     2. Water Control:
-       - Analyze whether a pump or valve is more appropriate
-       - Consider water pressure requirements
-       - Evaluate flow control mechanisms
-       - Assess water conservation methods
+      - Analyze whether a pump or valve is more appropriate
+      - Consider water pressure requirements
+      - Evaluate flow control mechanisms
+      - Assess water conservation methods
 
     3. Sensing and Control:
-       - Specify sensor types and requirements
-       - Define control logic and timing requirements
-       - Consider environmental factors (weather, soil type)
-       - Plan for calibration and maintenance
+      - Specify sensor types and requirements
+      - Define control logic and timing requirements
+      - Consider environmental factors (weather, soil type)
+      - Plan for calibration and maintenance
 
     4. System Integration:
-       - Consider communication protocols
-       - Plan for system monitoring
-       - Evaluate reliability and redundancy
-       - Consider maintenance and serviceability
+      - Consider communication protocols
+      - Plan for system monitoring
+      - Evaluate reliability and redundancy
+      - Consider maintenance and serviceability
 
     Guidelines for component types:
-    - Use broad categories rather than specific models
-    - Common categories include: microcontroller, water control (valve/pump), casing, solar panel, 
-      power transformer, LED display, speaker, sensor, motor, battery, etc.
-    - For each component, provide relevant specifications directly in the details object:
-      * For Power components (solar panels, batteries, power supplies):
-        - voltage: "X V" (e.g., "12V", "24V")
-        - current: "X A" (e.g., "5A", "10A")
-        - power: "X W" (e.g., "100W", "200W")
-        - capacity: "X Ah" (for batteries)
-        - efficiency: "X%" (for solar panels)
-      * For electronics: powerInput, protocols, size, etc.
-      * For enclosures: ipRating, dimensions, material, etc.
-      * For mechanical parts: dimensions, material, loadCapacity, etc.
-      * For sensors: measurementRange, accuracy, interfaceType, etc.
-    - Focus on functional requirements rather than specific brands or models
+    - Use broad categories rather than specific models (e.g., microcontroller, valve, pump, sensor, battery, etc.)
+    - For each component, include in "details":
+      * Power components (solar panels, batteries, power supplies): voltage, current, power, capacity, efficiency
+      * Electronics: powerInput, protocols, dimensions, interfaces
+      * Mechanical parts: dimensions, material, load capacity
+      * Sensors: measurement range, accuracy, interface type
+    - Focus on functional requirements rather than brand names.
 
-    Remember: Your response must be a valid JSON object with no additional text.
-  `,
-  
-  materialsSearch: `
-    Based on the following project requirements, suggest specific materials and components:
-    {{requirements}}
-    
-    For each material, provide:
-    1. Detailed specifications
-    2. Estimated price range
-    3. Alternative options
-    4. Important considerations for selection
-  `,
+    **Return ONLY the JSON object**, with no extra text.
+    `,
   
   wiringGeneration: `
     Generate a wiring plan for the following components:

@@ -105,22 +105,33 @@ export const api = {
 
     processPrompt: async (projectId: string, userInput: string): Promise<{
       message: Message;
-      changes: ProjectChange[];
       project: Project;
     }> => {
-      const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/prompt`, {
+      const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userInput }),
+        body: JSON.stringify({ 
+          context: 'user',
+          content: userInput 
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to process prompt');
+        throw new Error('Failed to process message');
       }
 
-      return response.json();
+      // Get updated project after adding the message
+      const updateResponse = await fetch(`${API_BASE_URL}/api/projects/${projectId}`);
+      if (!updateResponse.ok) {
+        throw new Error('Failed to fetch updated project');
+      }
+      
+      const message = await response.json();
+      const project = await updateResponse.json();
+      
+      return { message, project };
     },
   },
 }; 
