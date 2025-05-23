@@ -1,11 +1,15 @@
 import { Request, Response } from 'express';
 import { MaterialService } from './material.service';
+import { AIService } from '../../services/ai.service';
+import { prisma } from '../../prisma/prisma.service';
 
 export class MaterialController {
   private materialService: MaterialService;
+  private aiService: AIService;
 
   constructor() {
     this.materialService = new MaterialService();
+    this.aiService = new AIService();
   }
 
   /**
@@ -19,6 +23,20 @@ export class MaterialController {
     } catch (error) {
       console.error('Error listing materials:', error);
       res.status(500).json({ error: 'Failed to list materials' });
+    }
+  }
+
+  /**
+   * Récupère l'historique des versions d'un matériau
+   */
+  async getMaterialVersions(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const versions = await this.materialService.getMaterialVersions(id);
+      res.json(versions);
+    } catch (error) {
+      console.error('Error getting material versions:', error);
+      res.status(500).json({ error: 'Failed to get material versions' });
     }
   }
 
@@ -57,56 +75,93 @@ export class MaterialController {
   }
 
   /**
-   * Ajoute une nouvelle version à un matériau existant
+   * Met à jour, approuve ou rejette un matériau
    */
-  async addVersion(req: Request, res: Response) {
+  async updateMaterialStatus(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const versionData = req.body;
-      const result = await this.materialService.addVersion(id, versionData);
-      res.status(201).json(result);
-    } catch (error) {
-      console.error('Error adding material version:', error);
-      res.status(500).json({ error: 'Failed to add material version' });
-    }
-  }
-
-  /**
-   * Valide ou rejette une version d'un matériau
-   */
-  async validateVersion(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const { versionId, action } = req.body;
+      const { action, ...updateData } = req.body;
       
-      if (!versionId || !['accept', 'reject'].includes(action)) {
-        return res.status(400).json({ error: 'Invalid request. versionId and action (accept/reject) are required' });
+      if (!action || !['approve', 'reject', 'update'].includes(action)) {
+        return res.status(400).json({ 
+          error: 'Invalid action. Must be one of: approve, reject, update' 
+        });
       }
       
-      const result = await this.materialService.validateVersion(id, versionId, action);
+      const result = await this.materialService.updateMaterialStatus(id, action, updateData);
       res.json(result);
     } catch (error) {
-      console.error('Error validating material version:', error);
-      res.status(500).json({ error: 'Failed to validate material version' });
+      console.error('Error updating material status:', error);
+      res.status(500).json({ error: 'Failed to update material status' });
     }
   }
 
   /**
-   * Récupère les liens d'achat pour un matériau
+   * Supprime un matériau
    */
-  async getPurchaseLinks(req: Request, res: Response) {
+  async deleteMaterial(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const purchaseInfo = await this.materialService.getPurchaseLinks(id);
+      await this.materialService.deleteMaterial(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting material:', error);
+      res.status(500).json({ error: 'Failed to delete material' });
+    }
+  }
+
+  /**
+   * Genère des suggestions de matériaux via l'IA
+   */
+  async generateSuggestions(req: Request, res: Response) {
+    try {
+      const { projectId } = req.params;
+      const { prompt } = req.body;
       
-      if (!purchaseInfo) {
-        return res.status(404).json({ error: 'Material or version not found' });
+      // Récupérer les infos du projet
+      const project = await prisma.project.findUnique({
+        where: { id: projectId }
+      });
+      
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
       }
       
-      res.json(purchaseInfo);
+      // Obtenir les suggestions de l'IA
+      const suggestions = await this.aiService.suggestMaterials({
+        name: project.name || 'Unnamed Project',
+        description: project.description || '',
+        userPrompt: prompt || ''
+      });
+      
+      if (!suggestions || !Array.isArray(suggestions.components)) {
+        return res.status(500).json({ 
+          error: 'Failed to generate material suggestions' 
+        });
+      }
+      
+      // Créer les matériaux suggérés
+      const createdMaterials = [];
+      
+      for (const component of suggestions.components) {
+        const materialData = {
+          name: component.type,
+          type: component.type,
+          description: component.details?.notes || '',
+          quantity: component.details?.quantity || 1,
+          requirements: component.details || {},
+          status: 'suggested',
+          createdBy: 'AI'
+        };
+        
+        const result = await this.materialService.createMaterial(projectId, materialData);
+        createdMaterials.push(result);
+      }
+      
+      res.status(201).json(createdMaterials);
     } catch (error) {
-      console.error('Error fetching purchase links:', error);
-      res.status(500).json({ error: 'Failed to fetch purchase links' });
+      console.error('Error generating material suggestions:', error);
+      res.status(500).json({ error: 'Failed to generate material suggestions' });
     }
   }
 }

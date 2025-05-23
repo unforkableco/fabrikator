@@ -11,14 +11,26 @@ export class MaterialService {
       return await prisma.component.findMany({
         where: { projectId },
         include: { 
-          currentVersion: true,
-          versions: {
-            orderBy: { versionNumber: 'desc' }
-          }
+          currentVersion: true
         }
       });
     } catch (error) {
       console.error('Error in listMaterials:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Récupère l'historique des versions d'un matériau
+   */
+  async getMaterialVersions(componentId: string) {
+    try {
+      return await prisma.compVersion.findMany({
+        where: { componentId },
+        orderBy: { versionNumber: 'desc' }
+      });
+    } catch (error) {
+      console.error('Error in getMaterialVersions:', error);
       throw error;
     }
   }
@@ -42,7 +54,6 @@ export class MaterialService {
         // Créer le composant
         const component = await tx.component.create({
           data: { 
-            id: uuidv4(),
             projectId 
           }
         });
@@ -50,7 +61,6 @@ export class MaterialService {
         // Créer la première version
         const version = await tx.compVersion.create({
           data: {
-            id: uuidv4(),
             componentId: component.id,
             versionNumber: 1,
             createdBy,
@@ -74,15 +84,14 @@ export class MaterialService {
         // Créer une entrée de changelog
         await tx.changeLog.create({
           data: {
-            id: uuidv4(),
-            entity: 'comp_versions',
+            entity: 'CompVersion',
             changeType: 'create',
             author: createdBy,
             compVersionId: version.id,
             diffPayload: {
-              type: 'new_component',
-              name,
-              action: 'add'
+              action: 'create',
+              componentId: component.id,
+              versionNumber: 1
             }
           }
         });
@@ -91,7 +100,7 @@ export class MaterialService {
           component: await tx.component.findUnique({
             where: { id: component.id },
             include: { currentVersion: true }
-          }), 
+          }),
           version 
         };
       });
@@ -109,10 +118,7 @@ export class MaterialService {
       return await prisma.component.findUnique({
         where: { id },
         include: { 
-          currentVersion: true,
-          versions: {
-            orderBy: { versionNumber: 'desc' }
-          }
+          currentVersion: true
         }
       });
     } catch (error) {
@@ -122,9 +128,81 @@ export class MaterialService {
   }
 
   /**
+   * Approuve, rejette ou met à jour un matériau
+   */
+  async updateMaterialStatus(componentId: string, action: 'approve' | 'reject' | 'update', updateData?: any) {
+    try {
+      const component = await prisma.component.findUnique({
+        where: { id: componentId },
+        include: { currentVersion: true }
+      });
+      
+      if (!component || !component.currentVersion) {
+        throw new Error('Component or current version not found');
+      }
+      
+      // Si c'est une mise à jour, créer une nouvelle version
+      if (action === 'update' && updateData) {
+        return await this.addVersion(componentId, updateData);
+      }
+      
+      // Pour approve/reject, on met à jour le statut dans la version actuelle
+      const currentSpecs = component.currentVersion?.specs as any || {};
+      const newStatus = action === 'approve' ? MaterialStatus.APPROVED : MaterialStatus.REJECTED;
+      
+      return await prisma.$transaction(async (tx) => {
+        // Créer une nouvelle version avec le statut mis à jour
+        const nextVersionNumber = (component.currentVersion?.versionNumber || 0) + 1;
+        const newSpecs = { ...currentSpecs, status: newStatus };
+        
+        const version = await tx.compVersion.create({
+          data: {
+            componentId,
+            versionNumber: nextVersionNumber,
+            createdBy: 'User',
+            specs: newSpecs
+          }
+        });
+        
+        // Mettre à jour le composant pour pointer vers cette version
+        await tx.component.update({
+          where: { id: componentId },
+          data: { currentVersionId: version.id }
+        });
+        
+        // Créer une entrée de changelog
+        await tx.changeLog.create({
+          data: {
+            entity: 'CompVersion',
+            changeType: action,
+            author: 'User',
+            compVersionId: version.id,
+            diffPayload: {
+              action,
+              previousStatus: currentSpecs.status,
+              newStatus
+            }
+          }
+        });
+        
+        return { 
+          component: await tx.component.findUnique({
+            where: { id: componentId },
+            include: { currentVersion: true }
+          }),
+          version 
+        };
+      });
+    } catch (error) {
+      console.error(`Error in updateMaterialStatus (${action}):`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Ajoute une nouvelle version à un matériau existant
    */
-  async addVersion(componentId: string, versionData: any) {
+  private async addVersion(componentId: string, versionData: any) {
     try {
       const { 
         name, 
@@ -168,7 +246,6 @@ export class MaterialService {
         // Créer une nouvelle version
         const version = await tx.compVersion.create({
           data: {
-            id: uuidv4(),
             componentId,
             versionNumber: nextVersionNumber,
             createdBy,
@@ -176,19 +253,25 @@ export class MaterialService {
           }
         });
         
+        // Mettre à jour le composant pour pointer vers cette version
+        await tx.component.update({
+          where: { id: componentId },
+          data: { currentVersionId: version.id }
+        });
+        
         // Créer une entrée de changelog
         await tx.changeLog.create({
           data: {
-            id: uuidv4(),
-            entity: 'comp_versions',
+            entity: 'CompVersion',
             changeType: 'update',
             author: createdBy,
             compVersionId: version.id,
             diffPayload: {
-              type: 'component_update',
-              name: newSpecs.name,
-              changes: { name, type, quantity, description, requirements, status },
-              action: 'update'
+              action: 'update',
+              versionNumber: nextVersionNumber,
+              changedFields: Object.keys(versionData).filter(k => 
+                k !== 'createdBy' && versionData[k] !== undefined
+              )
             }
           }
         });
@@ -196,12 +279,7 @@ export class MaterialService {
         return { 
           component: await tx.component.findUnique({
             where: { id: componentId },
-            include: { 
-              currentVersion: true,
-              versions: {
-                orderBy: { versionNumber: 'desc' }
-              }
-            }
+            include: { currentVersion: true }
           }), 
           version 
         };
@@ -213,109 +291,16 @@ export class MaterialService {
   }
 
   /**
-   * Valide ou rejette une version d'un matériau
+   * Supprimer un matériau et toutes ses versions
    */
-  async validateVersion(componentId: string, versionId: string, action: 'accept' | 'reject') {
+  async deleteMaterial(componentId: string) {
     try {
-      const component = await prisma.component.findUnique({
-        where: { id: componentId },
-        include: { versions: true }
-      });
-      
-      if (!component) {
-        throw new Error('Component not found');
-      }
-      
-      const version = component.versions.find(v => v.id === versionId);
-      if (!version) {
-        throw new Error('Version not found');
-      }
-      
-      if (action === 'accept') {
-        // Mettre à jour le composant pour utiliser cette version
-        await prisma.component.update({
-          where: { id: componentId },
-          data: { currentVersionId: versionId }
-        });
-        
-        // Créer une entrée de changelog
-        await prisma.changeLog.create({
-          data: {
-            id: uuidv4(),
-            entity: 'comp_versions',
-            changeType: 'validate',
-            author: 'User',
-            compVersionId: versionId,
-            diffPayload: {
-              type: 'validate_version',
-              action: 'accept',
-              versionNumber: version.versionNumber
-            }
-          }
-        });
-      } else {
-        // Créer une entrée de changelog pour le rejet
-        await prisma.changeLog.create({
-          data: {
-            id: uuidv4(),
-            entity: 'comp_versions',
-            changeType: 'validate',
-            author: 'User',
-            compVersionId: versionId,
-            diffPayload: {
-              type: 'validate_version',
-              action: 'reject',
-              versionNumber: version.versionNumber
-            }
-          }
-        });
-      }
-      
-      return await prisma.component.findUnique({
-        where: { id: componentId },
-        include: { 
-          currentVersion: true,
-          versions: {
-            orderBy: { versionNumber: 'desc' }
-          }
-        }
+      // Prisma va automatiquement supprimer les versions liées grâce aux relations
+      return await prisma.component.delete({
+        where: { id: componentId }
       });
     } catch (error) {
-      console.error('Error in validateVersion:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Récupère les liens d'achat pour un matériau
-   */
-  async getPurchaseLinks(componentId: string) {
-    try {
-      const component = await prisma.component.findUnique({
-        where: { id: componentId },
-        include: {
-          currentVersion: true,
-        },
-      });
-
-      if (!component || !component.currentVersion) {
-        return null;
-      }
-
-      // Extraire les liens d'achat du JSON specs
-      const specs = component.currentVersion.specs as Record<string, any>;
-      const purchaseLinks = specs.purchaseLinks || [];
-      
-      return {
-        id: component.id,
-        name: specs.modelNumber || specs.type || 'Component',
-        manufacturer: specs.manufacturer,
-        estimatedCost: specs.estimatedCost,
-        datasheet: specs.datasheet,
-        purchaseLinks: purchaseLinks
-      };
-    } catch (error) {
-      console.error('Error in getPurchaseLinks:', error);
+      console.error('Error in deleteMaterial:', error);
       throw error;
     }
   }

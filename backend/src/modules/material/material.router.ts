@@ -5,11 +5,12 @@ const router = Router();
 const materialController = new MaterialController();
 
 // Routes pour les matériaux
-router.get('/project/:projectId', materialController.listMaterials);
-router.post('/project/:projectId', materialController.createMaterial);
-router.get('/:id', materialController.getMaterialById);
-router.post('/:id/version', materialController.addVersion);
-router.post('/:id/validate', materialController.validateVersion);
-router.get('/:id/purchase-links', materialController.getPurchaseLinks);
+router.get('/project/:projectId', materialController.listMaterials.bind(materialController));
+router.post('/project/:projectId', materialController.createMaterial.bind(materialController));
+router.post('/project/:projectId/suggestions', materialController.generateSuggestions.bind(materialController));
+router.get('/:id', materialController.getMaterialById.bind(materialController));
+router.get('/:id/versions', materialController.getMaterialVersions.bind(materialController));
+router.put('/:id', materialController.updateMaterialStatus.bind(materialController));
+router.delete('/:id', materialController.deleteMaterial.bind(materialController));
 
 export const materialRouter = router;

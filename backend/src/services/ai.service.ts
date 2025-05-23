@@ -63,4 +63,43 @@ export class AIService {
 
     return parsedResponse;
   }
+
+  /**
+   * Suggère des composants matériels pour un projet
+   */
+  async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[] }) {
+    const { name, description, userPrompt = '', previousComponents = [] } = params;
+    
+    // Construire le système prompt en remplaçant les variables
+    let systemPrompt = prompts.materialsSearch
+      .replace('{{projectName}}', name)
+      .replace('{{projectDescription}}', description)
+      .replace('{{userPrompt}}', userPrompt);
+    
+    // Ajouter les composants précédents au prompt si disponibles
+    const previousCompJson = previousComponents.length > 0 
+      ? JSON.stringify(previousComponents.slice(0, 3)) // Limiter à 3 composants
+      : '[]';
+    
+    systemPrompt = systemPrompt.replace('{{previousComponents}}', previousCompJson);
+    
+    const messages = [
+      {
+        role: 'system',
+        content: systemPrompt
+      }
+    ];
+
+    const response = await this.callOpenAI(messages, 0.7);
+    let parsedResponse;
+    
+    try {
+      parsedResponse = JSON.parse(response);
+    } catch (error) {
+      console.error('Error parsing AI response:', error);
+      throw new Error('Invalid response format from AI service');
+    }
+
+    return parsedResponse;
+  }
 }
