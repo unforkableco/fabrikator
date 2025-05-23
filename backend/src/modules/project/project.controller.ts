@@ -106,51 +106,36 @@ export class ProjectController {
       // Analyser le prompt avec l'IA
       const analysisResult = await this.aiService.analyzeProjectPrompt(prompt);
       
-      // Tenter d'extraire les informations en fonction de la structure de réponse
+      // Extraire les données pour créer le projet
       let projectName = 'Nouveau projet';
       let projectDescription = prompt;
       
       try {
         if (analysisResult && typeof analysisResult === 'object') {
-          // Check if response property exists and use it to extract data
-          const resultData = 'response' in analysisResult ? analysisResult.response : analysisResult;
-          
-          // Extraire les composants si disponibles
-          const components = Array.isArray(resultData.components) ? resultData.components : [];
-          
-          // Extraire l'analyse si disponible
-          const analysis = resultData.analysis || {};
-          
-          // Générer un nom de projet à partir du résumé si disponible
-          if (analysis.summary) {
-            projectName = `Projet: ${analysis.summary.split('.')[0]}`;
+          if ('name' in analysisResult && typeof analysisResult.name === 'string') {
+            projectName = analysisResult.name;
           }
           
-          // Enrichir la description si possible
-          if (analysis.technicalRequirements && Array.isArray(analysis.technicalRequirements)) {
-            projectDescription = `${prompt}\n\nExigences techniques identifiées:\n${analysis.technicalRequirements.join('\n')}`;
+          if ('description' in analysisResult && typeof analysisResult.description === 'string') {
+            projectDescription = analysisResult.description;
           }
         }
       } catch (parseError) {
-        console.warn('Error parsing AI response structure:', parseError);
+        console.warn('Error parsing AI response:', parseError);
         // Continuer avec les valeurs par défaut
       }
       
-      // Extraire les données nécessaires pour créer le projet
+      // Créer le projet
       const projectData = {
         name: projectName,
         description: projectDescription,
         status: 'planning'
       };
       
-      // Créer le projet
       const project = await this.projectService.createProject(projectData);
       
-      // Retourner le résultat complet
-      res.status(201).json({
-        project,
-        analysisResult
-      });
+      // Retourner le projet créé
+      res.status(201).json(project);
     } catch (error) {
       console.error('Error creating project from prompt:', error);
       res.status(500).json({ error: 'Failed to create project from prompt' });

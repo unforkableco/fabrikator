@@ -1,5 +1,4 @@
 import { prisma } from '../../prisma/prisma.service';
-import { v4 as uuidv4 } from 'uuid';
 import { ProjectStatus } from '../../types';
 
 export class ProjectService {
@@ -8,36 +7,7 @@ export class ProjectService {
    */
   async getAllProjects() {
     try {
-      return await prisma.project.findMany({
-        include: {
-          components: {
-            include: {
-              currentVersion: true
-            }
-          },
-          requirements: {
-            include: {
-              currentVersion: true
-            }
-          },
-          wiringSchemas: {
-            include: {
-              currentVersion: true
-            }
-          },
-          product3Ds: {
-            include: {
-              currentVersion: true
-            }
-          },
-          documents: {
-            include: {
-              currentVersion: true
-            }
-          },
-          messages: true
-        }
-      });
+      return await prisma.project.findMany();
     } catch (error) {
       console.error('Error in getAllProjects:', error);
       throw error;
@@ -47,11 +17,10 @@ export class ProjectService {
   /**
    * Créer un nouveau projet
    */
-  async createProject(projectData: any) {
+  async createProject(projectData: { name: string; description?: string; status?: string }) {
     try {
       return await prisma.project.create({
         data: {
-          id: uuidv4(),
           name: projectData.name,
           description: projectData.description,
           status: projectData.status || ProjectStatus.PLANNING
@@ -69,52 +38,7 @@ export class ProjectService {
   async getProjectById(id: string) {
     try {
       return await prisma.project.findUnique({
-        where: { id },
-        include: {
-          components: {
-            include: {
-              currentVersion: true,
-              versions: {
-                orderBy: { versionNumber: 'desc' }
-              }
-            }
-          },
-          requirements: {
-            include: {
-              currentVersion: true,
-              versions: {
-                orderBy: { versionNumber: 'desc' }
-              }
-            }
-          },
-          wiringSchemas: {
-            include: {
-              currentVersion: true,
-              versions: {
-                orderBy: { versionNumber: 'desc' }
-              }
-            }
-          },
-          product3Ds: {
-            include: {
-              currentVersion: true,
-              versions: {
-                orderBy: { versionNumber: 'desc' }
-              }
-            }
-          },
-          documents: {
-            include: {
-              currentVersion: true,
-              versions: {
-                orderBy: { versionNumber: 'desc' }
-              }
-            }
-          },
-          messages: {
-            orderBy: { createdAt: 'asc' }
-          }
-        }
+        where: { id }
       });
     } catch (error) {
       console.error('Error in getProjectById:', error);
@@ -125,7 +49,7 @@ export class ProjectService {
   /**
    * Mettre à jour un projet
    */
-  async updateProject(id: string, projectData: any) {
+  async updateProject(id: string, projectData: { name?: string; description?: string; status?: string }) {
     try {
       return await prisma.project.update({
         where: { id },
@@ -160,14 +84,12 @@ export class ProjectService {
    */
   async addMessageToProject(projectId: string, message: { context: string, content: string }) {
     try {
-      return await prisma.message.create({
-        data: {
-          id: uuidv4(),
-          projectId,
-          context: message.context,
-          content: message.content
-        }
-      });
+      // Using the simplified form based on schema
+      return await prisma.$queryRaw`
+        INSERT INTO "Message" ("projectId", "context", "content", "createdAt")
+        VALUES (${projectId}, ${message.context}, ${message.content}, NOW())
+        RETURNING *
+      `;
     } catch (error) {
       console.error('Error in addMessageToProject:', error);
       throw error;

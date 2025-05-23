@@ -15,34 +15,8 @@ model Project {
   createdAt     DateTime       @default(now()) @db.Timestamptz(6)
   updatedAt     DateTime       @default(now()) @db.Timestamptz(6)
   components    Component[]
-  documents     Document[]
-  product3Ds    Product3D[]
-  requirements  Requirement[]
   wiringSchemas WiringSchema[]
   messages      Message[]
-}
-
-model Requirement {
-  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  projectId        String       @db.Uuid
-  currentVersionId String?      @db.Uuid
-  versions         ReqVersion[]
-  currentVersion   ReqVersion?  @relation("currentReqVersion", fields: [currentVersionId], references: [id])
-  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-}
-
-model ReqVersion {
-  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  requirementId String        @db.Uuid
-  versionNumber Int
-  createdBy     String
-  createdAt     DateTime      @default(now()) @db.Timestamptz(6)
-  details       Json
-  changeLogs    ChangeLog[]
-  requirement   Requirement   @relation(fields: [requirementId], references: [id], onDelete: Cascade)
-  currentFor    Requirement[] @relation("currentReqVersion")
-
-  @@unique([requirementId, versionNumber])
 }
 
 model Component {
@@ -68,29 +42,6 @@ model CompVersion {
   @@unique([componentId, versionNumber])
 }
 
-model Product3D {
-  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  projectId        String       @db.Uuid
-  currentVersionId String?      @db.Uuid
-  versions         P3DVersion[]
-  currentVersion   P3DVersion?  @relation("currentP3DVersion", fields: [currentVersionId], references: [id])
-  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-}
-
-model P3DVersion {
-  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  product3DId   String      @db.Uuid
-  versionNumber Int
-  createdBy     String
-  createdAt     DateTime    @default(now()) @db.Timestamptz(6)
-  modelData     Json
-  changeLogs    ChangeLog[]
-  product3D     Product3D   @relation(fields: [product3DId], references: [id], onDelete: Cascade)
-  currentFor    Product3D[] @relation("currentP3DVersion")
-
-  @@unique([product3DId, versionNumber])
-}
-
 model WiringSchema {
   id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   projectId        String        @db.Uuid
@@ -114,29 +65,6 @@ model WireVersion {
   @@unique([wiringSchemaId, versionNumber])
 }
 
-model Document {
-  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  projectId        String       @db.Uuid
-  currentVersionId String?      @db.Uuid
-  versions         DocVersion[]
-  currentVersion   DocVersion?  @relation("currentDocVersion", fields: [currentVersionId], references: [id])
-  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-}
-
-model DocVersion {
-  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  documentId    String      @db.Uuid
-  versionNumber Int
-  createdBy     String
-  createdAt     DateTime    @default(now()) @db.Timestamptz(6)
-  content       Json
-  changeLogs    ChangeLog[]
-  document      Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  currentFor    Document[]  @relation("currentDocVersion")
-
-  @@unique([documentId, versionNumber])
-}
-
 model ChangeLog {
   id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   entity        String
@@ -145,14 +73,8 @@ model ChangeLog {
   diffPayload   Json?
   createdAt     DateTime     @default(now()) @db.Timestamptz(6)
   compVersionId String?      @db.Uuid
-  docVersionId  String?      @db.Uuid
-  p3dVersionId  String?      @db.Uuid
-  reqVersionId  String?      @db.Uuid
   wireVersionId String?      @db.Uuid
   compVersion   CompVersion? @relation(fields: [compVersionId], references: [id], onDelete: Restrict)
-  docVersion    DocVersion?  @relation(fields: [docVersionId], references: [id], onDelete: Restrict)
-  p3dVersion    P3DVersion?  @relation(fields: [p3dVersionId], references: [id], onDelete: Restrict)
-  reqVersion    ReqVersion?  @relation(fields: [reqVersionId], references: [id], onDelete: Restrict)
   wireVersion   WireVersion? @relation(fields: [wireVersionId], references: [id], onDelete: Restrict)
 }
 
