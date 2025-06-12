@@ -10,8 +10,8 @@ import {
   ListItem,
   ListItemText,
 } from '@mui/material';
-import { Project } from '../../types';
-import { api } from '../../config/api';
+import { Project } from '../../../shared/types';
+import { api } from '../../../shared/services/api';
 
 interface UserPromptProps {
   project: Project;
@@ -27,7 +27,7 @@ const UserPrompt: React.FC<UserPromptProps> = ({ project, onUpdateProject }) => 
 
     setIsProcessing(true);
     try {
-      const { message, changes, project: updatedProject } = await api.projects.processPrompt(
+      const { project: updatedProject } = await api.projects.processPrompt(
         project.id,
         userInput
       );

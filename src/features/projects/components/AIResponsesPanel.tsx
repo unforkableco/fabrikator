@@ -1,6 +1,25 @@
 import React, { useState } from 'react';
-import { Box, Typography, Paper, List, ListItem, ListItemText, Divider, Chip, Checkbox, ListItemIcon, Card, CardContent, Grid, TextField, Button, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import { Message } from '../types';
+import { 
+  Box, 
+  Typography, 
+  List, 
+  ListItem, 
+  ListItemText, 
+  Divider, 
+  Chip, 
+  Checkbox, 
+  ListItemIcon, 
+  Card, 
+  CardContent, 
+  Grid, 
+  TextField, 
+  Button, 
+  Dialog, 
+  DialogTitle, 
+  DialogContent, 
+  DialogActions 
+} from '@mui/material';
+import { Message } from '../../../shared/types';
 
 interface AIResponsesPanelProps {
   messages: Message[];
@@ -8,12 +27,19 @@ interface AIResponsesPanelProps {
   onUpdateMaterials: (materials: any[]) => void;
 }
 
-export const AIResponsesPanel: React.FC<AIResponsesPanelProps> = ({ messages, materials, onUpdateMaterials }) => {
+export const AIResponsesPanel: React.FC<AIResponsesPanelProps> = ({ 
+  messages, 
+  materials, 
+  onUpdateMaterials 
+}) => {
   const [additionalPrompt, setAdditionalPrompt] = useState('');
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const initialResponse = messages.find(m => m.role === 'assistant' && m.content.includes('Initial project analysis'));
+  const initialResponse = messages.find(m => 
+    (m.role === 'assistant' || m.context === 'assistant') && 
+    m.content.includes('Initial project analysis')
+  );
   const otherMessages = messages.filter(m => m !== initialResponse);
 
   const parseAnalysis = (content: string) => {
@@ -72,7 +98,9 @@ export const AIResponsesPanel: React.FC<AIResponsesPanelProps> = ({ messages, ma
             <Card sx={{ bgcolor: 'primary.light', color: 'primary.contrastText' }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="h5" gutterBottom>Project Summary</Typography>
-                <Typography variant="body1" sx={{ fontSize: '1.1rem' }}>{analysis.summary}</Typography>
+                <Typography variant="body1" sx={{ fontSize: '1.1rem' }}>
+                  {analysis.summary}
+                </Typography>
               </CardContent>
             </Card>
           </Grid>
@@ -80,14 +108,19 @@ export const AIResponsesPanel: React.FC<AIResponsesPanelProps> = ({ messages, ma
           <Grid item xs={12}>
             <Card sx={{ height: '100%' }}>
               <CardContent sx={{ p: 3 }}>
-                <Typography variant="h5" color="primary" gutterBottom>Technical Requirements</Typography>
+                <Typography variant="h5" color="primary" gutterBottom>
+                  Technical Requirements
+                </Typography>
                 <List dense>
                   {analysis.technicalRequirements.map((req, index) => (
                     <ListItem key={index} sx={{ py: 1 }}>
                       <ListItemIcon>
                         <Checkbox edge="start" />
                       </ListItemIcon>
-                      <ListItemText primary={req} primaryTypographyProps={{ sx: { fontSize: '1.1rem' } }} />
+                      <ListItemText 
+                        primary={req} 
+                        primaryTypographyProps={{ sx: { fontSize: '1.1rem' } }} 
+                      />
                     </ListItem>
                   ))}
                 </List>
@@ -105,7 +138,10 @@ export const AIResponsesPanel: React.FC<AIResponsesPanelProps> = ({ messages, ma
                       <ListItemIcon>
                         <Checkbox edge="start" sx={{ color: 'warning.contrastText' }} />
                       </ListItemIcon>
-                      <ListItemText primary={challenge} primaryTypographyProps={{ sx: { fontSize: '1.1rem' } }} />
+                      <ListItemText 
+                        primary={challenge} 
+                        primaryTypographyProps={{ sx: { fontSize: '1.1rem' } }} 
+                      />
                     </ListItem>
                   ))}
                 </List>
@@ -123,7 +159,10 @@ export const AIResponsesPanel: React.FC<AIResponsesPanelProps> = ({ messages, ma
                       <ListItemIcon>
                         <Checkbox edge="start" sx={{ color: 'success.contrastText' }} />
                       </ListItemIcon>
-                      <ListItemText primary={rec} primaryTypographyProps={{ sx: { fontSize: '1.1rem' } }} />
+                      <ListItemText 
+                        primary={rec} 
+                        primaryTypographyProps={{ sx: { fontSize: '1.1rem' } }} 
+                      />
                     </ListItem>
                   ))}
                 </List>
@@ -133,7 +172,7 @@ export const AIResponsesPanel: React.FC<AIResponsesPanelProps> = ({ messages, ma
         </Grid>
       );
     } catch (error) {
-      return content;
+      return <Typography>{content}</Typography>;
     }
   };
 
@@ -200,117 +239,107 @@ export const AIResponsesPanel: React.FC<AIResponsesPanelProps> = ({ messages, ma
       }
       return material;
     });
+
     onUpdateMaterials(updatedMaterials);
     setShowSuggestions(false);
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Typography variant="h5" sx={{ p: 3, bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
-        AI Analysis
+    <Box sx={{ p: 2, height: '100%', overflow: 'auto' }}>
+      <Typography variant="h6" gutterBottom>
+        AI Analysis & Recommendations
       </Typography>
       
       {initialResponse && (
-        <Box sx={{ p: 3, overflow: 'auto' }}>
+        <Box sx={{ mb: 3 }}>
           {formatResponse(initialResponse.content)}
         </Box>
       )}
 
-      <Box sx={{ p: 3, borderTop: 1, borderColor: 'divider' }}>
+      {otherMessages.length > 0 && (
+        <>
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="h6" gutterBottom>
+            Additional Responses
+          </Typography>
+          <List>
+            {otherMessages.map((message, index) => (
+              <ListItem key={index} sx={{ p: 0, mb: 2 }}>
+                <Card sx={{ width: '100%' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Chip 
+                        label={message.context || message.role || 'AI'} 
+                        size="small" 
+                        color="primary" 
+                      />
+                      <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                        {message.timestamp || message.createdAt}
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1">
+                      {message.content}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </ListItem>
+            ))}
+          </List>
+        </>
+      )}
+
+      {/* Additional prompt section */}
+      <Box sx={{ mt: 3 }}>
         <TextField
           fullWidth
           multiline
           rows={3}
-          variant="outlined"
-          label="Ask AI for suggestions"
+          placeholder="Ask for additional analysis or clarification..."
           value={additionalPrompt}
           onChange={(e) => setAdditionalPrompt(e.target.value)}
           sx={{ mb: 2 }}
         />
         <Button 
-          variant="contained" 
+          variant="outlined" 
           onClick={handleSubmitPrompt}
           disabled={!additionalPrompt.trim()}
         >
-          Get Suggestions
+          Get AI Suggestions
         </Button>
       </Box>
 
-      <Dialog 
-        open={showSuggestions} 
-        onClose={() => setShowSuggestions(false)}
-        maxWidth="md"
-        fullWidth
-      >
+      {/* Suggestions Dialog */}
+      <Dialog open={showSuggestions} onClose={() => setShowSuggestions(false)} maxWidth="md" fullWidth>
         <DialogTitle>AI Suggestions</DialogTitle>
         <DialogContent>
-          <List>
-            {suggestions.map((suggestion, index) => (
-              <ListItem key={index}>
-                <ListItemText
-                  primary={suggestion.type}
-                  secondary={
-                    <Box>
-                      <Typography variant="body2">
-                        Current: {JSON.stringify(suggestion.details)}
-                      </Typography>
-                      <Typography variant="body2" color="primary">
-                        Suggested: {JSON.stringify(suggestion.newDetails)}
-                      </Typography>
-                    </Box>
-                  }
-                />
-                <Box>
-                  <Button 
-                    color="success" 
-                    onClick={() => handleAcceptSuggestion(suggestion)}
-                  >
-                    Accept
-                  </Button>
-                  <Button 
-                    color="error" 
-                    onClick={() => handleRejectSuggestion(suggestion)}
-                  >
-                    Reject
-                  </Button>
-                </Box>
-              </ListItem>
-            ))}
-          </List>
+          {suggestions.map((suggestion, index) => (
+            <Card key={index} sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  {suggestion.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {suggestion.description}
+                </Typography>
+              </CardContent>
+              <DialogActions>
+                <Button onClick={() => handleRejectSuggestion(suggestion)}>
+                  Reject
+                </Button>
+                <Button 
+                  onClick={() => handleAcceptSuggestion(suggestion)} 
+                  variant="contained"
+                >
+                  Accept
+                </Button>
+              </DialogActions>
+            </Card>
+          ))}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowSuggestions(false)}>Close</Button>
         </DialogActions>
       </Dialog>
-
-      <List sx={{ flex: 1, overflow: 'auto' }}>
-        {otherMessages.map((message, index) => (
-          <React.Fragment key={message.id}>
-            <ListItem>
-              <ListItemText
-                primary={
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Chip 
-                      label={message.role === 'assistant' ? 'AI' : 'User'} 
-                      size="small"
-                      color={message.role === 'assistant' ? 'primary' : 'secondary'}
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      {new Date(message.timestamp).toLocaleString()}
-                    </Typography>
-                  </Box>
-                }
-                secondary={
-                  <Box sx={{ mt: 2 }}>
-                    {message.role === 'assistant' ? formatResponse(message.content) : message.content}
-                  </Box>
-                }
-              />
-            </ListItem>
-            {index < otherMessages.length - 1 && <Divider />}
-          </React.Fragment>
-        ))}
-      </List>
     </Box>
   );
 }; 

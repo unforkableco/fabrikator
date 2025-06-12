@@ -8,12 +8,14 @@ export class MaterialService {
    */
   async listMaterials(projectId: string) {
     try {
-      return await prisma.component.findMany({
+      const components = await prisma.component.findMany({
         where: { projectId },
         include: { 
-          currentVersion: true
+          currentVersion: true,
+          versions: true // Include all versions
         }
       });
+      return components;
     } catch (error) {
       console.error('Error in listMaterials:', error);
       throw error;
