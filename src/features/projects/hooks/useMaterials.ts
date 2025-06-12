@@ -105,7 +105,7 @@ export const useMaterials = (projectId?: string) => {
 
   const rejectMaterial = async (materialId: string) => {
     try {
-      await api.projects.deleteMaterial(materialId);
+      await api.projects.updateMaterialStatus(materialId, 'reject');
       await fetchMaterials(); // Refresh the list
       setError(null);
     } catch (err) {

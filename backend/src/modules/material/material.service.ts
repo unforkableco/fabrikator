@@ -4,7 +4,7 @@ import { MaterialStatus } from '../../types';
 
 export class MaterialService {
   /**
-   * Liste tous les matériaux d'un projet
+   * Liste tous les matériaux d'un projet (exclut les matériaux rejetés)
    */
   async listMaterials(projectId: string) {
     try {
@@ -15,7 +15,14 @@ export class MaterialService {
           versions: true // Include all versions
         }
       });
-      return components;
+      
+      // Filtrer les matériaux rejetés
+      const activeComponents = components.filter(component => {
+        const specs = component.currentVersion?.specs as any;
+        return specs?.status !== MaterialStatus.REJECTED;
+      });
+      
+      return activeComponents;
     } catch (error) {
       console.error('Error in listMaterials:', error);
       throw error;
@@ -297,9 +304,23 @@ export class MaterialService {
    */
   async deleteMaterial(componentId: string) {
     try {
-      // Prisma va automatiquement supprimer les versions liées grâce aux relations
-      return await prisma.component.delete({
-        where: { id: componentId }
+      return await prisma.$transaction(async (tx) => {
+        // D'abord, récupérer toutes les versions du composant
+        const versions = await tx.compVersion.findMany({
+          where: { componentId }
+        });
+
+        // Supprimer tous les ChangeLogs associés aux versions
+        for (const version of versions) {
+          await tx.changeLog.deleteMany({
+            where: { compVersionId: version.id }
+          });
+        }
+
+        // Maintenant on peut supprimer le composant (et ses versions grâce à onDelete: Cascade)
+        return await tx.component.delete({
+          where: { id: componentId }
+        });
       });
     } catch (error) {
       console.error('Error in deleteMaterial:', error);

@@ -1,5 +1,9 @@
-// Export des composants spécifiques aux projets
-export { ProjectHeader } from './ProjectHeader';
+// Materials components
+export * from './materials';
+
+// Chat components  
+export * from './chat';
+
+// Other components
 export { ProjectTabs } from './ProjectTabs';
-export { AIResponsesPanel } from './AIResponsesPanel';
-export { default as UserPrompt } from './UserPrompt'; 
+export { ProjectHeader } from './ProjectHeader'; 

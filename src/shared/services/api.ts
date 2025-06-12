@@ -73,7 +73,10 @@ export const api = {
     },
 
     updateMaterial: async (materialId: string, material: Partial<Material>): Promise<Material> => {
-      const response = await apiClient.put(`/materials/${materialId}`, material);
+      const response = await apiClient.put(`/materials/${materialId}`, {
+        action: 'update',
+        ...material
+      });
       return response.data;
     },
 

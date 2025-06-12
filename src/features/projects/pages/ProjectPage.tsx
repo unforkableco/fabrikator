@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Container,
@@ -6,6 +6,9 @@ import {
   CircularProgress,
   Alert,
   Typography,
+  Paper,
+  Tabs,
+  Tab,
 } from '@mui/material';
 
 import { ProjectHeader } from '../components/ProjectHeader';
@@ -13,11 +16,7 @@ import { ProjectTabs } from '../components/ProjectTabs';
 import { TabPanel } from '../../../shared/components/ui/TabPanel';
 import { useProject } from '../hooks/useProject';
 import { useMaterials } from '../hooks/useMaterials';
-import MaterialsPanel from '../components/MaterialsPanel';
-
-// Import des composants de la feature
-import UserPrompt from '../components/UserPrompt';
-import { AIResponsesPanel } from '../components/AIResponsesPanel';
+import { MaterialsPanel } from '../components';
 
 const ProjectPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -134,25 +133,6 @@ const ProjectPage: React.FC = () => {
           <Typography variant="body2" color="text.secondary">
             Wiring interface will be here.
           </Typography>
-        </TabPanel>
-
-        {/* AI Assistant Tab */}
-        <TabPanel value={tabValue} index={4} id="project">
-          <Box sx={{ display: 'flex', gap: 3, height: '70vh' }}>
-            <Box sx={{ flex: 1 }}>
-              <UserPrompt 
-                project={project}
-                onUpdateProject={updateProject}
-              />
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <AIResponsesPanel 
-                messages={project.messages || []}
-                materials={materials}
-                onUpdateMaterials={() => {}} // TODO: implement
-              />
-            </Box>
-          </Box>
         </TabPanel>
       </Container>
     </Box>

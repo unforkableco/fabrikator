@@ -11,7 +11,6 @@ const tabs = [
   { label: 'Materials', id: 'materials' },
   { label: 'Components', id: 'components' },
   { label: 'Wiring', id: 'wiring' },
-  { label: 'AI Assistant', id: 'ai-assistant' },
 ];
 
 export const ProjectTabs: React.FC<ProjectTabsProps> = ({ value, onChange }) => {

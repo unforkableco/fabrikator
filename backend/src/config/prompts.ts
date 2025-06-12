@@ -43,6 +43,7 @@ export const prompts = {
             "quantity": number,
             "notes": "string"
           }
+
         }
       ]
     }
@@ -107,4 +108,4 @@ export const prompts = {
     2. Any suggested changes to the project
     3. Next steps or recommendations
   `,
-}; 
+};
