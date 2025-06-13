@@ -103,7 +103,7 @@ const HomePage: React.FC = () => {
   };
 
   const handleDeleteClick = (e: React.MouseEvent, project: Project) => {
-    e.stopPropagation(); // Empêche la navigation vers le projet
+    e.stopPropagation(); // Prevent navigation to project
     setProjectToDelete(project);
     setDeleteDialogOpen(true);
   };
@@ -115,11 +115,11 @@ const HomePage: React.FC = () => {
       setIsDeleting(true);
       await api.projects.delete(projectToDelete.id);
       
-      // Mettre à jour la liste des projets
+      // Update the projects list
       const updatedProjects = projects.filter(p => p.id !== projectToDelete.id);
       setProjects(updatedProjects);
       setFilteredProjects(updatedProjects.filter(project => {
-        // Réappliquer les filtres existants
+        // Reapply existing filters
         let matches = true;
         
         if (searchTerm) {
@@ -328,12 +328,12 @@ const HomePage: React.FC = () => {
         aria-describedby="delete-dialog-description"
       >
         <DialogTitle id="delete-dialog-title">
-          Supprimer le projet
+          Delete Project
         </DialogTitle>
         <DialogContent>
           <DialogContentText id="delete-dialog-description">
-            Êtes-vous sûr de vouloir supprimer le projet "{projectToDelete?.name}" ?
-            Cette action est irréversible et supprimera définitivement le projet et tous ses matériaux associés.
+            Are you sure you want to delete the project "{projectToDelete?.name}"?
+            This action is irreversible and will permanently delete the project and all its associated materials.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
@@ -341,7 +341,7 @@ const HomePage: React.FC = () => {
             onClick={handleDeleteCancel} 
             disabled={isDeleting}
           >
-            Annuler
+            Cancel
           </Button>
           <Button 
             onClick={handleDeleteConfirm} 
@@ -350,7 +350,7 @@ const HomePage: React.FC = () => {
             disabled={isDeleting}
             startIcon={isDeleting ? <CircularProgress size={16} /> : undefined}
           >
-            {isDeleting ? 'Suppression...' : 'Supprimer'}
+            {isDeleting ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -70,8 +70,6 @@ export const prompts = {
     - Be thorough in component selection and specifications
 `,
 
-
-  
   wiringGeneration: `
     Generate a wiring plan for the following components:
     {{components}}

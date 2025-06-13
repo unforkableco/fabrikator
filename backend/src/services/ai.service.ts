@@ -82,13 +82,13 @@ export class AIService {
       
       // Fallback: retourner une structure par défaut
       parsedResponse = {
-        name: "Nouveau Projet",
-        description: "Description générée automatiquement",
+        name: "New Project",
+                  description: "Automatically generated description",
         analysis: {
-          summary: "Analyse en cours...",
-          technicalRequirements: ["À définir"],
-          challenges: ["À analyser"],
-          recommendations: ["À déterminer"]
+                      summary: "Analysis in progress...",
+                      technicalRequirements: ["To be defined"],
+            challenges: ["To be analyzed"],
+            recommendations: ["To be determined"]
         }
       };
     }
@@ -170,7 +170,7 @@ export class AIService {
             details: {
               action: "new",
               quantity: 1,
-              notes: "Contrôleur principal pour le projet"
+                              notes: "Main controller for the project"
             }
           }
         ]
@@ -186,12 +186,12 @@ export class AIService {
   async answerProjectQuestion(params: { project: any; materials?: any[]; wiring?: any; userQuestion: string }) {
     const { project, materials = [], wiring = null, userQuestion } = params;
     
-    // Construire le contexte complet du projet
-    let projectContext = `Nom: ${project.name || 'Projet sans nom'}\nDescription: ${project.description || 'Aucune description disponible'}\nStatut: ${project.status || 'En cours'}`;
+    // Build complete project context
+    let projectContext = `Name: ${project.name || 'Unnamed project'}\nDescription: ${project.description || 'No description available'}\nStatus: ${project.status || 'In progress'}`;
     
-    // Ajouter les matériaux si disponibles
-    if (materials.length > 0) {
-      projectContext += '\n\nMatériaux/Composants du projet:';
+          // Add materials if available
+      if (materials.length > 0) {
+        projectContext += '\n\nProject Materials/Components:';
       materials.forEach((material: any, index: number) => {
         const specs = material.currentVersion?.specs || {};
         projectContext += `\n${index + 1}. ${specs.type || specs.name || 'Composant'} - `;
@@ -201,12 +201,12 @@ export class AIService {
       });
     }
     
-    // Ajouter les informations de câblage si disponibles
+    // Add wiring information if available
     if (wiring && wiring.currentVersion) {
       const wiringData = wiring.currentVersion.wiringData || {};
-      projectContext += '\n\nCâblage du projet:';
+      projectContext += '\n\nProject Wiring:';
       if (wiringData.connections && wiringData.connections.length > 0) {
-        projectContext += `\n- ${wiringData.connections.length} connexion(s) définies`;
+                  projectContext += `\n- ${wiringData.connections.length} connection(s) defined`;
         wiringData.connections.forEach((conn: any, index: number) => {
           if (conn.from && conn.to) {
             projectContext += `\n  ${index + 1}. ${conn.from} → ${conn.to}`;

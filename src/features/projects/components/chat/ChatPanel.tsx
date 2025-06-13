@@ -391,10 +391,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           maxRows={3}
           placeholder={
             isGenerating
-              ? "Génération en cours..."
+                              ? "Generating..."
               : chatMode === 'ask' 
-                ? '@/chat Posez votre question...'
-                : '@/chat Dites-moi quoi modifier...'
+                                  ? '@/chat Ask your question...'
+                                  : '@/chat Tell me what to modify...'
           }
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}

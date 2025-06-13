@@ -45,7 +45,7 @@ const NewProjectPage: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
-    setLoadingStatus('Création du projet...');
+    setLoadingStatus('Creating project...');
 
     try {
       const project = await api.projects.create({
@@ -54,15 +54,15 @@ const NewProjectPage: React.FC = () => {
         status: ProjectStatus.PLANNING,
       });
 
-      // Générer automatiquement une première liste de matériaux
-      setLoadingStatus('Génération de la liste des matériaux...');
+      // Automatically generate an initial materials list
+      setLoadingStatus('Generating materials list...');
       try {
-        // Utiliser la description fournie ou une description basique basée sur le nom du projet
-        const materialPrompt = description.trim() || `Projet ${projectName.trim()} - générer une liste de composants de base`;
+        // Use the provided description or a basic description based on the project name
+        const materialPrompt = description.trim() || `Project ${projectName.trim()} - generate a basic component list`;
         await api.projects.generateMaterialSuggestions(project.id, materialPrompt);
       } catch (materialError) {
         console.warn('Failed to generate initial materials:', materialError);
-        // On continue même si la génération de matériaux échoue
+        // Continue even if material generation fails
       }
 
       navigate(`/project/${project.id}`);
@@ -83,18 +83,18 @@ const NewProjectPage: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
-    setLoadingStatus('Analyse du projet avec l\'IA...');
+    setLoadingStatus('Analyzing project with AI...');
 
     try {
       const project = await api.projects.createFromPrompt(prompt.trim());
       
-      // Générer automatiquement une première liste de matériaux basée sur le prompt original
-      setLoadingStatus('Génération de la liste des matériaux...');
+      // Automatically generate an initial materials list based on the original prompt
+      setLoadingStatus('Generating materials list...');
       try {
         await api.projects.generateMaterialSuggestions(project.id, prompt.trim());
       } catch (materialError) {
         console.warn('Failed to generate initial materials:', materialError);
-        // On continue même si la génération de matériaux échoue
+        // Continue even if material generation fails
       }
 
       navigate(`/project/${project.id}`);

@@ -82,7 +82,7 @@ const ProjectPage: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <ProjectHeader project={project} />
+      <ProjectHeader project={project} onProjectUpdate={updateProject} />
       <ProjectTabs value={tabValue} onChange={handleTabChange} />
 
       <Container maxWidth="lg" sx={{ flexGrow: 1, py: 3 }}>

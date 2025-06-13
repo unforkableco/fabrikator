@@ -150,7 +150,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           aiResponse = response.answer;
         } catch (error) {
           console.error('Error asking question:', error);
-          aiResponse = `Désolé, j'ai rencontré une erreur en essayant de répondre à votre question. Pouvez-vous reformuler ou réessayer ?`;
+          aiResponse = `Sorry, I encountered an error trying to answer your question. Could you rephrase or try again?`;
         }
       } else {
         // Mode Agent - Génération de suggestions de matériaux
@@ -186,7 +186,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
             }
             
             if (responseWithExplanation.explanation.changes && responseWithExplanation.explanation.changes.length > 0) {
-              explanationText += 'Modifications apportées :\n';
+              explanationText += 'Changes made:\n';
               responseWithExplanation.explanation.changes.forEach((change: any, index: number) => {
                 const emoji = change.type === 'added' ? '✅' : 
                             change.type === 'removed' ? '❌' : 
@@ -197,7 +197,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
             }
             
             if (responseWithExplanation.explanation.impact) {
-              explanationText += `Impact : ${responseWithExplanation.explanation.impact}\n\n`;
+              explanationText += `Impact: ${responseWithExplanation.explanation.impact}\n\n`;
             }
             
             if (responseWithExplanation.explanation.nextSteps) {
@@ -290,7 +290,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         // Ajouter un message de confirmation
         const confirmMessage: ChatMessage = {
           id: Date.now().toString(),
-          content: `✅ Suggestions acceptées ! ${response.length} composant(s) ont été mis à jour dans votre projet.`,
+          content: `✅ Suggestions accepted! ${response.length} component(s) have been updated in your project.`,
           sender: 'ai',
           timestamp: new Date(),
           mode: 'agent',
@@ -381,7 +381,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       // Ajouter un message de confirmation
       const confirmMessage: ChatMessage = {
         id: Date.now().toString(),
-        content: `✅ Suggestion acceptée : "${suggestion.title}" a été appliquée à votre projet.`,
+        content: `✅ Suggestion accepted: "${suggestion.title}" has been applied to your project.`,
         sender: 'ai',
         timestamp: new Date(),
         mode: 'agent',
