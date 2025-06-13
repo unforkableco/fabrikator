@@ -296,10 +296,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           }}>
             <SmartToyIcon sx={{ fontSize: 32, mb: 1, opacity: 0.3 }} />
             <Typography variant="body2" color="text.secondary">
-              Commencez une conversation
+              Start a conversation
             </Typography>
             <Typography variant="caption" color="text.disabled">
-              Choisissez "Ask" pour des questions ou "Agent" pour des modifications
+              Choose "Ask" for questions or "Agent" for modifications
             </Typography>
           </Box>
         ) : (
@@ -328,7 +328,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   <Box sx={{ flexGrow: 1, maxWidth: '85%' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                       <Typography variant="caption" color="text.secondary">
-                        {message.sender === 'user' ? 'Vous' : 'Assistant'}
+                        {message.sender === 'user' ? 'You' : 'Assistant'}
                       </Typography>
                       <Chip
                         label={message.mode}
