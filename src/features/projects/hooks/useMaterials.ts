@@ -34,11 +34,9 @@ export const useMaterials = (projectId?: string) => {
     setIsLoading(true);
     try {
       const backendComponents = await api.projects.getMaterials(projectId);
-      console.log('Backend components:', backendComponents); // Debug log
       
       // Transformer les données du backend vers le format Material
       const transformedMaterials = backendComponents.map(transformBackendToMaterial);
-      console.log('Transformed materials:', transformedMaterials); // Debug log
       
       setMaterials(transformedMaterials);
       setError(null);
@@ -51,7 +49,9 @@ export const useMaterials = (projectId?: string) => {
   };
 
   useEffect(() => {
-    fetchMaterials();
+    if (projectId) {
+      fetchMaterials();
+    }
   }, [projectId]);
 
   const generateInsights = async (description: string) => {
@@ -60,7 +60,6 @@ export const useMaterials = (projectId?: string) => {
     setIsGeneratingInsights(true);
     try {
       const suggestions = await api.projects.generateMaterialSuggestions(projectId, description);
-      console.log('AI suggestions:', suggestions); // Debug log
       
       // Transformer les suggestions si nécessaire
       const transformedSuggestions = Array.isArray(suggestions) 
@@ -81,9 +80,7 @@ export const useMaterials = (projectId?: string) => {
     if (!projectId) return;
     
     try {
-      console.log('Adding material:', material); // Debug log
       const result = await api.projects.addMaterial(projectId, material);
-      console.log('Add result:', result); // Debug log
       await fetchMaterials(); // Refresh the list
       setError(null);
     } catch (err) {

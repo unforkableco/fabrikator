@@ -15,10 +15,17 @@ import {
   Fab,
   CircularProgress,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  IconButton,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Search as SearchIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { Project } from '../shared/types';
 import { api } from '../shared/services/api';
@@ -31,6 +38,9 @@ const HomePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -90,6 +100,58 @@ const HomePage: React.FC = () => {
 
   const handleFilterChange = (filter: string) => {
     setSelectedFilter(filter);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, project: Project) => {
+    e.stopPropagation(); // Empêche la navigation vers le projet
+    setProjectToDelete(project);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!projectToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      await api.projects.delete(projectToDelete.id);
+      
+      // Mettre à jour la liste des projets
+      const updatedProjects = projects.filter(p => p.id !== projectToDelete.id);
+      setProjects(updatedProjects);
+      setFilteredProjects(updatedProjects.filter(project => {
+        // Réappliquer les filtres existants
+        let matches = true;
+        
+        if (searchTerm) {
+          matches = matches && (
+            project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            Boolean(project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()))
+          );
+        }
+        
+        if (selectedFilter !== 'all') {
+          if (selectedFilter === 'in-progress') {
+            matches = matches && ['design', 'prototype', 'testing', 'production'].includes(project.status);
+          } else {
+            matches = matches && project.status === selectedFilter;
+          }
+        }
+        
+        return matches;
+      }));
+      
+      setDeleteDialogOpen(false);
+      setProjectToDelete(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete project');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setProjectToDelete(null);
   };
 
   if (error) {
@@ -186,14 +248,31 @@ const HomePage: React.FC = () => {
                 >
                   <CardContent sx={{ flexGrow: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                      <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
+                      <Typography variant="h6" component="h2" sx={{ fontWeight: 600, flex: 1 }}>
                         {project.name}
                       </Typography>
-                      <Chip
-                        label={getStatusDisplayLabel(project.status)}
-                        color={getStatusColor(project.status) as any}
-                        size="small"
-                      />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip
+                          label={getStatusDisplayLabel(project.status)}
+                          color={getStatusColor(project.status) as any}
+                          size="small"
+                        />
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={(e) => handleDeleteClick(e, project)}
+                          sx={{ 
+                            opacity: 0.7,
+                            '&:hover': {
+                              opacity: 1,
+                              backgroundColor: 'error.light',
+                              color: 'white',
+                            }
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
                     </Box>
                     
                     <Typography
@@ -240,6 +319,41 @@ const HomePage: React.FC = () => {
       >
         <AddIcon />
       </Fab>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleDeleteCancel}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title">
+          Supprimer le projet
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-dialog-description">
+            Êtes-vous sûr de vouloir supprimer le projet "{projectToDelete?.name}" ?
+            Cette action est irréversible et supprimera définitivement le projet et tous ses matériaux associés.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={handleDeleteCancel} 
+            disabled={isDeleting}
+          >
+            Annuler
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm} 
+            color="error"
+            variant="contained"
+            disabled={isDeleting}
+            startIcon={isDeleting ? <CircularProgress size={16} /> : undefined}
+          >
+            {isDeleting ? 'Suppression...' : 'Supprimer'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

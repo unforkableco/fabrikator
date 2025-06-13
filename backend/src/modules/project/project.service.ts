@@ -70,6 +70,30 @@ export class ProjectService {
    */
   async deleteProject(id: string) {
     try {
+      // Suppression en cascade des relations liées
+      // 1. Supprimer les changeLogs liés aux versions des composants
+      await prisma.changeLog.deleteMany({
+        where: {
+          compVersion: {
+            component: {
+              projectId: id
+            }
+          }
+        }
+      });
+
+      // 2. Supprimer les changeLogs liés aux versions des schémas de câblage
+      await prisma.changeLog.deleteMany({
+        where: {
+          wireVersion: {
+            wiringSchema: {
+              projectId: id
+            }
+          }
+        }
+      });
+
+      // 3. Supprimer le projet (les autres relations en cascade se feront automatiquement)
       return await prisma.project.delete({
         where: { id }
       });
