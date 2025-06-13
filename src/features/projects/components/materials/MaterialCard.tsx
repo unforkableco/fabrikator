@@ -191,6 +191,49 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
     return { icon: <SettingsIcon sx={{ fontSize: 10 }} />, color: '#757575' }; // Gris
   };
 
+  // Filtrer les spécifications pour ne garder que les techniques
+  const getFilteredTechnicalSpecs = (requirements: any = {}) => {
+    if (!requirements || typeof requirements !== 'object') {
+      return {};
+    }
+
+    // Liste des champs non-techniques à exclure
+    const nonTechnicalFields = [
+      'action', 'quantity', 'notes', 'status', 'createdBy', 'createdAt', 
+      'updatedAt', 'id', 'materialRequirementId', 'projectId', 'componentId',
+      'versionNumber', 'aiSuggested', 'suggestedAlternatives'
+    ];
+
+    const technicalSpecs: any = {};
+    
+    Object.entries(requirements).forEach(([key, value]) => {
+      const lowerKey = key.toLowerCase();
+      
+      // Exclure les champs non-techniques
+      if (!nonTechnicalFields.some(field => lowerKey.includes(field.toLowerCase()))) {
+        technicalSpecs[key] = value;
+      }
+    });
+
+    return technicalSpecs;
+  };
+
+  // Extraire les notes des requirements (chercher dans tous les endroits possibles)
+  const getMaterialNotes = () => {
+    const specs = material.currentVersion?.specs as any;
+    
+    // Chercher les notes dans plusieurs endroits possibles
+    const notes = specs?.requirements?.notes || 
+                  specs?.notes || 
+                  material.description ||
+                  material.requirements?.notes ||
+                  '';
+    
+    return notes;
+  };
+
+  const technicalSpecs = getFilteredTechnicalSpecs(material.requirements);
+
   return (
     <Card sx={{ border: '1px solid', borderColor: 'divider' }}>
       <CardContent>
@@ -204,9 +247,24 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                 {material.name || 'Unnamed Component'}
                 {getStatusIcon(material)}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {material.type || 'Component'}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {material.type || 'Component'}
+                </Typography>
+                {material.quantity && material.quantity > 0 && (
+                  <Typography variant="body2" sx={{ 
+                    bgcolor: 'primary.light', 
+                    color: 'primary.contrastText',
+                    px: 1,
+                    py: 0.5,
+                    borderRadius: 1,
+                    fontSize: '0.75rem',
+                    fontWeight: 600
+                  }}>
+                    Qty: {material.quantity}
+                  </Typography>
+                )}
+              </Box>
             </Box>
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
@@ -244,14 +302,15 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
           </Box>
         </Box>
 
-        {material.description && (
+        {/* Notes au lieu de description répétée */}
+        {getMaterialNotes() && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {material.description}
+            {getMaterialNotes()}
           </Typography>
         )}
 
-        {/* Specifications */}
-        {material.requirements && Object.keys(material.requirements).length > 0 && (
+        {/* Specifications - Seulement les techniques */}
+        {Object.keys(technicalSpecs).length > 0 && (
           <Accordion sx={{ boxShadow: 'none', border: '1px solid', borderColor: 'divider' }}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -260,9 +319,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
             </AccordionSummary>
             <AccordionDetails>
               <Grid container spacing={2}>
-                {Object.entries(material.requirements)
-                  .filter(([key]) => key.toLowerCase() !== 'notes') // Filtrer les notes
-                  .map(([key, value]) => (
+                {Object.entries(technicalSpecs).map(([key, value]) => (
                   <Grid item xs={12} sm={6} md={4} key={key}>
                     <Box sx={{ 
                       display: 'flex', 

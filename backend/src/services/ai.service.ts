@@ -183,12 +183,43 @@ export class AIService {
   /**
    * Répond à une question utilisateur concernant un projet
    */
-  async answerProjectQuestion(params: { projectName: string; projectDescription: string; userQuestion: string }) {
-    const { projectName, projectDescription, userQuestion } = params;
+  async answerProjectQuestion(params: { project: any; materials?: any[]; wiring?: any; userQuestion: string }) {
+    const { project, materials = [], wiring = null, userQuestion } = params;
+    
+    // Construire le contexte complet du projet
+    let projectContext = `Nom: ${project.name || 'Projet sans nom'}\nDescription: ${project.description || 'Aucune description disponible'}\nStatut: ${project.status || 'En cours'}`;
+    
+    // Ajouter les matériaux si disponibles
+    if (materials.length > 0) {
+      projectContext += '\n\nMatériaux/Composants du projet:';
+      materials.forEach((material: any, index: number) => {
+        const specs = material.currentVersion?.specs || {};
+        projectContext += `\n${index + 1}. ${specs.type || specs.name || 'Composant'} - `;
+        projectContext += `Quantité: ${specs.quantity || 1}`;
+        if (specs.description) projectContext += ` - ${specs.description}`;
+        if (specs.status) projectContext += ` (Statut: ${specs.status})`;
+      });
+    }
+    
+    // Ajouter les informations de câblage si disponibles
+    if (wiring && wiring.currentVersion) {
+      const wiringData = wiring.currentVersion.wiringData || {};
+      projectContext += '\n\nCâblage du projet:';
+      if (wiringData.connections && wiringData.connections.length > 0) {
+        projectContext += `\n- ${wiringData.connections.length} connexion(s) définies`;
+        wiringData.connections.forEach((conn: any, index: number) => {
+          if (conn.from && conn.to) {
+            projectContext += `\n  ${index + 1}. ${conn.from} → ${conn.to}`;
+          }
+        });
+      } else {
+        projectContext += '\n- Schéma de câblage en cours de définition';
+      }
+    }
     
     // Construire le prompt en utilisant le prompt userPrompt
     const systemPrompt = prompts.userPrompt
-      .replace('{{project}}', `Nom: ${projectName}\nDescription: ${projectDescription}`)
+      .replace('{{project}}', projectContext)
       .replace('{{userInput}}', userQuestion);
     
     const messages = [

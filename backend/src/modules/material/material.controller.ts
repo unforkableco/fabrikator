@@ -19,7 +19,23 @@ export class MaterialController {
   async listMaterials(req: Request, res: Response) {
     try {
       const { projectId } = req.params;
-      const materials = await this.materialService.listMaterials(projectId);
+      const components = await this.materialService.listMaterials(projectId);
+      
+      // Transformer les composants en matériaux 
+      const materials = components.map(component => {
+        const specs = component.currentVersion?.specs as any || {};
+        return {
+          ...component,
+          name: specs.name,
+          type: specs.type,
+          quantity: specs.quantity,
+          description: specs.description,
+          status: specs.status,
+          requirements: specs.requirements || {}, // Maintenant contient seulement les spécifications techniques
+          aiSuggested: specs.createdBy === 'AI'
+        };
+      });
+      
       res.json(materials);
     } catch (error) {
       console.error('Error listing materials:', error);
@@ -62,11 +78,24 @@ export class MaterialController {
   async getMaterialById(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const material = await this.materialService.getMaterialById(id);
+      const component = await this.materialService.getMaterialById(id);
       
-      if (!material) {
+      if (!component) {
         return res.status(404).json({ error: 'Material not found' });
       }
+      
+      // Transformer le composant en matériau avec spécifications techniques filtrées
+      const specs = component.currentVersion?.specs as any || {};
+      const material = {
+        ...component,
+        name: specs.name,
+        type: specs.type,
+        quantity: specs.quantity,
+        description: specs.description,
+        status: specs.status,
+        requirements: specs.requirements || {},
+        aiSuggested: specs.createdBy === 'AI'
+      };
       
       res.json(material);
     } catch (error) {
@@ -90,7 +119,24 @@ export class MaterialController {
       }
       
       const result = await this.materialService.updateMaterialStatus(id, action, updateData);
-      res.json(result);
+      
+              // Transformer le résultat pour filtrer les spécifications techniques
+        if (result.component) {
+          const specs = result.component.currentVersion?.specs as any || {};
+          const transformedMaterial = {
+            ...result.component,
+            name: specs.name,
+            type: specs.type,
+            quantity: specs.quantity,
+            description: specs.description,
+            status: specs.status,
+            requirements: specs.requirements || {},
+            aiSuggested: specs.createdBy === 'AI'
+          };
+          res.json({ ...result, component: transformedMaterial });
+        } else {
+          res.json(result);
+        }
     } catch (error) {
       console.error('Error updating material status:', error);
       res.status(500).json({ error: 'Failed to update material status' });
@@ -152,12 +198,14 @@ export class MaterialController {
         
         if (action === 'new') {
           // Nouveau composant
+          console.log('AI Component structure:', JSON.stringify(component, null, 2));
+          
           const materialData = {
             name: component.type,
             type: component.type,
-            description: component.details?.notes || '',
+            description: component.details?.notes || component.notes || '',
             quantity: component.details?.quantity || 1,
-            requirements: component.details || {},
+            requirements: component.details?.technicalSpecs || {},
             status: 'suggested',
             createdBy: 'AI'
           };
@@ -177,7 +225,7 @@ export class MaterialController {
               type: component.type,
               description: component.details?.notes || '',
               quantity: component.details?.quantity || 1,
-              requirements: component.details || {},
+              requirements: component.details?.technicalSpecs || {},
               status: 'suggested',
               createdBy: 'AI'
             };

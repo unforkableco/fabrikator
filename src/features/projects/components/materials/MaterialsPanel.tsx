@@ -154,8 +154,8 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
             aiResponse = explanationText;
           } else {
             // Fallback au message générique si pas d'explication détaillée
-            const materialCount = suggestions.length;
-            aiResponse = `J'ai analysé votre demande et préparé ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} de modifications. Veuillez examiner les changements proposés ci-dessous et choisir d'accepter ou de rejeter les modifications.`;
+          const materialCount = suggestions.length;
+          aiResponse = `J'ai analysé votre demande et préparé ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} de modifications. Veuillez examiner les changements proposés ci-dessous et choisir d'accepter ou de rejeter les modifications.`;
           }
         } else {
           aiResponse = 'Je comprends votre demande de modifications de composants. Je travaille sur l\'analyse de vos besoins et vais suggérer les composants appropriés.';

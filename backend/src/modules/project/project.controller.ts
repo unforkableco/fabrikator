@@ -184,17 +184,34 @@ export class ProjectController {
         return res.status(400).json({ error: 'La question est requise' });
       }
       
-      // Récupérer les informations du projet
+      // Récupérer les informations complètes du projet
       const project = await this.projectService.getProjectById(id);
       
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
       }
+
+      // Récupérer les matériaux du projet
+      let materials: any[] = [];
+      try {
+        materials = await this.materialService.listMaterials(id);
+      } catch (error) {
+        console.warn('No materials found for project:', id);
+      }
+
+      // Récupérer le câblage du projet
+      let wiring = null;
+      try {
+        wiring = await this.wiringService.getWiringForProject(id);
+      } catch (error) {
+        console.warn('No wiring found for project:', id);
+      }
       
-      // Demander à l'IA de répondre à la question
+      // Demander à l'IA de répondre à la question avec le contexte complet
       const answer = await this.aiService.answerProjectQuestion({
-        projectName: project.name || 'Projet sans nom',
-        projectDescription: project.description || 'Aucune description disponible',
+        project: project,
+        materials: materials,
+        wiring: wiring,
         userQuestion: question
       });
       

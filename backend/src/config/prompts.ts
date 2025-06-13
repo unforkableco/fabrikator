@@ -19,156 +19,74 @@ export const prompts = {
     }
   }
   `,
+
   materialsSearch: `
-    Project:
-    Name: {{projectName}}
+    Project: {{projectName}}
     Description: {{projectDescription}}
 
-    Current materials in the project (with their latest versions):
+    Current materials in the project (with versions):
     {{currentMaterials}}
 
     Last three component suggestions (CompVersion JSON format):
     {{previousComponents}}
 
-    Refine your search with this user input:
+    Refinement input:
     {{userPrompt}}
 
-    **CRITICAL ANALYSIS REQUIREMENTS:**
-    1. **CURRENT STATE ANALYSIS**: Look at each existing component in {{currentMaterials}}
-    2. **USER REQUEST ANALYSIS**: Parse {{userPrompt}} for explicit removal requests (e.g., "remove all except", "delete", "only keep", "simplify to")
-    3. **MANDATORY COMPONENT REVIEW**: For EVERY existing component, decide: keep, update, or REMOVE
+    **OBJECTIVES:**
+    - Generate the most comprehensive list of components, modules, tools, accessories and optional add-ons for any DIY electronics or mechanical build.
+    - Highlight possible upgrades, alternative implementations, and creative extensions the user might not have considered.
+    - Identify redundant or obsolete items, and recommend consolidation or removal when it enhances clarity or efficiency.
 
-    Based on all of this information, generate a NEW optimized list of components. 
-    
-    **REMOVAL IS MANDATORY** - You MUST include "remove" actions when:
-    - User explicitly asks to "remove", "delete", "only keep X", "simplify"
-    - Components are redundant or obsolete
-    - User changes project scope (removing features)
-    - User wants only specific components (remove all others)
-    
-    **WHEN USER SAYS "only keep X" or "remove everything except X":**
-    - Add "remove" action for ALL components except X
-    - Only keep/update the requested components
-    - Be aggressive about removal - don't keep unnecessary components
+    **CORE ANALYSIS WORKFLOW:**
+    1. **Assess Existing Inventory**: For each item in {{currentMaterials}}, decide "keep," "update," or "remove."
+    2. **Interpret User Intent**: Parse any explicit scope changes, removals or simplifications in {{userPrompt}}.
+    3. **Discover Missing Elements**: Propose new components (incl. sensors, actuators, power, enclosures, connectors, tools) to fill functional gaps.
+    4. **Optimize & Consolidate**: Recommend modern, integrated or multi-purpose alternatives to reduce part count and cost.
+    5. **Surface Creative Extras**: Suggest optional expansions (e.g., UI modules, add-ons, advanced sensors) to inspire further innovation.
 
-    IMPORTANT INSTRUCTIONS:
-    1. **ANALYZE EXISTING MATERIALS**: Review the current materials list carefully
-    2. **AVOID DUPLICATES**: Do not suggest components that are already present unless they need to be replaced or updated
-    3. **SMART VERSIONING**: 
-       - If an existing component is still suitable, keep it as-is (same specs)
-       - If an existing component needs modification, update its specs
-       - Only add new components for missing functionality
-       - **ACTIVELY REMOVE** components that are no longer needed, redundant, or obsolete
-       - **REPLACE** components with better alternatives when appropriate
-    4. **VERSION MANAGEMENT**: The generated components will create new versions (+1) of existing components or new components as needed
-    5. **OPTIMIZATION FOCUS**: 
-       - Remove redundant or duplicate functionality
-       - Replace outdated components with modern alternatives
-       - Remove components that don't fit the current requirements
-       - Simplify the design by removing unnecessary complexity
-
-    Adhere **exactly** to this JSON structure (CompVersion):
-
+    **OUTPUT FORMAT (CompVersion JSON):**
     {
       "explanation": {
-        "summary": "string - Brief explanation of what was done (like 'I analyzed your request and made 3 key changes to optimize your irrigation system')",
-        "reasoning": "string - Detailed reasoning behind the changes (like 'Based on your request to simplify the design, I focused on removing redundant sensors and consolidating the control system')",
+        "summary": "string – brief, conversational summary of what was done",
+        "reasoning": "string – in-depth rationale behind your choices",
         "changes": [
           {
-            "type": "string - 'added', 'removed', 'updated', 'kept'",
-            "component": "string - component name/type",
-            "reason": "string - specific reason for this change (like 'Removed redundant soil moisture sensor as you already have a primary one')"
+            "type": "string – 'added'|'removed'|'updated'|'kept'",
+            "component": "string – name/type of component",
+            "reason": "string – why this change"
           }
         ],
-        "impact": "string - Overall impact of the changes (like 'This reduces complexity and cost while maintaining full functionality')",
-        "nextSteps": "string - Suggested next steps or considerations (like 'Consider testing the simplified setup before finalizing the design')"
+        "impact": "string – overall effect of these optimizations",
+        "nextSteps": "string – suggested follow-up actions or tests"
       },
       "components": [
         {
-          "type": "string",
+          "type": "component category",
           "details": {
-            "key1": "value1",
-            "key2": "value2",
             "quantity": number,
-            "notes": "string",
-            "action": "keep|update|new|remove"
+            "notes": "descriptive usage context",
+            "action": "keep|update|new|remove",
+            "technicalSpecs": {
+              // comprehensive technical metrics: electrical, mechanical, performance, environmental, connectivity, etc.
+            }
           }
         }
       ]
     }
-      
-    ACTION EXAMPLES:
-    - "action": "new" → Add missing component
-    - "action": "keep" → Component stays unchanged  
-    - "action": "update" → Modify existing component specs
-    - "action": "remove" → Delete component (with notes explaining why)
-    
-    **EXPLANATION REQUIREMENTS:**
-    - "summary": Conversational summary like "I analyzed your request and optimized your component list with 5 changes"
-    - "reasoning": Explain WHY you made these decisions based on the user's request
-    - "changes": Array of each specific change with clear explanations
-    - "impact": Describe the overall benefit/effect of the changes
-    - "nextSteps": Suggest what the user should consider next
-    - Use natural, conversational language like Cursor AI does
-    - Be specific about what was changed and why
-    - Acknowledge the user's specific request and how you addressed it
-    
-    **MANDATORY**: When user requests removal/simplification, you MUST include multiple "action": "remove" entries AND explain each removal in the changes array!
 
-    Guidelines for analysis:
-    1. Power Requirements:
-      - Consider both day and night operation
-      - For solar-powered systems, include battery backup requirements
-      - Calculate power consumption and storage needs
-      - Consider power efficiency and sleep modes
+    **KEY GUIDELINES:**
+    - **No duplicates:** Don't re-suggest existing items unless upgrading.
+    - **Pure specs only** in technicalSpecs.
+    - **Be thorough:** Cover power, control, sensing, communication, mechanical, enclosure, and tooling needs.
+    - **Allow removals** when items are obsolete, redundant or out of scope.
+    - **Encourage creativity:** Offer both essential and "nice-to-have" components.
+    - **ALWAYS provide meaningful notes:** Every component MUST have descriptive notes explaining its role, function, or purpose in the project (e.g., "Controls water flow based on soil moisture levels").
 
-    2. Water Control:
-      - Analyze whether a pump or valve is more appropriate
-      - Consider water pressure requirements
-      - Evaluate flow control mechanisms
-      - Assess water conservation methods
+    **CRITICAL:** Do NOT leave "notes" empty or generic. Each component needs a specific description of what it does in THIS project.
+`,
 
-    3. Sensing and Control:
-      - Specify sensor types and requirements
-      - Define control logic and timing requirements
-      - Consider environmental factors (weather, soil type)
-      - Plan for calibration and maintenance
 
-    4. System Integration:
-      - Consider communication protocols
-      - Plan for system monitoring
-      - Evaluate reliability and redundancy
-      - Consider maintenance and serviceability
-
-    Guidelines for component types:
-    - Use broad categories rather than specific models (e.g., microcontroller, valve, pump, sensor, battery, etc.)
-    - For each component, include in "details":
-      * Power components (solar panels, batteries, power supplies): voltage, current, power, capacity, efficiency
-      * Electronics: powerInput, protocols, dimensions, interfaces
-      * Mechanical parts: dimensions, material, load capacity
-      * Sensors: measurement range, accuracy, interface type
-      * **action**: "keep" (component unchanged), "update" (component modified), "new" (new component), "remove" (component no longer needed)
-    - Focus on functional requirements rather than brand names.
-    
-    **REMOVAL SCENARIOS** - You MUST suggest "remove" when:
-    - User says "only keep X" (remove everything else)
-    - User says "remove all except X" (remove everything else)
-    - User says "delete X" (remove X specifically)
-    - User says "simplify" (remove complex/redundant components)
-    - User switches from manual to automatic system (remove manual controls)
-    - User changes power source (remove old power components)  
-    - User simplifies the design (remove complex sensors for basic ones)
-    - Components become redundant (multiple sensors measuring the same thing)
-    - User changes the project scope (remove features no longer needed)
-    
-    REPLACEMENT EXAMPLES - Consider replacing components when:
-    - User asks for "better", "more efficient", "cheaper" alternatives
-    - Technology upgrade is needed (Arduino → ESP32)
-    - User changes requirements (small pump → large pump)
-    - Integration opportunities (separate modules → integrated solution)
-
-    **Return ONLY the JSON object**, with no extra text.
-    `,
   
   wiringGeneration: `
     Generate a wiring plan for the following components:
