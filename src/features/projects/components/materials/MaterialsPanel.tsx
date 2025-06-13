@@ -3,7 +3,7 @@ import { Box, Typography, Button, Card } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { Material } from '../../../../shared/types';
 import { api } from '../../../../shared/services/api';
-import { ChatPanel, ChatMessage, MaterialSuggestionDiff } from '../chat';
+import { ChatPanel, ChatMessage, MaterialSuggestion, MaterialSuggestionDiff } from '../chat';
 import { AddMaterialDialog, MaterialCard, StatusLegend, EditMaterialDialog } from './';
 
 interface MaterialsPanelProps {
@@ -36,9 +36,58 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [pendingSuggestions, setPendingSuggestions] = useState<any[]>([]);
   const [showSuggestionDiff, setShowSuggestionDiff] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
   // Les matériaux rejetés sont maintenant filtrés automatiquement côté backend
   const activeMaterials = materials;
+
+  // Charger les messages au démarrage
+  const loadChatMessages = async () => {
+    if (!projectId) return;
+    
+    try {
+      setIsLoadingMessages(true);
+      const dbMessages = await api.projects.getChatMessages(projectId, 'materials', 10);
+      
+      // Convertir les messages de la BD vers le format ChatMessage
+      const chatMessages: ChatMessage[] = dbMessages.map(msg => ({
+        id: msg.id,
+        content: msg.content,
+        sender: msg.sender as 'user' | 'ai',
+        timestamp: new Date(msg.createdAt),
+        mode: msg.mode as 'ask' | 'agent',
+        suggestions: msg.suggestions ? msg.suggestions as MaterialSuggestion[] : undefined
+      }));
+      
+      setMessages(chatMessages);
+    } catch (error) {
+      console.error('Error loading chat messages:', error);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  // Charger les messages au démarrage du composant
+  React.useEffect(() => {
+    loadChatMessages();
+  }, [projectId]);
+
+  // Sauvegarder un message dans la BD
+  const saveChatMessage = async (message: ChatMessage) => {
+    if (!projectId) return;
+    
+    try {
+      await api.projects.sendChatMessage(projectId, {
+        context: 'materials',
+        content: message.content,
+        sender: message.sender,
+        mode: message.mode,
+        suggestions: message.suggestions || null
+      });
+    } catch (error) {
+      console.error('Error saving chat message:', error);
+    }
+  };
 
   const handleAddMaterial = async (material: Omit<Material, 'id'>) => {
     try {
@@ -82,8 +131,12 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       mode,
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setIsGenerating(true);
+          setMessages(prev => [...prev, userMessage]);
+      
+      // Sauvegarder le message utilisateur dans la BD
+      await saveChatMessage(userMessage);
+      
+      setIsGenerating(true);
 
     try {
       let aiResponse: string;
@@ -162,16 +215,39 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         }
       }
 
-      // Ajouter la réponse de l'IA
+      // Préparer les suggestions pour le nouveau format de ChatPanel
+      let chatSuggestions: MaterialSuggestion[] | undefined;
+      
+      if (mode === 'agent' && pendingSuggestions.length > 0) {
+        chatSuggestions = pendingSuggestions.map((suggestion, index) => ({
+          id: `suggestion-${Date.now()}-${index}`,
+          title: suggestion.type,
+          description: suggestion.details?.notes || `${suggestion.action} ${suggestion.type}`,
+          code: suggestion.details?.code || '',
+          action: suggestion.action === 'new' ? 'add' : 
+                 suggestion.action === 'update' ? 'modify' : 'remove',
+          expanded: false
+        }));
+        
+        // Ne plus afficher le diff séparé car les suggestions sont dans le message
+        setShowSuggestionDiff(false);
+        setPendingSuggestions([]);
+      }
+
+      // Ajouter la réponse de l'IA avec les suggestions intégrées
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         content: aiResponse,
         sender: 'ai',
         timestamp: new Date(),
         mode,
+        suggestions: chatSuggestions
       };
 
       setMessages(prev => [...prev, aiMessage]);
+      
+      // Sauvegarder le message IA dans la BD
+      await saveChatMessage(aiMessage);
     } catch (error) {
       console.error('Error sending chat message:', error);
       
@@ -185,6 +261,9 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       };
 
       setMessages(prev => [...prev, errorMessage]);
+      
+      // Sauvegarder le message d'erreur dans la BD
+      await saveChatMessage(errorMessage);
     } finally {
       setIsGenerating(false);
     }
@@ -218,6 +297,9 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         };
         
         setMessages(prev => [...prev, confirmMessage]);
+        
+        // Sauvegarder le message de confirmation dans la BD
+        await saveChatMessage(confirmMessage);
         
         // Rafraîchir la liste des matériaux
         if (onMaterialsUpdated) {
@@ -261,6 +343,91 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     // Réinitialiser l'état des suggestions
     setPendingSuggestions([]);
     setShowSuggestionDiff(false);
+  };
+
+  const handleStopGeneration = async () => {
+    setIsGenerating(false);
+    
+    // Ajouter un message indiquant l'arrêt
+    const stopMessage: ChatMessage = {
+      id: Date.now().toString(),
+      content: '⏹️ Génération arrêtée par l\'utilisateur.',
+      sender: 'ai',
+      timestamp: new Date(),
+      mode: 'agent',
+    };
+    
+          setMessages(prev => [...prev, stopMessage]);
+      
+      // Sauvegarder le message d'arrêt dans la BD
+      await saveChatMessage(stopMessage);
+  };
+
+  const handleAcceptSuggestion = async (messageId: string, suggestionId: string) => {
+    if (!projectId) return;
+    
+    try {
+      setIsGenerating(true);
+      
+      // Trouver la suggestion dans les messages
+      const message = messages.find(m => m.id === messageId);
+      const suggestion = message?.suggestions?.find(s => s.id === suggestionId);
+      
+      if (!suggestion) return;
+      
+      // Simuler l'application de la suggestion
+      // TODO: Implémenter l'application réelle selon votre logique métier
+      
+      // Ajouter un message de confirmation
+      const confirmMessage: ChatMessage = {
+        id: Date.now().toString(),
+        content: `✅ Suggestion acceptée : "${suggestion.title}" a été appliquée à votre projet.`,
+        sender: 'ai',
+        timestamp: new Date(),
+        mode: 'agent',
+      };
+      
+      setMessages(prev => [...prev, confirmMessage]);
+      
+      // Rafraîchir la liste des matériaux si nécessaire
+      if (onMaterialsUpdated) {
+        onMaterialsUpdated();
+      }
+      
+    } catch (error) {
+      console.error('Error accepting suggestion:', error);
+      
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        content: `❌ Erreur lors de l'application de la suggestion : ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
+        sender: 'ai',
+        timestamp: new Date(),
+        mode: 'agent',
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleRejectSuggestion = (messageId: string, suggestionId: string) => {
+    // Trouver la suggestion dans les messages
+    const message = messages.find(m => m.id === messageId);
+    const suggestion = message?.suggestions?.find(s => s.id === suggestionId);
+    
+    if (!suggestion) return;
+    
+    // Ajouter un message de rejet
+    const rejectMessage: ChatMessage = {
+      id: Date.now().toString(),
+      content: `❌ Suggestion rejetée : "${suggestion.title}" n'a pas été appliquée.`,
+      sender: 'ai',
+      timestamp: new Date(),
+      mode: 'agent',
+    };
+    
+    setMessages(prev => [...prev, rejectMessage]);
   };
 
   return (
@@ -322,7 +489,10 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         <ChatPanel
           messages={messages}
           onSendMessage={handleSendChatMessage}
-          isLoading={isGenerating}
+          onStopGeneration={handleStopGeneration}
+          onAcceptSuggestion={handleAcceptSuggestion}
+          onRejectSuggestion={handleRejectSuggestion}
+          isGenerating={isGenerating || isLoadingMessages}
         />
         
         {/* Material Suggestions Diff */}

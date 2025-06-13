@@ -21,69 +21,43 @@ export const prompts = {
   `,
 
   materialsSearch: `
-    Project: {{projectName}}
-    Description: {{projectDescription}}
+    Project: {{projectName}} - {{projectDescription}}
+    Current materials: {{currentMaterials}}
+    User request: {{userPrompt}}
 
-    Current materials in the project (with versions):
-    {{currentMaterials}}
+    Analyze existing components and user intent. For each component, decide: keep, update, remove, or add new ones.
 
-    Last three component suggestions (CompVersion JSON format):
-    {{previousComponents}}
-
-    Refinement input:
-    {{userPrompt}}
-
-    **OBJECTIVES:**
-    - Generate the most comprehensive list of components, modules, tools, accessories and optional add-ons for any DIY electronics or mechanical build.
-    - Highlight possible upgrades, alternative implementations, and creative extensions the user might not have considered.
-    - Identify redundant or obsolete items, and recommend consolidation or removal when it enhances clarity or efficiency.
-
-    **CORE ANALYSIS WORKFLOW:**
-    1. **Assess Existing Inventory**: For each item in {{currentMaterials}}, decide "keep," "update," or "remove."
-    2. **Interpret User Intent**: Parse any explicit scope changes, removals or simplifications in {{userPrompt}}.
-    3. **Discover Missing Elements**: Propose new components (incl. sensors, actuators, power, enclosures, connectors, tools) to fill functional gaps.
-    4. **Optimize & Consolidate**: Recommend modern, integrated or multi-purpose alternatives to reduce part count and cost.
-    5. **Surface Creative Extras**: Suggest optional expansions (e.g., UI modules, add-ons, advanced sensors) to inspire further innovation.
-
-    **OUTPUT FORMAT (CompVersion JSON):**
+    **OUTPUT JSON:**
     {
       "explanation": {
-        "summary": "string – brief, conversational summary of what was done",
-        "reasoning": "string – in-depth rationale behind your choices",
-        "changes": [
-          {
-            "type": "string – 'added'|'removed'|'updated'|'kept'",
-            "component": "string – name/type of component",
-            "reason": "string – why this change"
-          }
-        ],
-        "impact": "string – overall effect of these optimizations",
-        "nextSteps": "string – suggested follow-up actions or tests"
+        "summary": "brief summary of changes made",
+        "reasoning": "detailed rationale behind decisions", 
+        "changes": [{"type": "added|removed|updated|kept", "component": "name", "reason": "why"}],
+        "impact": "overall effect",
+        "nextSteps": "suggested actions"
       },
       "components": [
         {
           "type": "component category",
           "details": {
             "quantity": number,
-            "notes": "descriptive usage context",
+            "notes": "specific role and function in this project",
             "action": "keep|update|new|remove",
             "technicalSpecs": {
-              // comprehensive technical metrics: electrical, mechanical, performance, environmental, connectivity, etc.
+              // COMPREHENSIVE technical specifications relevant to this component type
+              // Include ALL applicable: electrical, mechanical, performance, interface, environmental specs
             }
           }
         }
       ]
     }
 
-    **KEY GUIDELINES:**
-    - **No duplicates:** Don't re-suggest existing items unless upgrading.
-    - **Pure specs only** in technicalSpecs.
-    - **Be thorough:** Cover power, control, sensing, communication, mechanical, enclosure, and tooling needs.
-    - **Allow removals** when items are obsolete, redundant or out of scope.
-    - **Encourage creativity:** Offer both essential and "nice-to-have" components.
-    - **ALWAYS provide meaningful notes:** Every component MUST have descriptive notes explaining its role, function, or purpose in the project (e.g., "Controls water flow based on soil moisture levels").
-
-    **CRITICAL:** Do NOT leave "notes" empty or generic. Each component needs a specific description of what it does in THIS project.
+    **GUIDELINES:**
+    - Provide EXHAUSTIVE technical specifications for each component
+    - Include electrical, mechanical, performance, connectivity, and environmental specs when relevant
+    - Don't duplicate existing components unless upgrading
+    - Always include meaningful usage notes
+    - Be thorough in component selection and specifications
 `,
 
 

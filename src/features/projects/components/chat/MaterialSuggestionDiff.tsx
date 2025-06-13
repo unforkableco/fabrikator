@@ -77,7 +77,7 @@ const MaterialSuggestionDiff: React.FC<MaterialSuggestionDiffProps> = ({
           </Box>
         }
         secondary={
-          <Box component="div">
+          <React.Fragment>
             {suggestion.details?.notes && (
               <Typography variant="caption" color="text.secondary" component="span">
                 {suggestion.details.notes}
@@ -93,7 +93,7 @@ const MaterialSuggestionDiff: React.FC<MaterialSuggestionDiffProps> = ({
                 Ancien: {suggestion.currentMaterial.name || suggestion.currentMaterial.type}
               </Typography>
             )}
-          </Box>
+          </React.Fragment>
         }
       />
     </ListItem>

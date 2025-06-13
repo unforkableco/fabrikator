@@ -154,21 +154,44 @@ export class ProjectController {
   async addMessageToProject(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { context, content } = req.body;
+      const { context, content, sender, mode, suggestions } = req.body;
       
-      if (!content) {
-        return res.status(400).json({ error: 'Le contenu du message est requis' });
+      if (!content || !sender || !mode) {
+        return res.status(400).json({ error: 'Le contenu, sender et mode du message sont requis' });
       }
       
       const message = await this.projectService.addMessageToProject(id, {
-        context: context || 'general',
-        content
+        context: context || 'materials',
+        content,
+        sender,
+        mode,
+        suggestions
       });
       
       res.status(201).json(message);
     } catch (error) {
       console.error('Error adding message to project:', error);
       res.status(500).json({ error: 'Failed to add message to project' });
+    }
+  }
+
+  /**
+   * Récupérer les messages d'un projet (chat)
+   */
+  async getProjectMessages(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { context = 'materials', limit = 10 } = req.query;
+      
+      const messages = await this.projectService.getProjectMessages(id, context as string, Number(limit));
+      
+      // Trier par ordre chronologique (plus anciens en premier) pour l'affichage
+      const sortedMessages = messages.reverse();
+      
+      res.json(sortedMessages);
+    } catch (error) {
+      console.error('Error getting project messages:', error);
+      res.status(500).json({ error: 'Failed to get project messages' });
     }
   }
 

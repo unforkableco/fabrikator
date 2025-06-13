@@ -58,9 +58,12 @@ export interface Message {
   projectId: string;
   context: string;
   content: string;
+  sender: string; // 'user' or 'ai'
+  mode: string; // 'ask' or 'agent'
+  suggestions?: any; // Suggestions attachées au message
   createdAt: string;
-  role?: string;
-  timestamp?: string;
+  role?: string; // Pour compatibilité
+  timestamp?: string; // Pour compatibilité
   relatedChanges?: ProjectChange[];
 }
 

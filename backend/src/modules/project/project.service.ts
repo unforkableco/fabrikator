@@ -82,16 +82,45 @@ export class ProjectService {
   /**
    * Ajouter un message à un projet
    */
-  async addMessageToProject(projectId: string, message: { context: string, content: string }) {
+  async addMessageToProject(projectId: string, message: { 
+    context: string, 
+    content: string, 
+    sender: string, 
+    mode: string,
+    suggestions?: any 
+  }) {
     try {
-      // Using the simplified form based on schema
-      return await prisma.$queryRaw`
-        INSERT INTO "Message" ("projectId", "context", "content", "createdAt")
-        VALUES (${projectId}, ${message.context}, ${message.content}, NOW())
-        RETURNING *
-      `;
+      return await prisma.message.create({
+        data: {
+          projectId,
+          context: message.context,
+          content: message.content,
+          sender: message.sender,
+          mode: message.mode,
+          suggestions: message.suggestions || null
+        } as any
+      });
     } catch (error) {
       console.error('Error in addMessageToProject:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Récupérer les messages d'un projet (chat)
+   */
+  async getProjectMessages(projectId: string, context: string, limit: number) {
+    try {
+      return await prisma.message.findMany({
+        where: { 
+          projectId,
+          context 
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit
+      });
+    } catch (error) {
+      console.error('Error in getProjectMessages:', error);
       throw error;
     }
   }

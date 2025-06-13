@@ -79,12 +79,15 @@ model ChangeLog {
 }
 
 model Message {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  projectId  String   @db.Uuid
-  context    String   // ex. "general", "materials", "wiring", "3d"
-  content    String
-  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId   String   @db.Uuid
+  context     String   // ex. "general", "materials", "wiring", "3d"
+  content     String
+  sender      String   // 'user' or 'ai'
+  mode        String   // 'ask' or 'agent'
+  suggestions Json?    // Suggestions attachées au message (pour les messages AI)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([projectId, context])
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }

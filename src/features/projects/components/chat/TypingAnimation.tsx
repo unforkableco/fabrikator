@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Box, Paper, Typography, Chip, Avatar } from '@mui/material';
-import { SmartToy as SmartToyIcon } from '@mui/icons-material';
+import { SmartToy as SmartToyIcon, Stop as StopIcon } from '@mui/icons-material';
 
 interface TypingAnimationProps {
   mode: 'ask' | 'agent';
+  onStop?: () => void;
 }
 
-const TypingAnimation: React.FC<TypingAnimationProps> = ({ mode }) => {
+const TypingAnimation: React.FC<TypingAnimationProps> = ({ mode, onStop }) => {
   const [dots, setDots] = useState('');
 
   React.useEffect(() => {
@@ -25,82 +26,94 @@ const TypingAnimation: React.FC<TypingAnimationProps> = ({ mode }) => {
       sx={{
         display: 'flex',
         alignItems: 'flex-start',
-        mb: 2,
-        flexDirection: 'row',
+        gap: 1
       }}
     >
       <Avatar
         sx={{
-          width: 32,
-          height: 32,
+          width: 24,
+          height: 24,
           bgcolor: 'secondary.main',
-          mr: 1,
+          fontSize: '0.75rem'
         }}
       >
-        <SmartToyIcon />
+        <SmartToyIcon sx={{ fontSize: 14 }} />
       </Avatar>
       
-      <Paper
-        sx={{
-          p: 1.5,
-          maxWidth: '75%',
-          bgcolor: 'grey.100',
-          color: 'text.primary',
-          position: 'relative',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2" sx={{ opacity: 0.7 }}>
-            {mode === 'ask' ? 'Thinking' : 'Generating components'}
+      <Box sx={{ flexGrow: 1, maxWidth: '85%' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            Assistant
           </Typography>
-          <Typography variant="body2" sx={{ 
-            fontWeight: 'bold', 
-            minWidth: '20px',
-            fontFamily: 'monospace' 
-          }}>
-            {dots}
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
           <Chip
-            label={mode === 'ask' ? 'Ask' : 'Agent'}
+            label={mode}
             size="small"
             color={mode === 'ask' ? 'info' : 'warning'}
             variant="outlined"
+            sx={{ height: 16, fontSize: '0.625rem' }}
           />
-          <Typography variant="caption" sx={{ opacity: 0.7 }}>
+          <Typography variant="caption" color="text.disabled">
             {new Date().toLocaleTimeString()}
           </Typography>
         </Box>
         
-        {/* Animation de pulsation */}
-        <Box
+        <Paper
           sx={{
-            position: 'absolute',
-            right: 8,
-            top: 8,
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            bgcolor: mode === 'ask' ? 'info.main' : 'warning.main',
-            animation: 'pulse 1.5s infinite',
-            '@keyframes pulse': {
-              '0%': {
-                opacity: 1,
-                transform: 'scale(1)',
-              },
-              '50%': {
-                opacity: 0.5,
-                transform: 'scale(1.2)',
-              },
-              '100%': {
-                opacity: 1,
-                transform: 'scale(1)',
-              },
-            },
+            p: 1.5,
+            bgcolor: 'background.paper',
+            color: 'text.primary',
+            border: '1px solid',
+            borderColor: 'divider',
+            position: 'relative',
           }}
-        />
-      </Paper>
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" sx={{ 
+              opacity: 0.8,
+              fontStyle: 'italic'
+            }}>
+              {mode === 'ask' ? 'Réflexion en cours' : 'Génération de composants'}
+            </Typography>
+            <Typography variant="body2" sx={{ 
+              fontWeight: 'bold', 
+              minWidth: '20px',
+              fontFamily: 'monospace',
+              color: 'primary.main'
+            }}>
+              {dots}
+            </Typography>
+          </Box>
+          
+          {/* Point de pulsation minimaliste */}
+          <Box
+            sx={{
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              bgcolor: mode === 'ask' ? 'info.main' : 'warning.main',
+              animation: 'pulse 1.5s infinite',
+              '@keyframes pulse': {
+                '0%': {
+                  opacity: 1,
+                  transform: 'translateY(-50%) scale(1)',
+                },
+                '50%': {
+                  opacity: 0.5,
+                  transform: 'translateY(-50%) scale(1.2)',
+                },
+                '100%': {
+                  opacity: 1,
+                  transform: 'translateY(-50%) scale(1)',
+                },
+              },
+            }}
+          />
+        </Paper>
+      </Box>
     </Box>
   );
 };

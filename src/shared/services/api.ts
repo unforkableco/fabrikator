@@ -103,6 +103,26 @@ export const api = {
       await apiClient.delete(`/materials/${materialId}`);
     },
 
+    // Gestion des messages de chat
+    getChatMessages: async (projectId: string, context: string = 'materials', limit: number = 10): Promise<Message[]> => {
+      const response = await apiClient.get(`/projects/${projectId}/messages`, {
+        params: { context, limit }
+      });
+      return response.data;
+    },
+
+    sendChatMessage: async (projectId: string, message: {
+      context: string;
+      content: string;
+      sender: string;
+      mode: string;
+      suggestions?: any;
+    }): Promise<Message> => {
+      const response = await apiClient.post(`/projects/${projectId}/messages`, message);
+      return response.data;
+    },
+
+    // Ancienne méthode pour compatibilité
     getMessages: async (projectId: string): Promise<Message[]> => {
       const response = await apiClient.get(`/projects/${projectId}/messages`);
       return response.data;

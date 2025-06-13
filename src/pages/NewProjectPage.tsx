@@ -28,6 +28,7 @@ const NewProjectPage: React.FC = () => {
   const [prompt, setPrompt] = useState('');
   
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -44,6 +45,7 @@ const NewProjectPage: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
+    setLoadingStatus('Création du projet...');
 
     try {
       const project = await api.projects.create({
@@ -52,11 +54,23 @@ const NewProjectPage: React.FC = () => {
         status: ProjectStatus.PLANNING,
       });
 
+      // Générer automatiquement une première liste de matériaux
+      setLoadingStatus('Génération de la liste des matériaux...');
+      try {
+        // Utiliser la description fournie ou une description basique basée sur le nom du projet
+        const materialPrompt = description.trim() || `Projet ${projectName.trim()} - générer une liste de composants de base`;
+        await api.projects.generateMaterialSuggestions(project.id, materialPrompt);
+      } catch (materialError) {
+        console.warn('Failed to generate initial materials:', materialError);
+        // On continue même si la génération de matériaux échoue
+      }
+
       navigate(`/project/${project.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
+      setLoadingStatus('');
     }
   };
 
@@ -69,14 +83,26 @@ const NewProjectPage: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
+    setLoadingStatus('Analyse du projet avec l\'IA...');
 
     try {
       const project = await api.projects.createFromPrompt(prompt.trim());
+      
+      // Générer automatiquement une première liste de matériaux basée sur le prompt original
+      setLoadingStatus('Génération de la liste des matériaux...');
+      try {
+        await api.projects.generateMaterialSuggestions(project.id, prompt.trim());
+      } catch (materialError) {
+        console.warn('Failed to generate initial materials:', materialError);
+        // On continue même si la génération de matériaux échoue
+      }
+
       navigate(`/project/${project.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
+      setLoadingStatus('');
     }
   };
 
@@ -130,6 +156,11 @@ const NewProjectPage: React.FC = () => {
               >
                 {isLoading ? <CircularProgress size={24} /> : 'Create Project'}
               </Button>
+              {isLoading && loadingStatus && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  {loadingStatus}
+                </Typography>
+              )}
               <Button
                 variant="outlined"
                 onClick={() => navigate('/')}
@@ -169,6 +200,11 @@ const NewProjectPage: React.FC = () => {
               >
                 {isLoading ? <CircularProgress size={24} /> : 'Create with AI'}
               </Button>
+              {isLoading && loadingStatus && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  {loadingStatus}
+                </Typography>
+              )}
               <Button
                 variant="outlined"
                 onClick={() => navigate('/')}
