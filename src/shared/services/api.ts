@@ -129,11 +129,9 @@ export const api = {
     },
 
     // Chat IA - Mode Ask (simple Q&A)
-    sendChatMessage: async (projectId: string, message: string): Promise<any> => {
-      const response = await apiClient.post(`/projects/${projectId}/messages`, {
-        context: 'chat_ask',
-        content: message,
-        role: 'user'
+    askQuestion: async (projectId: string, question: string): Promise<{answer: string}> => {
+      const response = await apiClient.post(`/projects/${projectId}/ask`, {
+        question: question
       });
       return response.data;
     },

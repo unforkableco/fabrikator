@@ -1,14 +1,20 @@
 import { Request, Response } from 'express';
 import { ProjectService } from './project.service';
 import { AIService } from '../../services/ai.service';
+import { MaterialService } from '../material/material.service';
+import { WiringService } from '../wiring/wiring.service';
 
 export class ProjectController {
   private projectService: ProjectService;
   private aiService: AIService;
+  private materialService: MaterialService;
+  private wiringService: WiringService;
 
   constructor() {
     this.projectService = new ProjectService();
     this.aiService = new AIService();
+    this.materialService = new MaterialService();
+    this.wiringService = new WiringService();
   }
 
   /**
@@ -163,6 +169,39 @@ export class ProjectController {
     } catch (error) {
       console.error('Error adding message to project:', error);
       res.status(500).json({ error: 'Failed to add message to project' });
+    }
+  }
+
+  /**
+   * Répondre à une question sur un projet (mode Ask)
+   */
+  async askProjectQuestion(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { question } = req.body;
+      
+      if (!question) {
+        return res.status(400).json({ error: 'La question est requise' });
+      }
+      
+      // Récupérer les informations du projet
+      const project = await this.projectService.getProjectById(id);
+      
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+      
+      // Demander à l'IA de répondre à la question
+      const answer = await this.aiService.answerProjectQuestion({
+        projectName: project.name || 'Projet sans nom',
+        projectDescription: project.description || 'Aucune description disponible',
+        userQuestion: question
+      });
+      
+      res.json({ answer });
+    } catch (error) {
+      console.error('Error answering project question:', error);
+      res.status(500).json({ error: 'Failed to answer project question' });
     }
   }
 }

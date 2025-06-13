@@ -179,4 +179,32 @@ export class AIService {
 
     return parsedResponse;
   }
+
+  /**
+   * Répond à une question utilisateur concernant un projet
+   */
+  async answerProjectQuestion(params: { projectName: string; projectDescription: string; userQuestion: string }) {
+    const { projectName, projectDescription, userQuestion } = params;
+    
+    // Construire le prompt en utilisant le prompt userPrompt
+    const systemPrompt = prompts.userPrompt
+      .replace('{{project}}', `Nom: ${projectName}\nDescription: ${projectDescription}`)
+      .replace('{{userInput}}', userQuestion);
+    
+    const messages = [
+      {
+        role: 'system',
+        content: systemPrompt
+      }
+    ];
+
+    console.log('AI Service - Answering project question...');
+    console.log('Question:', userQuestion);
+    
+    const response = await this.callOpenAI(messages, 0.7);
+    console.log('AI Service - Question response received');
+    
+    // Pour les questions, on retourne la réponse directement (pas de parsing JSON nécessaire)
+    return response.trim();
+  }
 }

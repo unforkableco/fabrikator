@@ -12,5 +12,6 @@ router.get('/:id', projectController.getProjectById.bind(projectController));
 router.put('/:id', projectController.updateProject.bind(projectController));
 router.delete('/:id', projectController.deleteProject.bind(projectController));
 router.post('/:id/messages', projectController.addMessageToProject.bind(projectController));
+router.post('/:id/ask', projectController.askProjectQuestion.bind(projectController));
 
 export const projectRouter = router;

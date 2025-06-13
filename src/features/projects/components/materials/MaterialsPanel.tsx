@@ -89,8 +89,16 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       let aiResponse: string;
       
       if (mode === 'ask') {
-        // Mode Ask - Réponse simple sans appel API pour éviter l'erreur 500
-        aiResponse = `I understand you're asking: "${message}". In Ask mode, I can provide information about your components and answer questions about your project, but I won't modify anything. Is there something specific about your current components you'd like to know more about?`;
+        // Mode Ask - Utiliser l'IA pour répondre aux questions sur le projet
+        console.log('Sending ask question:', message);
+        
+        try {
+          const response = await api.projects.askQuestion(projectId, message);
+          aiResponse = response.answer;
+        } catch (error) {
+          console.error('Error asking question:', error);
+          aiResponse = `Désolé, j'ai rencontré une erreur en essayant de répondre à votre question. Pouvez-vous reformuler ou réessayer ?`;
+        }
       } else {
         // Mode Agent - Génération de suggestions de matériaux
         console.log('Sending agent message:', message);
