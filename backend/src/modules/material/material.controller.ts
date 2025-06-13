@@ -130,16 +130,12 @@ export class MaterialController {
       
       // Obtenir les suggestions de l'IA
       const currentMaterials = await this.materialService.listMaterials(projectId);
-      const promptWithCurrentMaterials = prompts.materialsSearch
-        .replace('{{currentMaterials}}', JSON.stringify(currentMaterials, null, 2))
-        .replace('{{projectName}}', project.name || 'Unnamed Project')
-        .replace('{{projectDescription}}', project.description || '')
-        .replace('{{userPrompt}}', prompt || '');
       
       const suggestions = await this.aiService.suggestMaterials({
         name: project.name || 'Unnamed Project',
         description: project.description || '',
-        userPrompt: promptWithCurrentMaterials
+        userPrompt: prompt || '',
+        currentMaterials: currentMaterials
       });
       
       if (!suggestions || !Array.isArray(suggestions.components)) {
@@ -193,14 +189,79 @@ export class MaterialController {
             );
             processedMaterials.push(result);
           }
+        } else if (action === 'remove') {
+          // Supprimer un composant existant (changer son statut à "rejected")
+          const existingComponent = currentMaterials.find(m => {
+            const specs = m.currentVersion?.specs as any;
+            return specs?.type === component.type || specs?.name === component.type;
+          });
+          
+          if (existingComponent) {
+            // Marquer le composant comme rejeté au lieu de le supprimer physiquement
+            const result = await this.materialService.updateMaterialStatus(
+              existingComponent.id, 
+              'reject', 
+              { 
+                notes: component.details?.notes || `Composant supprimé par l'IA: ${component.type}`,
+                removedBy: 'AI'
+              }
+            );
+            processedMaterials.push(result);
+          }
         }
-        // action === 'remove' : ne rien faire, le composant sera ignoré
       }
       
       res.status(201).json(processedMaterials);
     } catch (error) {
       console.error('Error generating material suggestions:', error);
       res.status(500).json({ error: 'Failed to generate material suggestions' });
+    }
+  }
+
+  /**
+   * Prévisualise les suggestions de matériaux sans les appliquer
+   */
+  async previewSuggestions(req: Request, res: Response) {
+    try {
+      const { projectId } = req.params;
+      const { prompt } = req.body;
+      
+      console.log('Preview suggestions request:', { projectId, prompt });
+      
+      // Récupérer les infos du projet
+      const project = await prisma.project.findUnique({
+        where: { id: projectId }
+      });
+      
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+      
+      // Obtenir les suggestions de l'IA sans les créer
+      const currentMaterials = await this.materialService.listMaterials(projectId);
+      console.log('Current materials count:', currentMaterials.length);
+      
+      console.log('Calling AI service with prepared prompt...');
+      const suggestions = await this.aiService.suggestMaterials({
+        name: project.name || 'Unnamed Project',
+        description: project.description || '',
+        userPrompt: prompt || '',
+        currentMaterials: currentMaterials
+      });
+      
+      console.log('AI suggestions received:', suggestions);
+      
+      if (!suggestions || !Array.isArray(suggestions.components)) {
+        return res.status(500).json({ 
+          error: 'Failed to generate material suggestions preview' 
+        });
+      }
+      
+      // Retourner les suggestions sans les appliquer
+      res.json({ components: suggestions.components });
+    } catch (error) {
+      console.error('Error previewing material suggestions:', error);
+      res.status(500).json({ error: 'Failed to preview material suggestions' });
     }
   }
 }

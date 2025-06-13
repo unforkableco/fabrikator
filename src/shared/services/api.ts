@@ -87,6 +87,13 @@ export const api = {
       return response.data;
     },
 
+    previewMaterialSuggestions: async (projectId: string, description: string): Promise<{components: any[]}> => {
+      const response = await apiClient.post(`/materials/project/${projectId}/preview-suggestions`, {
+        prompt: description,
+      });
+      return response.data;
+    },
+
     updateMaterialStatus: async (materialId: string, status: string): Promise<Material> => {
       const response = await apiClient.put(`/materials/${materialId}`, { action: status });
       return response.data;

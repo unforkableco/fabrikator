@@ -3,7 +3,7 @@ import { Box, Typography, Button, Card } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { Material } from '../../../../shared/types';
 import { api } from '../../../../shared/services/api';
-import { ChatPanel, ChatMessage } from '../chat';
+import { ChatPanel, ChatMessage, MaterialSuggestionDiff } from '../chat';
 import { AddMaterialDialog, MaterialCard, StatusLegend, EditMaterialDialog } from './';
 
 interface MaterialsPanelProps {
@@ -34,6 +34,8 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [pendingSuggestions, setPendingSuggestions] = useState<any[]>([]);
+  const [showSuggestionDiff, setShowSuggestionDiff] = useState(false);
 
   // Les matériaux rejetés sont maintenant filtrés automatiquement côté backend
   const activeMaterials = materials;
@@ -92,20 +94,29 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       } else {
         // Mode Agent - Génération de suggestions de matériaux
         console.log('Sending agent message:', message);
-        const response = await api.projects.sendAgentMessage(projectId, message);
+        
+        // Récupérer d'abord les suggestions sans les appliquer
+        const response = await api.projects.previewMaterialSuggestions(projectId, message);
         console.log('Agent response:', response);
         
-        if (Array.isArray(response) && response.length > 0) {
-          // Si l'agent a créé des matériaux, informer l'utilisateur et rafraîchir
-          const materialCount = response.length;
-          aiResponse = `J'ai analysé votre demande et ${materialCount === 1 ? 'mis à jour 1 composant' : `mis à jour ${materialCount} composants`} dans votre projet. Les composants ont été automatiquement générés/mis à jour avec leurs nouvelles versions basées sur vos exigences. Vous pouvez voir les dernières versions dans la liste à gauche.`;
+        if (response && response.components && Array.isArray(response.components)) {
+          // Transformer les suggestions pour le diff
+          const suggestions = response.components.map((component: any) => ({
+            action: component.details?.action || 'new',
+            type: component.type,
+            details: component.details,
+            currentMaterial: activeMaterials.find(m => {
+              const specs = m.currentVersion?.specs as any;
+              return specs?.type === component.type || specs?.name === component.type;
+            })
+          }));
           
-          // Rafraîchir immédiatement la liste des matériaux pour afficher les dernières versions
-          setTimeout(() => {
-            if (onMaterialsUpdated) {
-              onMaterialsUpdated();
-            }
-          }, 100);
+          // Stocker les suggestions et afficher le diff
+          setPendingSuggestions(suggestions);
+          setShowSuggestionDiff(true);
+          
+          const materialCount = suggestions.length;
+          aiResponse = `J'ai analysé votre demande et préparé ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} de modifications. Veuillez examiner les changements proposés ci-dessous et choisir d'accepter ou de rejeter les modifications.`;
         } else {
           aiResponse = 'Je comprends votre demande de modifications de composants. Je travaille sur l\'analyse de vos besoins et vais suggérer les composants appropriés.';
         }
@@ -137,6 +148,79 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleAcceptSuggestions = async () => {
+    if (!projectId || pendingSuggestions.length === 0) return;
+    
+    try {
+      setIsGenerating(true);
+      
+      // Créer une structure compatible avec l'API suggestions
+      const componentsData = {
+        components: pendingSuggestions.map(suggestion => ({
+          type: suggestion.type,
+          details: suggestion.details
+        }))
+      };
+      
+      // Simuler un prompt qui va déclencher l'application des suggestions
+      const response = await api.projects.generateMaterialSuggestions(projectId, JSON.stringify(componentsData));
+      
+      if (Array.isArray(response) && response.length > 0) {
+        // Ajouter un message de confirmation
+        const confirmMessage: ChatMessage = {
+          id: Date.now().toString(),
+          content: `✅ Suggestions acceptées ! ${response.length} composant(s) ont été mis à jour dans votre projet.`,
+          sender: 'ai',
+          timestamp: new Date(),
+          mode: 'agent',
+        };
+        
+        setMessages(prev => [...prev, confirmMessage]);
+        
+        // Rafraîchir la liste des matériaux
+        if (onMaterialsUpdated) {
+          onMaterialsUpdated();
+        }
+      }
+      
+      // Réinitialiser l'état des suggestions
+      setPendingSuggestions([]);
+      setShowSuggestionDiff(false);
+      
+    } catch (error) {
+      console.error('Error accepting suggestions:', error);
+      
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        content: `❌ Erreur lors de l'application des suggestions: ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
+        sender: 'ai',
+        timestamp: new Date(),
+        mode: 'agent',
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleRejectSuggestions = () => {
+    // Ajouter un message de rejet
+    const rejectMessage: ChatMessage = {
+      id: Date.now().toString(),
+      content: `❌ Suggestions rejetées. Aucune modification n'a été apportée à vos composants.`,
+      sender: 'ai',
+      timestamp: new Date(),
+      mode: 'agent',
+    };
+    
+    setMessages(prev => [...prev, rejectMessage]);
+    
+    // Réinitialiser l'état des suggestions
+    setPendingSuggestions([]);
+    setShowSuggestionDiff(false);
   };
 
   return (
@@ -200,6 +284,18 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           onSendMessage={handleSendChatMessage}
           isLoading={isGenerating}
         />
+        
+        {/* Material Suggestions Diff */}
+        {showSuggestionDiff && pendingSuggestions.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <MaterialSuggestionDiff
+              suggestions={pendingSuggestions}
+              onAccept={handleAcceptSuggestions}
+              onReject={handleRejectSuggestions}
+              isProcessing={isGenerating}
+            />
+          </Box>
+        )}
       </Box>
 
       {/* Add Material Dialog */}

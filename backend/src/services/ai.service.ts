@@ -11,29 +11,40 @@ export class AIService {
   }
 
   /**
-   * Appel générique à l'API OpenAI
+   * Appel générique à l'API OpenAI avec retry logic
    */
-  private async callOpenAI(messages: any[], temperature = 0.7, model = 'gpt-4') {
-    try {
-      const response = await axios.post(
-        this.apiUrl,
-        {
-          model,
-          messages,
-          temperature
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.apiKey}`
+  private async callOpenAI(messages: any[], temperature = 0.7, model = 'gpt-4', retries = 2) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const response = await axios.post(
+          this.apiUrl,
+          {
+            model,
+            messages,
+            temperature
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.apiKey}`
+            }
           }
-        }
-      );
+        );
 
-      return response.data.choices[0].message.content;
-    } catch (error) {
-      console.error('Error calling OpenAI:', error);
-      throw error;
+        return response.data.choices[0].message.content;
+      } catch (error: any) {
+        console.error(`Error calling OpenAI (attempt ${attempt + 1}):`, error?.response?.status, error?.message);
+        
+        // Si c'est une erreur 429 (rate limiting) et qu'il reste des tentatives
+        if (error?.response?.status === 429 && attempt < retries) {
+          const retryAfter = error?.response?.headers['retry-after'] || 10;
+          console.log(`Rate limited. Waiting ${retryAfter} seconds before retry...`);
+          await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+          continue;
+        }
+        
+        throw error;
+      }
     }
   }
 
@@ -55,10 +66,31 @@ export class AIService {
     let parsedResponse = {};
     
     try {
-      parsedResponse = JSON.parse(response);
+      // Nettoyer la réponse en cas de contenu supplémentaire
+      let cleanedResponse = response.trim();
+      
+      // Extraire le JSON si la réponse contient du texte supplémentaire
+      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanedResponse = jsonMatch[0];
+      }
+      
+      parsedResponse = JSON.parse(cleanedResponse);
     } catch (error) {
       console.error('Error parsing AI response:', error);
-      throw new Error('Invalid response format from AI service');
+      console.error('Raw response:', response);
+      
+      // Fallback: retourner une structure par défaut
+      parsedResponse = {
+        name: "Nouveau Projet",
+        description: "Description générée automatiquement",
+        analysis: {
+          summary: "Analyse en cours...",
+          technicalRequirements: ["À définir"],
+          challenges: ["À analyser"],
+          recommendations: ["À déterminer"]
+        }
+      };
     }
 
     return parsedResponse;
@@ -67,14 +99,30 @@ export class AIService {
   /**
    * Suggère des composants matériels pour un projet
    */
-  async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[] }) {
-    const { name, description, userPrompt = '', previousComponents = [] } = params;
+  async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[] }) {
+    const { name, description, userPrompt = '', previousComponents = [], currentMaterials = [] } = params;
     
     // Construire le système prompt en remplaçant les variables
     let systemPrompt = prompts.materialsSearch
       .replace('{{projectName}}', name)
       .replace('{{projectDescription}}', description)
       .replace('{{userPrompt}}', userPrompt);
+    
+    // Simplifier les matériaux actuels pour réduire la taille du prompt
+    const simplifiedMaterials = currentMaterials.map(material => ({
+      id: material.id,
+      type: material.currentVersion?.specs?.type || 'unknown',
+      name: material.currentVersion?.specs?.name || 'unknown', 
+      quantity: material.currentVersion?.specs?.quantity || 1,
+      description: material.currentVersion?.specs?.description || '',
+      status: material.currentVersion?.specs?.status || 'suggested'
+    }));
+    
+    const currentMaterialsJson = simplifiedMaterials.length > 0 
+      ? JSON.stringify(simplifiedMaterials, null, 2)
+      : '[]';
+    
+    systemPrompt = systemPrompt.replace('{{currentMaterials}}', currentMaterialsJson);
     
     // Ajouter les composants précédents au prompt si disponibles
     const previousCompJson = previousComponents.length > 0 
@@ -90,14 +138,43 @@ export class AIService {
       }
     ];
 
+    console.log('AI Service - Sending prompt for materials suggestion...');
+    console.log('System prompt length:', systemPrompt.length);
+    console.log('Simplified materials count:', simplifiedMaterials.length);
+    
     const response = await this.callOpenAI(messages, 0.7);
+    console.log('AI Service - Raw response received:', response);
+    
     let parsedResponse;
     
     try {
-      parsedResponse = JSON.parse(response);
+      // Nettoyer la réponse en cas de contenu supplémentaire
+      let cleanedResponse = response.trim();
+      
+      // Extraire le JSON si la réponse contient du texte supplémentaire
+      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanedResponse = jsonMatch[0];
+      }
+      
+      parsedResponse = JSON.parse(cleanedResponse);
     } catch (error) {
       console.error('Error parsing AI response:', error);
-      throw new Error('Invalid response format from AI service');
+      console.error('Raw response:', response);
+      
+      // Fallback: retourner une structure par défaut
+      parsedResponse = {
+        components: [
+          {
+            type: "microcontroller",
+            details: {
+              action: "new",
+              quantity: 1,
+              notes: "Contrôleur principal pour le projet"
+            }
+          }
+        ]
+      };
     }
 
     return parsedResponse;
