@@ -98,14 +98,16 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         if (Array.isArray(response) && response.length > 0) {
           // Si l'agent a créé des matériaux, informer l'utilisateur et rafraîchir
           const materialCount = response.length;
-          aiResponse = `I've analyzed your request and ${materialCount === 1 ? 'added 1 new component' : `added ${materialCount} new components`} to your project. The components have been automatically generated based on your requirements. You can see them in the list on the left.`;
+          aiResponse = `J'ai analysé votre demande et ${materialCount === 1 ? 'mis à jour 1 composant' : `mis à jour ${materialCount} composants`} dans votre projet. Les composants ont été automatiquement générés/mis à jour avec leurs nouvelles versions basées sur vos exigences. Vous pouvez voir les dernières versions dans la liste à gauche.`;
           
-          // Rafraîchir la liste des matériaux
-          if (onMaterialsUpdated) {
-            onMaterialsUpdated();
-          }
+          // Rafraîchir immédiatement la liste des matériaux pour afficher les dernières versions
+          setTimeout(() => {
+            if (onMaterialsUpdated) {
+              onMaterialsUpdated();
+            }
+          }, 100);
         } else {
-          aiResponse = 'I understand your request for component modifications. I\'m working on analyzing your needs and will suggest appropriate components.';
+          aiResponse = 'Je comprends votre demande de modifications de composants. Je travaille sur l\'analyse de vos besoins et vais suggérer les composants appropriés.';
         }
       }
 

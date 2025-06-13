@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { MaterialService } from './material.service';
 import { AIService } from '../../services/ai.service';
 import { prisma } from '../../prisma/prisma.service';
+import { prompts } from '../../config/prompts';
 
 export class MaterialController {
   private materialService: MaterialService;
@@ -128,10 +129,17 @@ export class MaterialController {
       }
       
       // Obtenir les suggestions de l'IA
+      const currentMaterials = await this.materialService.listMaterials(projectId);
+      const promptWithCurrentMaterials = prompts.materialsSearch
+        .replace('{{currentMaterials}}', JSON.stringify(currentMaterials, null, 2))
+        .replace('{{projectName}}', project.name || 'Unnamed Project')
+        .replace('{{projectDescription}}', project.description || '')
+        .replace('{{userPrompt}}', prompt || '');
+      
       const suggestions = await this.aiService.suggestMaterials({
         name: project.name || 'Unnamed Project',
         description: project.description || '',
-        userPrompt: prompt || ''
+        userPrompt: promptWithCurrentMaterials
       });
       
       if (!suggestions || !Array.isArray(suggestions.components)) {
@@ -140,25 +148,56 @@ export class MaterialController {
         });
       }
       
-      // Créer les matériaux suggérés
-      const createdMaterials = [];
+      // Traiter les suggestions selon leur action
+      const processedMaterials = [];
       
       for (const component of suggestions.components) {
-        const materialData = {
-          name: component.type,
-          type: component.type,
-          description: component.details?.notes || '',
-          quantity: component.details?.quantity || 1,
-          requirements: component.details || {},
-          status: 'suggested',
-          createdBy: 'AI'
-        };
+        const action = component.details?.action || 'new';
         
-        const result = await this.materialService.createMaterial(projectId, materialData);
-        createdMaterials.push(result);
+        if (action === 'new') {
+          // Nouveau composant
+          const materialData = {
+            name: component.type,
+            type: component.type,
+            description: component.details?.notes || '',
+            quantity: component.details?.quantity || 1,
+            requirements: component.details || {},
+            status: 'suggested',
+            createdBy: 'AI'
+          };
+          
+          const result = await this.materialService.createMaterial(projectId, materialData);
+          processedMaterials.push(result);
+        } else if (action === 'update' || action === 'keep') {
+          // Mettre à jour un composant existant (nouvelle version +1)
+          const existingComponent = currentMaterials.find(m => {
+            const specs = m.currentVersion?.specs as any;
+            return specs?.type === component.type || specs?.name === component.type;
+          });
+          
+          if (existingComponent) {
+            const updateData = {
+              name: component.type,
+              type: component.type,
+              description: component.details?.notes || '',
+              quantity: component.details?.quantity || 1,
+              requirements: component.details || {},
+              status: 'suggested',
+              createdBy: 'AI'
+            };
+            
+            const result = await this.materialService.updateMaterialStatus(
+              existingComponent.id, 
+              'update', 
+              updateData
+            );
+            processedMaterials.push(result);
+          }
+        }
+        // action === 'remove' : ne rien faire, le composant sera ignoré
       }
       
-      res.status(201).json(createdMaterials);
+      res.status(201).json(processedMaterials);
     } catch (error) {
       console.error('Error generating material suggestions:', error);
       res.status(500).json({ error: 'Failed to generate material suggestions' });

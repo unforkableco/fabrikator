@@ -24,14 +24,27 @@ export const prompts = {
     Name: {{projectName}}
     Description: {{projectDescription}}
 
+    Current materials in the project (with their latest versions):
+    {{currentMaterials}}
+
     Last three component suggestions (CompVersion JSON format):
     {{previousComponents}}
 
     Refine your search with this user input:
     {{userPrompt}}
 
-    Based on all of this, generate a NEW list of components,
-    adhering **exactly** to this JSON structure (CompVersion):
+    Based on all of this information, generate a NEW optimized list of components. 
+    IMPORTANT INSTRUCTIONS:
+    1. **ANALYZE EXISTING MATERIALS**: Review the current materials list carefully
+    2. **AVOID DUPLICATES**: Do not suggest components that are already present unless they need to be replaced or updated
+    3. **SMART VERSIONING**: 
+       - If an existing component is still suitable, keep it as-is (same specs)
+       - If an existing component needs modification, update its specs
+       - Only add new components for missing functionality
+       - Remove components that are no longer needed
+    4. **VERSION MANAGEMENT**: The generated components will create new versions (+1) of existing components or new components as needed
+
+    Adhere **exactly** to this JSON structure (CompVersion):
 
     {
       "components": [
@@ -41,7 +54,8 @@ export const prompts = {
             "key1": "value1",
             "key2": "value2",
             "quantity": number,
-            "notes": "string"
+            "notes": "string",
+            "action": "keep|update|new|remove"
           }
 
         }
@@ -80,6 +94,7 @@ export const prompts = {
       * Electronics: powerInput, protocols, dimensions, interfaces
       * Mechanical parts: dimensions, material, load capacity
       * Sensors: measurement range, accuracy, interface type
+      * **action**: "keep" (component unchanged), "update" (component modified), "new" (new component), "remove" (component no longer needed)
     - Focus on functional requirements rather than brand names.
 
     **Return ONLY the JSON object**, with no extra text.
