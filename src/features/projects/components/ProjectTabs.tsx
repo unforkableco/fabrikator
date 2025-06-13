@@ -9,7 +9,6 @@ interface ProjectTabsProps {
 const tabs = [
   { label: 'Overview', id: 'overview' },
   { label: 'Materials', id: 'materials' },
-  { label: 'Components', id: 'components' },
   { label: 'Wiring', id: 'wiring' },
 ];
 

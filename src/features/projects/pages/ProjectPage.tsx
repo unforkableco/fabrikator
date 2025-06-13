@@ -115,15 +115,6 @@ const ProjectPage: React.FC = () => {
           </Box>
         </TabPanel>
 
-        {/* Components Tab */}
-        <TabPanel value={tabValue} index={2} id="project">
-          <Typography variant="h6" gutterBottom>
-            Components
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Components interface will be here.
-          </Typography>
-        </TabPanel>
 
         {/* Wiring Tab */}
         <TabPanel value={tabValue} index={3} id="project">
