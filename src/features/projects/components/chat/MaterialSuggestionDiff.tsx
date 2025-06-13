@@ -77,7 +77,7 @@ const MaterialSuggestionDiff: React.FC<MaterialSuggestionDiffProps> = ({
           </Box>
         }
         secondary={
-          <React.Fragment>
+          <Box component="div">
             {suggestion.details?.notes && (
               <Typography variant="caption" color="text.secondary" component="span">
                 {suggestion.details.notes}
@@ -89,11 +89,11 @@ const MaterialSuggestionDiff: React.FC<MaterialSuggestionDiffProps> = ({
               </Typography>
             )}
             {suggestion.action === 'update' && suggestion.currentMaterial && (
-              <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+              <Typography variant="caption" color="text.secondary" component="span" sx={{ display: 'block', mt: 0.5 }}>
                 Ancien: {suggestion.currentMaterial.name || suggestion.currentMaterial.type}
               </Typography>
             )}
-          </React.Fragment>
+          </Box>
         }
       />
     </ListItem>

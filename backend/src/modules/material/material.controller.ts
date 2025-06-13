@@ -257,8 +257,8 @@ export class MaterialController {
         });
       }
       
-      // Retourner les suggestions sans les appliquer
-      res.json({ components: suggestions.components });
+      // Retourner les suggestions avec l'explication complète sans les appliquer
+      res.json(suggestions);
     } catch (error) {
       console.error('Error previewing material suggestions:', error);
       res.status(500).json({ error: 'Failed to preview material suggestions' });

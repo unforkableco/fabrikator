@@ -100,6 +100,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         console.log('Agent response:', response);
         
         if (response && response.components && Array.isArray(response.components)) {
+          const responseWithExplanation = response as any; // Type assertion pour accéder à explanation
           // Transformer les suggestions pour le diff
           const suggestions = response.components.map((component: any) => ({
             action: component.details?.action || 'new',
@@ -115,8 +116,39 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           setPendingSuggestions(suggestions);
           setShowSuggestionDiff(true);
           
-          const materialCount = suggestions.length;
-          aiResponse = `J'ai analysé votre demande et préparé ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} de modifications. Veuillez examiner les changements proposés ci-dessous et choisir d'accepter ou de rejeter les modifications.`;
+          // Utiliser l'explication détaillée de l'IA si disponible
+          if (responseWithExplanation.explanation) {
+            let explanationText = `${responseWithExplanation.explanation.summary}\n\n`;
+            
+            if (responseWithExplanation.explanation.reasoning) {
+              explanationText += `${responseWithExplanation.explanation.reasoning}\n\n`;
+            }
+            
+            if (responseWithExplanation.explanation.changes && responseWithExplanation.explanation.changes.length > 0) {
+              explanationText += 'Modifications apportées :\n';
+              responseWithExplanation.explanation.changes.forEach((change: any, index: number) => {
+                const emoji = change.type === 'added' ? '✅' : 
+                            change.type === 'removed' ? '❌' : 
+                            change.type === 'updated' ? '🔄' : '⚪';
+                explanationText += `${emoji} ${change.component} - ${change.reason}\n`;
+              });
+              explanationText += '\n';
+            }
+            
+            if (responseWithExplanation.explanation.impact) {
+              explanationText += `Impact : ${responseWithExplanation.explanation.impact}\n\n`;
+            }
+            
+            if (responseWithExplanation.explanation.nextSteps) {
+              explanationText += `Recommandations : ${responseWithExplanation.explanation.nextSteps}`;
+            }
+            
+            aiResponse = explanationText;
+          } else {
+            // Fallback au message générique si pas d'explication détaillée
+            const materialCount = suggestions.length;
+            aiResponse = `J'ai analysé votre demande et préparé ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} de modifications. Veuillez examiner les changements proposés ci-dessous et choisir d'accepter ou de rejeter les modifications.`;
+          }
         } else {
           aiResponse = 'Je comprends votre demande de modifications de composants. Je travaille sur l\'analyse de vos besoins et vais suggérer les composants appropriés.';
         }

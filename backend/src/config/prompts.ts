@@ -69,28 +69,51 @@ export const prompts = {
 
     Adhere **exactly** to this JSON structure (CompVersion):
 
+    {
+      "explanation": {
+        "summary": "string - Brief explanation of what was done (like 'I analyzed your request and made 3 key changes to optimize your irrigation system')",
+        "reasoning": "string - Detailed reasoning behind the changes (like 'Based on your request to simplify the design, I focused on removing redundant sensors and consolidating the control system')",
+        "changes": [
           {
-        "components": [
-          {
-            "type": "string",
-            "details": {
-              "key1": "value1",
-              "key2": "value2",
-              "quantity": number,
-              "notes": "string",
-              "action": "keep|update|new|remove"
-            }
+            "type": "string - 'added', 'removed', 'updated', 'kept'",
+            "component": "string - component name/type",
+            "reason": "string - specific reason for this change (like 'Removed redundant soil moisture sensor as you already have a primary one')"
           }
-        ]
-      }
+        ],
+        "impact": "string - Overall impact of the changes (like 'This reduces complexity and cost while maintaining full functionality')",
+        "nextSteps": "string - Suggested next steps or considerations (like 'Consider testing the simplified setup before finalizing the design')"
+      },
+      "components": [
+        {
+          "type": "string",
+          "details": {
+            "key1": "value1",
+            "key2": "value2",
+            "quantity": number,
+            "notes": "string",
+            "action": "keep|update|new|remove"
+          }
+        }
+      ]
+    }
       
-      ACTION EXAMPLES:
-      - "action": "new" → Add missing component
-      - "action": "keep" → Component stays unchanged  
-      - "action": "update" → Modify existing component specs
-      - "action": "remove" → Delete component (with notes explaining why)
-      
-      **MANDATORY**: When user requests removal/simplification, you MUST include multiple "action": "remove" entries!
+    ACTION EXAMPLES:
+    - "action": "new" → Add missing component
+    - "action": "keep" → Component stays unchanged  
+    - "action": "update" → Modify existing component specs
+    - "action": "remove" → Delete component (with notes explaining why)
+    
+    **EXPLANATION REQUIREMENTS:**
+    - "summary": Conversational summary like "I analyzed your request and optimized your component list with 5 changes"
+    - "reasoning": Explain WHY you made these decisions based on the user's request
+    - "changes": Array of each specific change with clear explanations
+    - "impact": Describe the overall benefit/effect of the changes
+    - "nextSteps": Suggest what the user should consider next
+    - Use natural, conversational language like Cursor AI does
+    - Be specific about what was changed and why
+    - Acknowledge the user's specific request and how you addressed it
+    
+    **MANDATORY**: When user requests removal/simplification, you MUST include multiple "action": "remove" entries AND explain each removal in the changes array!
 
     Guidelines for analysis:
     1. Power Requirements:
