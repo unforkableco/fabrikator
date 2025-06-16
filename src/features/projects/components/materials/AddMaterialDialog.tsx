@@ -12,7 +12,6 @@ import {
   Box,
   MenuItem,
   Chip,
-  SelectChangeEvent,
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { Material, MaterialStatus } from '../../../../shared/types';

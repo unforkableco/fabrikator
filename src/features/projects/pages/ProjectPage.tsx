@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Container,
@@ -6,9 +6,6 @@ import {
   CircularProgress,
   Alert,
   Typography,
-  Paper,
-  Tabs,
-  Tab,
 } from '@mui/material';
 
 import { ProjectHeader } from '../components/ProjectHeader';
@@ -26,15 +23,11 @@ const ProjectPage: React.FC = () => {
   const { project, isLoading, error: projectError, updateProject } = useProject(id);
   const { 
     materials, 
-    isGeneratingInsights,
     isLoading: materialsLoading,
-    error: materialsError, 
-    generateInsights,
     approveMaterial,
     rejectMaterial,
     addMaterial,
     deleteMaterial,
-    updateMaterial,
     refreshMaterials
   } = useMaterials(id);
 
@@ -42,11 +35,7 @@ const ProjectPage: React.FC = () => {
     setTabValue(newValue);
   };
 
-  const handleGenerateInsights = async () => {
-    if (project?.description) {
-      await generateInsights(project.description);
-    }
-  };
+  // Removed unused function
 
   const handleEditMaterial = async (material: any) => {
     // This will be implemented when we have edit functionality

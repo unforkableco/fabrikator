@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box, Typography, Button, Card } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { Material } from '../../../../shared/types';
@@ -42,7 +42,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   const activeMaterials = materials;
 
   // Charger les messages au démarrage
-  const loadChatMessages = async () => {
+  const loadChatMessages = useCallback(async () => {
     if (!projectId) return;
     
     try {
@@ -65,12 +65,12 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     } finally {
       setIsLoadingMessages(false);
     }
-  };
+  }, [projectId]);
 
   // Charger les messages au démarrage du composant
   React.useEffect(() => {
     loadChatMessages();
-  }, [projectId]);
+  }, [projectId, loadChatMessages]);
 
   // Sauvegarder un message dans la BD
   const saveChatMessage = async (message: ChatMessage) => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Material, MaterialStatus } from '../../../shared/types';
 import { api } from '../../../shared/services/api';
 
@@ -28,7 +28,7 @@ export const useMaterials = (projectId?: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMaterials = async () => {
+  const fetchMaterials = useCallback(async () => {
     if (!projectId) return;
     
     setIsLoading(true);
@@ -46,13 +46,13 @@ export const useMaterials = (projectId?: string) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [projectId]);
 
   useEffect(() => {
     if (projectId) {
       fetchMaterials();
     }
-  }, [projectId]);
+  }, [projectId, fetchMaterials]);
 
   const generateInsights = async (description: string) => {
     if (!projectId) return;
@@ -80,7 +80,7 @@ export const useMaterials = (projectId?: string) => {
     if (!projectId) return;
     
     try {
-      const result = await api.projects.addMaterial(projectId, material);
+      await api.projects.addMaterial(projectId, material);
       await fetchMaterials(); // Refresh the list
       setError(null);
     } catch (err) {

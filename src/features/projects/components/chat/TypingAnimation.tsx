@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Paper, Typography, Chip, Avatar } from '@mui/material';
-import { SmartToy as SmartToyIcon, Stop as StopIcon } from '@mui/icons-material';
+import { SmartToy as SmartToyIcon } from '@mui/icons-material';
 
 interface TypingAnimationProps {
   mode: 'ask' | 'agent';
