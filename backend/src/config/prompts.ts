@@ -71,104 +71,73 @@ export const prompts = {
 `,
 
   wiringGeneration: `
-    Project: {{projectName}} - {{projectDescription}}
-    User request: {{userPrompt}}
-    Available materials: {{availableMaterials}}
-    Current wiring: {{currentWiring}}
-
-    **FORGE DIY PHILOSOPHY: Focus on learning-oriented wiring that teaches electronics fundamentals and encourages hands-on experimentation.**
-
-    Analyze the request and generate comprehensive wiring suggestions that prioritize:
-    - Clear, educational connection patterns
-    - Safety-first approach with proper grounding
-    - Breadboard-friendly layouts for prototyping
-    - Wire color conventions for easy debugging
-    - Modular connections that allow experimentation
-    - Detailed pin mappings and voltage specifications
-
-    **OUTPUT STRICT JSON:**
-    {
-      "explanation": "Brief summary of the wiring approach and key considerations",
-      "connections": [
-        {
-          "id": "unique_connection_id",
-          "from": "source_component_id",
-          "fromPin": "source_pin_name",
-          "to": "destination_component_id",
-          "toPin": "destination_pin_name",
-          "wire": "wire_color",
-          "voltage": "voltage_specification",
-          "description": "detailed_connection_description",
-          "action": "add|modify|remove",
-          "validation": {
-            "isValid": boolean,
-            "warnings": ["warning_messages"]
-          }
-        }
-      ],
-      "diagram": {
-        "components": [
-          {
-            "id": "component_id",
-            "name": "component_name",
-            "type": "component_type",
-            "position": {"x": number, "y": number},
-            "pins": [
-              {
-                "name": "pin_name",
-                "type": "input|output|power|ground",
-                "position": {"x": number, "y": number}
-              }
-            ]
-          }
-        ],
-        "wires": [
-          {
-            "id": "wire_id",
-            "from": {"component": "comp_id", "pin": "pin_name"},
-            "to": {"component": "comp_id", "pin": "pin_name"},
-            "color": "wire_color",
-            "path": [{"x": number, "y": number}]
-          }
-        ]
-      },
-      "validation": {
-        "isValid": boolean,
-        "errors": ["error_messages"],
-        "warnings": ["warning_messages"],
-        "recommendations": ["improvement_suggestions"]
-      }
-    }
-
-    **WIRING GUIDELINES:**
-    - Use standard wire colors: Red (VCC/5V), Black (GND), Blue (Digital), Yellow (Analog), Green (I2C/SPI)
-    - Ensure all power connections have corresponding ground connections
-    - Validate pin compatibility and voltage levels
-    - Include pull-up/pull-down resistors where needed
-    - Suggest decoupling capacitors for power supplies
-    - Organize wiring for easy troubleshooting and modification
+    Generate a wiring plan for the following components:
+    {{components}}
+    
+    Please provide:
+    1. Component connections
+    2. Connection types
+    3. Any safety considerations
+    4. Power requirements
   `,
 
-  wiringQuestion: `
-    Project Context:
-    {{projectContext}}
+  wiringOptimalCircuit: `
+    Analyse des matériaux disponibles pour un projet DIY:
+    {{materials}}
     
-    User Question: {{question}}
+    Schéma de câblage actuel:
+    {{currentDiagram}}
     
-    You are Forge's wiring and electronics expert, specializing in DIY electronics education and safe wiring practices.
+    **FORGE DIY PHILOSOPHY: Priorité aux solutions faites maison et auto-construites**
     
-    Answer the user's wiring question with:
-    - Clear, educational explanations of electronics principles
-    - Safety-first recommendations and warnings
-    - DIY-friendly solutions and alternatives
-    - Step-by-step guidance when appropriate
-    - Component suggestions that are beginner-friendly
-    - Troubleshooting tips for common issues
-    - References to the components available in their project
+    Génère un circuit optimal en analysant UNIQUEMENT les matériaux disponibles listés ci-dessus. 
     
-    Keep your response conversational and educational, focusing on helping the user understand WHY certain wiring choices are made, not just HOW to make them.
+    **RÈGLES CRITIQUES:**
+    1. Utilise UNIQUEMENT les IDs réels des matériaux fournis dans la liste
+    2. Pour fromComponent et toComponent, utilise les vrais IDs (pas des noms génériques)
+    3. Assure-toi que chaque connexion relie des composants qui existent réellement
+    4. Analyse le type de chaque matériau pour déterminer ses broches disponibles
     
-    If the question involves safety concerns, always prioritize safety over convenience and explain the reasoning clearly.
+    Types de composants et leurs broches typiques:
+    - microcontroller/arduino: vcc, gnd, gpio1, gpio2, sda, scl, tx, rx
+    - sensor/capteur: vcc, gnd, data, signal
+    - display/écran: vcc, gnd, sda, scl (I2C) ou data, clock (SPI)
+    - battery/batterie: positive, negative
+    - power/alimentation: positive, negative, vcc, gnd
+    
+    **Réponse JSON uniquement:**
+    {
+      "explanation": "Explication du circuit optimal proposé avec les matériaux disponibles",
+      "suggestions": [
+        {
+          "action": "add",
+          "type": "Description du type de connexion",
+          "description": "Description détaillée de cette connexion spécifique",
+          "connectionData": {
+            "id": "conn-unique-id",
+            "fromComponent": "ID_REEL_DU_MATERIAU_SOURCE",
+            "fromPin": "broche_source_appropriée",
+            "toComponent": "ID_REEL_DU_MATERIAU_DESTINATION", 
+            "toPin": "broche_destination_appropriée",
+            "wireType": "power|ground|data|communication",
+            "wireColor": "#couleurHex",
+            "validated": false
+          },
+          "confidence": 0.9
+        }
+      ]
+    }
+    
+    **Exemple avec des IDs réels:**
+    Si tu as un matériau avec id="comp-123" de type "arduino" et un autre avec id="comp-456" de type "sensor":
+    - fromComponent: "comp-123" (pas "microcontroller")
+    - toComponent: "comp-456" (pas "sensor")
+    
+    **Priorités de connexion:**
+    1. Alimentation: connecter toutes les alimentations aux composants qui en ont besoin
+    2. Masse commune: établir GND pour tous les composants
+    3. Communication: connecter capteurs et écrans aux microcontrôleurs
+    4. Signaux: connecter les broches de données appropriées
   `,
   
   userPrompt: `

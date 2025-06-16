@@ -1,156 +1,193 @@
 import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import { WiringDiagram, WiringConnection, WiringComponent } from '../../../shared/types';
+import { api } from '../../../shared/services/api';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+export const useWiring = (projectId?: string) => {
+  const [wiringDiagram, setWiringDiagram] = useState<WiringDiagram | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-interface WiringData {
-  connections: any[];
-  diagram: any;
-}
-
-interface UseWiringReturn {
-  wiring: any;
-  loading: boolean;
-  error: Error | null;
-  createWiring: (wiringData: WiringData) => Promise<void>;
-  updateWiring: (wiringData: WiringData) => Promise<void>;
-  validateWiring: (wiringData: WiringData) => Promise<any>;
-  generateSuggestions: (prompt: string) => Promise<any>;
-  handleChatMessage: (message: string, mode: 'ask' | 'agent') => Promise<any>;
-  refreshWiring: () => Promise<void>;
-}
-
-export const useWiring = (projectId: string): UseWiringReturn => {
-  const [wiring, setWiring] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  // Charger le câblage pour un projet
-  const loadWiring = useCallback(async () => {
+  const fetchWiringDiagram = useCallback(async () => {
     if (!projectId) return;
-
-    setLoading(true);
-    setError(null);
-
+    
+    setIsLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/wiring/project/${projectId}`);
-      setWiring(response.data);
-    } catch (err: any) {
-      if (err.response?.status === 404) {
-        // Pas de câblage existant, ce n'est pas une erreur
-        setWiring(null);
-      } else {
-        console.error('Erreur lors du chargement du câblage:', err);
-        setError(new Error(err.response?.data?.error || 'Erreur lors du chargement du câblage'));
+      const response = await api.wiring.getWiringForProject(projectId);
+      if (response) {
+        // Transform backend data to frontend format
+        const diagram: WiringDiagram = {
+          id: response.id,
+          components: response.currentVersion?.wiringData?.components || [],
+          connections: response.currentVersion?.wiringData?.connections || [],
+          metadata: {
+            title: 'Wiring Diagram',
+            description: 'Project wiring diagram',
+            createdAt: response.currentVersion?.createdAt || new Date().toISOString(),
+            updatedAt: response.currentVersion?.createdAt || new Date().toISOString(),
+            version: response.currentVersion?.versionNumber || 1
+          }
+        };
+        setWiringDiagram(diagram);
       }
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching wiring diagram:', err);
+      setError('Failed to load wiring diagram');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   }, [projectId]);
 
-  // Charger le câblage au montage
   useEffect(() => {
-    loadWiring();
-  }, [loadWiring]);
+    if (projectId) {
+      fetchWiringDiagram();
+    }
+  }, [projectId, fetchWiringDiagram]);
 
-  // Créer un nouveau câblage
-  const createWiring = useCallback(async (wiringData: WiringData) => {
-    setLoading(true);
-    setError(null);
-
+  const saveWiringDiagram = async (diagram: WiringDiagram) => {
+    if (!projectId) return;
+    
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/wiring/project/${projectId}`, {
-        ...wiringData,
-        createdBy: 'User'
-      });
+      setIsLoading(true);
       
-      setWiring(response.data.wiringSchema);
-    } catch (err: any) {
-      console.error('Erreur lors de la création du câblage:', err);
-      setError(new Error(err.response?.data?.error || 'Erreur lors de la création du câblage'));
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
-
-  // Mettre à jour le câblage
-  const updateWiring = useCallback(async (wiringData: WiringData) => {
-    if (!wiring?.id) {
-      return createWiring(wiringData);
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await axios.post(`${API_BASE_URL}/api/wiring/${wiring.id}/versions`, {
-        ...wiringData,
+      const wiringData = {
+        components: diagram.components,
+        connections: diagram.connections,
         createdBy: 'User'
-      });
+      };
+
+      if (wiringDiagram) {
+        // Update existing diagram
+        await api.wiring.addVersion(wiringDiagram.id, wiringData);
+      } else {
+        // Create new diagram
+        await api.wiring.createWiring(projectId, wiringData);
+      }
       
-      setWiring(response.data.wiringSchema);
-    } catch (err: any) {
-      console.error('Erreur lors de la mise à jour du câblage:', err);
-      setError(new Error(err.response?.data?.error || 'Erreur lors de la mise à jour du câblage'));
-      throw err;
+      await fetchWiringDiagram(); // Refresh
+      setError(null);
+    } catch (err) {
+      console.error('Error saving wiring diagram:', err);
+      setError('Failed to save wiring diagram');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }, [wiring?.id, createWiring]);
+  };
 
-  // Valider le câblage
-  const validateWiring = useCallback(async (wiringData: WiringData) => {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/api/wiring/project/${projectId}/validate`, wiringData);
-      return response.data;
-    } catch (err: any) {
-      console.error('Erreur lors de la validation du câblage:', err);
-      throw new Error(err.response?.data?.error || 'Erreur lors de la validation du câblage');
-    }
-  }, [projectId]);
+  const addComponent = async (component: WiringComponent) => {
+    if (!wiringDiagram) return;
+    
+    const updatedDiagram = {
+      ...wiringDiagram,
+      components: [...wiringDiagram.components, component],
+      metadata: {
+        ...wiringDiagram.metadata,
+        updatedAt: new Date().toISOString()
+      }
+    };
+    
+    setWiringDiagram(updatedDiagram);
+    await saveWiringDiagram(updatedDiagram);
+  };
 
-  // Générer des suggestions IA
-  const generateSuggestions = useCallback(async (prompt: string) => {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/api/wiring/project/${projectId}/suggestions`, {
-        prompt
-      });
-      return response.data;
-    } catch (err: any) {
-      console.error('Erreur lors de la génération de suggestions:', err);
-      throw new Error(err.response?.data?.error || 'Erreur lors de la génération de suggestions');
-    }
-  }, [projectId]);
+  const updateComponent = async (componentId: string, updates: Partial<WiringComponent>) => {
+    if (!wiringDiagram) return;
+    
+    const updatedDiagram = {
+      ...wiringDiagram,
+      components: wiringDiagram.components.map(comp =>
+        comp.id === componentId ? { ...comp, ...updates } : comp
+      ),
+      metadata: {
+        ...wiringDiagram.metadata,
+        updatedAt: new Date().toISOString()
+      }
+    };
+    
+    setWiringDiagram(updatedDiagram);
+    await saveWiringDiagram(updatedDiagram);
+  };
 
-  // Gérer les messages de chat
-  const handleChatMessage = useCallback(async (message: string, mode: 'ask' | 'agent') => {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/api/wiring/project/${projectId}/chat`, {
-        message,
-        mode
-      });
-      return response.data;
-    } catch (err: any) {
-      console.error('Erreur lors du chat:', err);
-      throw new Error(err.response?.data?.error || 'Erreur lors de la communication avec l\'IA');
-    }
-  }, [projectId]);
+  const deleteComponent = async (componentId: string) => {
+    if (!wiringDiagram) return;
+    
+    const updatedDiagram = {
+      ...wiringDiagram,
+      components: wiringDiagram.components.filter(comp => comp.id !== componentId),
+      connections: wiringDiagram.connections.filter(conn => 
+        conn.fromComponent !== componentId && conn.toComponent !== componentId
+      ),
+      metadata: {
+        ...wiringDiagram.metadata,
+        updatedAt: new Date().toISOString()
+      }
+    };
+    
+    setWiringDiagram(updatedDiagram);
+    await saveWiringDiagram(updatedDiagram);
+  };
 
-  // Actualiser le câblage
-  const refreshWiring = useCallback(async () => {
-    await loadWiring();
-  }, [loadWiring]);
+  const addConnection = async (connection: WiringConnection) => {
+    if (!wiringDiagram) return;
+    
+    const updatedDiagram = {
+      ...wiringDiagram,
+      connections: [...wiringDiagram.connections, connection],
+      metadata: {
+        ...wiringDiagram.metadata,
+        updatedAt: new Date().toISOString()
+      }
+    };
+    
+    setWiringDiagram(updatedDiagram);
+    await saveWiringDiagram(updatedDiagram);
+  };
+
+  const updateConnection = async (connectionId: string, updates: Partial<WiringConnection>) => {
+    if (!wiringDiagram) return;
+    
+    const updatedDiagram = {
+      ...wiringDiagram,
+      connections: wiringDiagram.connections.map(conn =>
+        conn.id === connectionId ? { ...conn, ...updates } : conn
+      ),
+      metadata: {
+        ...wiringDiagram.metadata,
+        updatedAt: new Date().toISOString()
+      }
+    };
+    
+    setWiringDiagram(updatedDiagram);
+    await saveWiringDiagram(updatedDiagram);
+  };
+
+  const deleteConnection = async (connectionId: string) => {
+    if (!wiringDiagram) return;
+    
+    const updatedDiagram = {
+      ...wiringDiagram,
+      connections: wiringDiagram.connections.filter(conn => conn.id !== connectionId),
+      metadata: {
+        ...wiringDiagram.metadata,
+        updatedAt: new Date().toISOString()
+      }
+    };
+    
+    setWiringDiagram(updatedDiagram);
+    await saveWiringDiagram(updatedDiagram);
+  };
 
   return {
-    wiring,
-    loading,
+    wiringDiagram,
+    isLoading,
     error,
-    createWiring,
-    updateWiring,
-    validateWiring,
-    generateSuggestions,
-    handleChatMessage,
-    refreshWiring
+    refreshWiring: fetchWiringDiagram,
+    addComponent,
+    updateComponent,
+    deleteComponent,
+    addConnection,
+    updateConnection,
+    deleteConnection,
+    saveWiringDiagram
   };
 }; 

@@ -151,3 +151,85 @@ export enum PartStatus {
   ORDERED = 'ordered',
   RECEIVED = 'received'
 } 
+
+// Wiring specific interfaces
+export interface WiringConnection {
+  id: string;
+  fromComponent: string;
+  fromPin: string;
+  toComponent: string;
+  toPin: string;
+  wireType: 'data' | 'power' | 'ground' | 'analog' | 'digital';
+  wireColor?: string;
+  label?: string;
+  validated?: boolean;
+  error?: string;
+}
+
+export interface WiringComponent {
+  id: string;
+  name: string;
+  type: string;
+  position: { x: number; y: number };
+  pins: WiringPin[];
+  specifications?: any;
+  materialId?: string; // Reference to material component
+}
+
+export interface WiringPin {
+  id: string;
+  name: string;
+  type: 'input' | 'output' | 'power' | 'ground' | 'analog' | 'digital';
+  position: { x: number; y: number };
+  connected: boolean;
+  voltage?: number;
+  current?: number;
+}
+
+export interface WiringSuggestion {
+  id: string;
+  title: string;
+  description: string;
+  action: 'add' | 'modify' | 'remove';
+  connectionData?: WiringConnection;
+  componentData?: WiringComponent;
+  expanded: boolean;
+  validated?: boolean;
+  confidence?: number;
+}
+
+export interface WiringValidationResult {
+  isValid: boolean;
+  errors: WiringValidationError[];
+  warnings: WiringValidationWarning[];
+}
+
+export interface WiringValidationError {
+  id: string;
+  type: 'voltage_mismatch' | 'current_overload' | 'invalid_connection' | 'missing_connection';
+  message: string;
+  connectionId?: string;
+  componentId?: string;
+  severity: 'error' | 'warning';
+}
+
+export interface WiringValidationWarning {
+  id: string;
+  type: 'optimization' | 'best_practice' | 'redundancy';
+  message: string;
+  suggestion?: string;
+}
+
+export interface WiringDiagram {
+  id: string;
+  components: WiringComponent[];
+  connections: WiringConnection[];
+  metadata: {
+    title?: string;
+    description?: string;
+    createdAt: string;
+    updatedAt: string;
+    version: number;
+  };
+  validation?: WiringValidationResult;
+} 

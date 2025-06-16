@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Typography, Button, Card } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import { Material } from '../../../../shared/types';
 import { api } from '../../../../shared/services/api';
-import { ChatPanel, ChatMessage, MaterialSuggestion, MaterialSuggestionDiff } from '../chat';
+import { ChatPanel, ChatMessage, BaseSuggestion, MaterialSuggestionDiff } from '../chat';
 import { AddMaterialDialog, MaterialCard, StatusLegend, EditMaterialDialog } from './';
 
 interface MaterialsPanelProps {
@@ -56,7 +56,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         sender: msg.sender as 'user' | 'ai',
         timestamp: new Date(msg.createdAt),
         mode: msg.mode as 'ask' | 'agent',
-        suggestions: msg.suggestions ? msg.suggestions as MaterialSuggestion[] : undefined
+        suggestions: msg.suggestions ? msg.suggestions as BaseSuggestion[] : undefined
       }));
       
       setMessages(chatMessages);
@@ -216,7 +216,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       }
 
       // Préparer les suggestions pour le nouveau format de ChatPanel
-      let chatSuggestions: MaterialSuggestion[] | undefined;
+      let chatSuggestions: BaseSuggestion[] | undefined;
       
       if (mode === 'agent' && pendingSuggestions.length > 0) {
         chatSuggestions = pendingSuggestions.map((suggestion, index) => ({
@@ -441,7 +441,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           </Typography>
           <Button
             variant="contained"
-            startIcon={<AddIcon />}
+            startIcon={<PlaylistAddIcon />}
             onClick={() => setShowAddDialog(true)}
             sx={{ textTransform: 'none' }}
           >
@@ -464,7 +464,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
               </Typography>
               <Button
                 variant="contained"
-                startIcon={<AddIcon />}
+                startIcon={<PlaylistAddIcon />}
                 onClick={() => setShowAddDialog(true)}
               >
                 Add First Component

@@ -34,16 +34,18 @@ interface ChatMessage {
   sender: 'user' | 'ai';
   timestamp: Date;
   mode: 'ask' | 'agent';
-  suggestions?: MaterialSuggestion[];
+  suggestions?: BaseSuggestion[];
+  isLoading?: boolean;
 }
 
-interface MaterialSuggestion {
+interface BaseSuggestion {
   id: string;
   title: string;
   description: string;
   code?: string;
   action: 'add' | 'modify' | 'remove';
   expanded: boolean;
+  status?: 'pending' | 'accepted' | 'rejected';
 }
 
 interface ChatPanelProps {
@@ -53,6 +55,7 @@ interface ChatPanelProps {
   onAcceptSuggestion: (messageId: string, suggestionId: string) => void;
   onRejectSuggestion: (messageId: string, suggestionId: string) => void;
   isGenerating?: boolean;
+  context?: 'materials' | 'wiring' | 'general';
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
@@ -61,11 +64,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   onStopGeneration,
   onAcceptSuggestion,
   onRejectSuggestion,
-  isGenerating = false 
+  isGenerating = false,
+  context
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [chatMode, setChatMode] = useState<'ask' | 'agent'>('ask');
   const [expandedSuggestions, setExpandedSuggestions] = useState<Set<string>>(new Set());
+  const [suggestionStates, setSuggestionStates] = useState<Record<string, 'accepted' | 'rejected'>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -102,8 +107,31 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     });
   };
 
-  const renderSuggestion = (suggestion: MaterialSuggestion, messageId: string) => {
+  const handleAcceptSuggestion = (messageId: string, suggestionId: string) => {
+    // Marquer la suggestion comme acceptée visuellement
+    setSuggestionStates(prev => ({
+      ...prev,
+      [suggestionId]: 'accepted'
+    }));
+    // Appeler la fonction parent
+    onAcceptSuggestion(messageId, suggestionId);
+  };
+
+  const handleRejectSuggestion = (messageId: string, suggestionId: string) => {
+    // Marquer la suggestion comme refusée visuellement
+    setSuggestionStates(prev => ({
+      ...prev,
+      [suggestionId]: 'rejected'
+    }));
+    // Appeler la fonction parent
+    onRejectSuggestion(messageId, suggestionId);
+  };
+
+  const renderSuggestion = (suggestion: BaseSuggestion, messageId: string) => {
     const isExpanded = expandedSuggestions.has(suggestion.id);
+    const suggestionState = suggestionStates[suggestion.id];
+    const isAccepted = suggestionState === 'accepted';
+    const isRejected = suggestionState === 'rejected';
     
     return (
       <Paper
@@ -111,12 +139,36 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         sx={{
           mb: 1,
           border: '1px solid',
-          borderColor: 'divider',
+          borderColor: isAccepted ? 'success.main' : isRejected ? 'error.main' : 'divider',
           borderRadius: 1,
           overflow: 'hidden',
-          bgcolor: 'background.paper'
+          bgcolor: isAccepted ? 'success.light' : isRejected ? 'error.light' : 'background.paper',
+          opacity: isRejected ? 0.6 : 1,
+          position: 'relative'
         }}
       >
+        {/* Badge d'état */}
+        {(isAccepted || isRejected) && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              zIndex: 1,
+              bgcolor: isAccepted ? 'success.main' : 'error.main',
+              color: 'white',
+              borderRadius: '50%',
+              width: 24,
+              height: 24,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {isAccepted ? <CheckIcon sx={{ fontSize: 16 }} /> : <CloseIcon sx={{ fontSize: 16 }} />}
+          </Box>
+        )}
+
         <Box sx={{ p: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -129,9 +181,32 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 }
                 variant="outlined"
               />
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  fontWeight: 500,
+                  textDecoration: isRejected ? 'line-through' : 'none',
+                  color: isRejected ? 'text.disabled' : 'text.primary'
+                }}
+              >
                 {suggestion.title}
               </Typography>
+              {isAccepted && (
+                <Chip
+                  label="Acceptée"
+                  size="small"
+                  color="success"
+                  variant="filled"
+                />
+              )}
+              {isRejected && (
+                <Chip
+                  label="Refusée"
+                  size="small"
+                  color="error"
+                  variant="filled"
+                />
+              )}
             </Box>
             <IconButton
               size="small"
@@ -141,32 +216,53 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </IconButton>
           </Box>
           
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          <Typography 
+            variant="body2" 
+            color={isRejected ? 'text.disabled' : 'text.secondary'} 
+            sx={{ 
+              mb: 1,
+              textDecoration: isRejected ? 'line-through' : 'none'
+            }}
+          >
             {suggestion.description}
           </Typography>
 
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              size="small"
-              variant="outlined"
-              color="error"
-              startIcon={<CloseIcon />}
-              onClick={() => onRejectSuggestion(messageId, suggestion.id)}
-              sx={{ textTransform: 'none' }}
+          {/* Boutons seulement si pas encore traité */}
+          {!isAccepted && !isRejected && (
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                color="error"
+                startIcon={<CloseIcon />}
+                onClick={() => handleRejectSuggestion(messageId, suggestion.id)}
+                sx={{ textTransform: 'none' }}
+              >
+                Refuser
+              </Button>
+              <Button
+                size="small"
+                variant="contained"
+                color="success"
+                startIcon={<CheckIcon />}
+                onClick={() => handleAcceptSuggestion(messageId, suggestion.id)}
+                sx={{ textTransform: 'none' }}
+              >
+                Accepter
+              </Button>
+            </Box>
+          )}
+
+          {/* Message d'état */}
+          {(isAccepted || isRejected) && (
+            <Typography 
+              variant="caption" 
+              color={isAccepted ? 'success.main' : 'error.main'}
+              sx={{ fontWeight: 600 }}
             >
-              Refuser
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
-              color="success"
-              startIcon={<CheckIcon />}
-              onClick={() => onAcceptSuggestion(messageId, suggestion.id)}
-              sx={{ textTransform: 'none' }}
-            >
-              Accepter
-            </Button>
-          </Box>
+              {isAccepted ? '✅ Suggestion acceptée et appliquée au schéma' : '❌ Suggestion refusée'}
+            </Typography>
+          )}
         </Box>
 
         <Collapse in={isExpanded}>
@@ -351,9 +447,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         borderColor: 'divider'
                       }}
                     >
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                        {message.content}
-                      </Typography>
+                      {message.isLoading ? (
+                        <TypingAnimation mode={message.mode} context={context} />
+                      ) : (
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                          {message.content}
+                        </Typography>
+                      )}
                     </Paper>
 
                     {/* Suggestions */}
@@ -370,7 +470,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             ))}
             
             {isGenerating && (
-              <TypingAnimation mode={chatMode} />
+              <TypingAnimation mode={chatMode} context={context} />
             )}
           </>
         )}
@@ -447,4 +547,4 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 };
 
 export default ChatPanel;
-export type { ChatMessage, MaterialSuggestion }; 
+export type { ChatMessage, BaseSuggestion }; 

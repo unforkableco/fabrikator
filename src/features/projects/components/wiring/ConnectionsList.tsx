@@ -1,394 +1,274 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Box,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
+  Typography,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
   IconButton,
   Chip,
-  Typography,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  FormControl,
-  InputLabel,
+  Divider,
+  Paper,
   Select,
   MenuItem,
-  Alert,
-  Tooltip
+  FormControl,
+  InputLabel,
+  TextField
 } from '@mui/material';
-import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Add as AddIcon,
-  Warning as WarningIcon,
-  CheckCircle as ValidIcon,
-  Error as ErrorIcon
-} from '@mui/icons-material';
-
-interface Connection {
-  id: string;
-  from: string;
-  fromPin: string;
-  to: string;
-  toPin: string;
-  wire: string;
-  voltage: string;
-  description?: string;
-  validation?: {
-    isValid: boolean;
-    warnings: string[];
-  };
-}
+import DeleteIcon from '@mui/icons-material/Delete';
+import CableIcon from '@mui/icons-material/Cable';
+import ErrorIcon from '@mui/icons-material/Error';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { WiringConnection, WiringComponent } from '../../../../shared/types';
 
 interface ConnectionsListProps {
-  connections: Connection[];
-  components: any[];
-  onUpdate: (wiringData: any) => void;
-  onValidate: (wiringData: any) => Promise<any>;
+  connections: WiringConnection[];
+  components: WiringComponent[];
+  selectedConnection: string | null;
+  onConnectionSelect: (connectionId: string) => void;
+  onConnectionUpdate: (connectionId: string, updates: Partial<WiringConnection>) => void;
+  onConnectionDelete: (connectionId: string) => void;
 }
 
 const ConnectionsList: React.FC<ConnectionsListProps> = ({
   connections,
   components,
-  onUpdate,
-  onValidate
+  selectedConnection,
+  onConnectionSelect,
+  onConnectionUpdate,
+  onConnectionDelete
 }) => {
-  const [editDialog, setEditDialog] = useState(false);
-  const [editingConnection, setEditingConnection] = useState<Connection | null>(null);
-  const [isNewConnection, setIsNewConnection] = useState(false);
-  const [validationResults, setValidationResults] = useState<any>(null);
-
-  // Ouvrir le dialog d'édition
-  const handleEdit = (connection: Connection) => {
-    setEditingConnection(connection);
-    setIsNewConnection(false);
-    setEditDialog(true);
+  const getComponentName = (componentId: string): string => {
+    console.log('Looking for component:', componentId, 'in components:', components);
+    const component = components.find(c => c.id === componentId);
+    console.log('Found component:', component);
+    return component?.name || 'Unknown Component';
   };
 
-  // Ouvrir le dialog pour nouvelle connexion
-  const handleAdd = () => {
-    setEditingConnection({
-      id: `conn_${Date.now()}`,
-      from: '',
-      fromPin: '',
-      to: '',
-      toPin: '',
-      wire: 'red',
-      voltage: '5V',
-      description: ''
-    });
-    setIsNewConnection(true);
-    setEditDialog(true);
+  const getPinName = (componentId: string, pinId: string): string => {
+    const component = components.find(c => c.id === componentId);
+    const pin = component?.pins.find(p => p.id === pinId);
+    console.log('Looking for pin:', pinId, 'in component:', component, 'found pin:', pin);
+    return pin?.name || 'Unknown Pin';
   };
 
-  // Supprimer une connexion
-  const handleDelete = (connectionId: string) => {
-    const updatedConnections = connections.filter(conn => conn.id !== connectionId);
-    onUpdate({
-      connections: updatedConnections,
-      diagram: { components: [], wires: [] }
-    });
-  };
-
-  // Sauvegarder une connexion
-  const handleSave = () => {
-    if (!editingConnection) return;
-
-    let updatedConnections;
-    if (isNewConnection) {
-      updatedConnections = [...connections, editingConnection];
-    } else {
-      updatedConnections = connections.map(conn => 
-        conn.id === editingConnection.id ? editingConnection : conn
-      );
-    }
-
-    onUpdate({
-      connections: updatedConnections,
-      diagram: { components: [], wires: [] }
-    });
-
-    setEditDialog(false);
-    setEditingConnection(null);
-  };
-
-  // Valider toutes les connexions
-  const handleValidateAll = async () => {
-    try {
-      const result = await onValidate({
-        connections,
-        diagram: { components: [], wires: [] }
-      });
-      setValidationResults(result);
-    } catch (error) {
-      console.error('Erreur de validation:', error);
+  const getWireTypeColor = (wireType: WiringConnection['wireType']): string => {
+    switch (wireType) {
+      case 'power': return '#f44336';
+      case 'ground': return '#424242';
+      case 'data': return '#2196f3';
+      case 'analog': return '#ff9800';
+      case 'digital': return '#4caf50';
+      default: return '#666';
     }
   };
 
-  // Obtenir la couleur du statut de validation
-  const getValidationColor = (connection: Connection) => {
-    if (connection.validation?.isValid === false) return 'error';
-    if (connection.validation?.warnings && connection.validation.warnings.length > 0) return 'warning';
-    return 'success';
+  const getWireTypeIcon = (wireType: WiringConnection['wireType']) => {
+    return <CableIcon sx={{ color: getWireTypeColor(wireType) }} />;
   };
 
-  // Obtenir l'icône de validation
-  const getValidationIcon = (connection: Connection) => {
-    if (connection.validation?.isValid === false) return <ErrorIcon />;
-    if (connection.validation?.warnings && connection.validation.warnings.length > 0) return <WarningIcon />;
-    return <ValidIcon />;
+  const handleWireTypeChange = (connectionId: string, newType: WiringConnection['wireType']) => {
+    onConnectionUpdate(connectionId, { 
+      wireType: newType,
+      wireColor: getWireTypeColor(newType)
+    });
   };
+
+  const handleLabelChange = (connectionId: string, newLabel: string) => {
+    onConnectionUpdate(connectionId, { label: newLabel });
+  };
+
+  if (connections.length === 0) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+        <CableIcon sx={{ fontSize: 48, mb: 2, opacity: 0.3 }} />
+        <Typography variant="body2">
+          Aucune connexion dans le schéma
+        </Typography>
+        <Typography variant="caption">
+          Cliquez sur les broches des composants pour créer des connexions
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
-    <Box sx={{ p: 2 }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6">
-          Connexions ({connections.length})
-        </Typography>
-        <Box>
-          <Button
-            variant="outlined"
-            onClick={handleValidateAll}
-            sx={{ mr: 1 }}
-          >
-            Valider tout
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAdd}
-          >
-            Ajouter
-          </Button>
-        </Box>
-      </Box>
-
-      {/* Résultats de validation globale */}
-      {validationResults && (
-        <Alert 
-          severity={validationResults.isValid ? 'success' : validationResults.errors?.length > 0 ? 'error' : 'warning'}
-          sx={{ mb: 2 }}
-        >
-          <Typography variant="subtitle2">{validationResults.summary}</Typography>
-          {validationResults.errors?.length > 0 && (
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="body2" color="error">Erreurs:</Typography>
-              <ul>
-                {validationResults.errors.map((error: string, index: number) => (
-                  <li key={index}><Typography variant="body2">{error}</Typography></li>
-                ))}
-              </ul>
-            </Box>
-          )}
-          {validationResults.warnings?.length > 0 && (
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="body2" color="warning.main">Avertissements:</Typography>
-              <ul>
-                {validationResults.warnings.map((warning: string, index: number) => (
-                  <li key={index}><Typography variant="body2">{warning}</Typography></li>
-                ))}
-              </ul>
-            </Box>
-          )}
-        </Alert>
-      )}
-
-      {/* Table des connexions */}
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Statut</TableCell>
-              <TableCell>De</TableCell>
-              <TableCell>Pin Source</TableCell>
-              <TableCell>Vers</TableCell>
-              <TableCell>Pin Destination</TableCell>
-              <TableCell>Câble</TableCell>
-              <TableCell>Tension</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {connections.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} align="center">
-                  <Typography variant="body2" color="text.secondary">
-                    Aucune connexion définie
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              connections.map((connection) => (
-                <TableRow key={connection.id}>
-                  <TableCell>
-                    <Tooltip title={connection.validation?.warnings?.join(', ') || 'Connexion valide'}>
-                      <Chip
-                        icon={getValidationIcon(connection)}
-                        label={connection.validation?.isValid !== false ? 'OK' : 'Erreur'}
-                        color={getValidationColor(connection)}
-                        size="small"
-                      />
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {components.find(c => c.id === connection.from)?.currentVersion?.specs?.name || connection.from}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={connection.fromPin} size="small" />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">
-                      {components.find(c => c.id === connection.to)?.currentVersion?.specs?.name || connection.to}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={connection.toPin} size="small" />
-                  </TableCell>
-                  <TableCell>
+    <Box>
+      <List>
+        {connections.map((connection, index) => {
+          const isSelected = selectedConnection === connection.id;
+          const hasError = Boolean(connection.error);
+          const isValidated = connection.validated;
+          
+          return (
+            <React.Fragment key={connection.id}>
+              <ListItem
+                selected={isSelected}
+                onClick={() => onConnectionSelect(connection.id)}
+                sx={{
+                  cursor: 'pointer',
+                  '&.Mui-selected': {
+                    bgcolor: 'primary.light',
+                    '&:hover': {
+                      bgcolor: 'primary.light',
+                    },
+                  },
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+                  {getWireTypeIcon(connection.wireType)}
+                  {hasError && <ErrorIcon color="error" sx={{ ml: 1 }} />}
+                  {isValidated && !hasError && <CheckCircleIcon color="success" sx={{ ml: 1 }} />}
+                </Box>
+                
+                <ListItemText
+                  primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" fontWeight={500}>
+                        {getComponentName(connection.fromComponent)}.{getPinName(connection.fromComponent, connection.fromPin)}
+                        {' → '}
+                        {getComponentName(connection.toComponent)}.{getPinName(connection.toComponent, connection.toPin)}
+                      </Typography>
+                      {connection.label && (
+                        <Chip 
+                          label={connection.label} 
+                          size="small" 
+                          variant="outlined"
+                        />
+                      )}
+                    </Box>
+                  }
+                  secondary={
+                    <React.Fragment>
+                      {hasError && (
+                        <Typography variant="caption" color="error" display="block">
+                          ⚠️ {connection.error}
+                        </Typography>
+                      )}
+                    </React.Fragment>
+                  }
+                />
+                
+                {/* Connection details when selected - moved outside ListItemText */}
+                {isSelected && (
+                  <Box sx={{ width: '100%', mt: 2, pl: 7 }}>
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                      <FormControl size="small" sx={{ minWidth: 120 }}>
+                        <InputLabel>Type de fil</InputLabel>
+                        <Select
+                          value={connection.wireType}
+                          label="Type de fil"
+                          onChange={(e) => handleWireTypeChange(
+                            connection.id, 
+                            e.target.value as WiringConnection['wireType']
+                          )}
+                        >
+                          <MenuItem value="power">Alimentation</MenuItem>
+                          <MenuItem value="ground">Masse</MenuItem>
+                          <MenuItem value="data">Données</MenuItem>
+                          <MenuItem value="analog">Analogique</MenuItem>
+                          <MenuItem value="digital">Numérique</MenuItem>
+                        </Select>
+                      </FormControl>
+                      
+                      <TextField
+                        size="small"
+                        label="Étiquette"
+                        value={connection.label || ''}
+                        onChange={(e) => handleLabelChange(connection.id, e.target.value)}
+                        placeholder="Nom de la connexion..."
+                        sx={{ minWidth: 160 }}
+                      />
+                      
                       <Box
                         sx={{
-                          width: 16,
-                          height: 3,
-                          backgroundColor: connection.wire,
-                          borderRadius: 1
+                          width: 20,
+                          height: 20,
+                          bgcolor: connection.wireColor || '#000',
+                          border: 1,
+                          borderColor: 'divider',
+                          borderRadius: 1,
+                          alignSelf: 'center'
                         }}
+                        title={`Couleur: ${connection.wireColor}`}
                       />
-                      <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                        {connection.wire}
-                      </Typography>
                     </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">{connection.voltage}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <IconButton size="small" onClick={() => handleEdit(connection)}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => handleDelete(connection.id)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* Dialog d'édition */}
-      <Dialog open={editDialog} onClose={() => setEditDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {isNewConnection ? 'Nouvelle Connexion' : 'Modifier la Connexion'}
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            {/* Composant source */}
-            <FormControl fullWidth>
-              <InputLabel>Composant source</InputLabel>
-              <Select
-                value={editingConnection?.from || ''}
-                onChange={(e) => setEditingConnection(prev => prev ? { ...prev, from: e.target.value } : null)}
-              >
-                {components.map(comp => {
-                  const specs = comp.currentVersion?.specs || {};
-                  return (
-                    <MenuItem key={comp.id} value={comp.id}>
-                      {specs.name || specs.type || 'Composant'}
-                    </MenuItem>
-                  );
-                })}
-              </Select>
-            </FormControl>
-
-            {/* Pin source */}
-            <TextField
-              fullWidth
-              label="Pin source"
-              value={editingConnection?.fromPin || ''}
-              onChange={(e) => setEditingConnection(prev => prev ? { ...prev, fromPin: e.target.value } : null)}
-            />
-
-            {/* Composant destination */}
-            <FormControl fullWidth>
-              <InputLabel>Composant destination</InputLabel>
-              <Select
-                value={editingConnection?.to || ''}
-                onChange={(e) => setEditingConnection(prev => prev ? { ...prev, to: e.target.value } : null)}
-              >
-                {components.map(comp => {
-                  const specs = comp.currentVersion?.specs || {};
-                  return (
-                    <MenuItem key={comp.id} value={comp.id}>
-                      {specs.name || specs.type || 'Composant'}
-                    </MenuItem>
-                  );
-                })}
-              </Select>
-            </FormControl>
-
-            {/* Pin destination */}
-            <TextField
-              fullWidth
-              label="Pin destination"
-              value={editingConnection?.toPin || ''}
-              onChange={(e) => setEditingConnection(prev => prev ? { ...prev, toPin: e.target.value } : null)}
-            />
-
-            {/* Couleur du câble */}
-            <FormControl fullWidth>
-              <InputLabel>Couleur du câble</InputLabel>
-              <Select
-                value={editingConnection?.wire || 'red'}
-                onChange={(e) => setEditingConnection(prev => prev ? { ...prev, wire: e.target.value } : null)}
-              >
-                <MenuItem value="red">Rouge (5V)</MenuItem>
-                <MenuItem value="black">Noir (GND)</MenuItem>
-                <MenuItem value="blue">Bleu (Signal)</MenuItem>
-                <MenuItem value="yellow">Jaune (Data)</MenuItem>
-                <MenuItem value="green">Vert (Analog)</MenuItem>
-                <MenuItem value="white">Blanc (Signal)</MenuItem>
-              </Select>
-            </FormControl>
-
-            {/* Tension */}
-            <TextField
-              fullWidth
-              label="Tension"
-              value={editingConnection?.voltage || '5V'}
-              onChange={(e) => setEditingConnection(prev => prev ? { ...prev, voltage: e.target.value } : null)}
-            />
-
-            {/* Description */}
-            <TextField
-              fullWidth
-              label="Description (optionnel)"
-              multiline
-              rows={2}
-              value={editingConnection?.description || ''}
-              onChange={(e) => setEditingConnection(prev => prev ? { ...prev, description: e.target.value } : null)}
-            />
+                  </Box>
+                )}
+                
+                <ListItemSecondaryAction>
+                  <IconButton
+                    edge="end"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onConnectionDelete(connection.id);
+                    }}
+                    size="small"
+                    color="error"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </ListItemSecondaryAction>
+              </ListItem>
+              
+              {index < connections.length - 1 && <Divider />}
+            </React.Fragment>
+          );
+        })}
+      </List>
+      
+      {/* Summary */}
+      <Paper sx={{ p: 2, mt: 2, bgcolor: 'grey.50' }}>
+        <Typography variant="subtitle2" gutterBottom>
+          Résumé des connexions
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <Chip 
+            label={`Total: ${connections.length}`} 
+            size="small" 
+            variant="outlined"
+          />
+          <Chip 
+            label={`Validées: ${connections.filter(c => c.validated).length}`} 
+            size="small" 
+            color="success"
+            variant="outlined"
+          />
+          <Chip 
+            label={`Erreurs: ${connections.filter(c => c.error).length}`} 
+            size="small" 
+            color="error"
+            variant="outlined"
+          />
+        </Box>
+        
+        {/* Wire type breakdown */}
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+            Types de connexions:
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {Object.entries(
+              connections.reduce((acc, conn) => {
+                acc[conn.wireType] = (acc[conn.wireType] || 0) + 1;
+                return acc;
+              }, {} as Record<string, number>)
+            ).map(([type, count]) => (
+              <Chip
+                key={type}
+                label={`${type}: ${count}`}
+                size="small"
+                sx={{ 
+                  bgcolor: getWireTypeColor(type as WiringConnection['wireType']),
+                  color: 'white',
+                  fontSize: '0.7rem'
+                }}
+              />
+            ))}
           </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialog(false)}>Annuler</Button>
-          <Button onClick={handleSave} variant="contained">
-            {isNewConnection ? 'Créer' : 'Sauvegarder'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </Paper>
     </Box>
   );
 };

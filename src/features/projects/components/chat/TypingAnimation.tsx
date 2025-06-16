@@ -1,119 +1,99 @@
-import React, { useState } from 'react';
-import { Box, Paper, Typography, Chip, Avatar } from '@mui/material';
-import { SmartToy as SmartToyIcon } from '@mui/icons-material';
+import React from 'react';
+import { Box, Typography, CircularProgress } from '@mui/material';
+import { SmartToy as SmartToyIcon, Cable as CableIcon, Memory as MemoryIcon } from '@mui/icons-material';
 
 interface TypingAnimationProps {
   mode: 'ask' | 'agent';
-  onStop?: () => void;
+  context?: 'materials' | 'wiring' | 'general';
 }
 
-const TypingAnimation: React.FC<TypingAnimationProps> = ({ mode, onStop }) => {
-  const [dots, setDots] = useState('');
+const TypingAnimation: React.FC<TypingAnimationProps> = ({ mode, context = 'general' }) => {
+  const getAnimationContent = () => {
+    if (context === 'wiring') {
+      return {
+        icon: <CableIcon sx={{ fontSize: 16, color: 'primary.main' }} />,
+        text: 'Génération du câblage en cours...',
+        subtext: 'Analyse des connexions optimales'
+      };
+    } else if (context === 'materials') {
+      return {
+        icon: <MemoryIcon sx={{ fontSize: 16, color: 'secondary.main' }} />,
+        text: 'Analyse des matériaux...',
+        subtext: 'Recherche de composants'
+      };
+    } else {
+      return {
+        icon: <SmartToyIcon sx={{ fontSize: 16, color: 'info.main' }} />,
+        text: mode === 'ask' ? 'Réflexion en cours...' : 'Génération en cours...',
+        subtext: 'Traitement de votre demande'
+      };
+    }
+  };
 
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setDots(prev => {
-        if (prev === '...') return '';
-        return prev + '.';
-      });
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, []);
+  const { icon, text, subtext } = getAnimationContent();
 
   return (
     <Box
       sx={{
         display: 'flex',
-        alignItems: 'flex-start',
-        gap: 1
+        alignItems: 'center',
+        gap: 1,
+        p: 1.5,
+        bgcolor: 'background.paper',
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 1,
+        animation: 'pulse 2s infinite'
       }}
     >
-      <Avatar
-        sx={{
-          width: 24,
-          height: 24,
-          bgcolor: 'secondary.main',
-          fontSize: '0.75rem'
-        }}
-      >
-        <SmartToyIcon sx={{ fontSize: 14 }} />
-      </Avatar>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {icon}
+        <CircularProgress size={12} thickness={4} />
+      </Box>
       
-      <Box sx={{ flexGrow: 1, maxWidth: '85%' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-          <Typography variant="caption" color="text.secondary">
-            Assistant
-          </Typography>
-          <Chip
-            label={mode}
-            size="small"
-            color={mode === 'ask' ? 'info' : 'warning'}
-            variant="outlined"
-            sx={{ height: 16, fontSize: '0.625rem' }}
-          />
-          <Typography variant="caption" color="text.disabled">
-            {new Date().toLocaleTimeString()}
-          </Typography>
-        </Box>
-        
-        <Paper
-          sx={{
-            p: 1.5,
-            bgcolor: 'background.paper',
-            color: 'text.primary',
-            border: '1px solid',
-            borderColor: 'divider',
-            position: 'relative',
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" sx={{ 
-              opacity: 0.8,
-              fontStyle: 'italic'
-            }}>
-              {mode === 'ask' ? 'Réflexion en cours' : 'Génération de composants'}
-            </Typography>
-            <Typography variant="body2" sx={{ 
-              fontWeight: 'bold', 
-              minWidth: '20px',
-              fontFamily: 'monospace',
-              color: 'primary.main'
-            }}>
-              {dots}
-            </Typography>
-          </Box>
-          
-          {/* Point de pulsation minimaliste */}
+      <Box>
+        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          {text}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {subtext}
+        </Typography>
+      </Box>
+      
+      {/* Dots animation */}
+      <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
+        {[0, 1, 2].map((i) => (
           <Box
+            key={i}
             sx={{
-              position: 'absolute',
-              right: 12,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: 6,
-              height: 6,
+              width: 4,
+              height: 4,
               borderRadius: '50%',
-              bgcolor: mode === 'ask' ? 'info.main' : 'warning.main',
-              animation: 'pulse 1.5s infinite',
-              '@keyframes pulse': {
-                '0%': {
-                  opacity: 1,
-                  transform: 'translateY(-50%) scale(1)',
-                },
-                '50%': {
-                  opacity: 0.5,
-                  transform: 'translateY(-50%) scale(1.2)',
-                },
-                '100%': {
-                  opacity: 1,
-                  transform: 'translateY(-50%) scale(1)',
-                },
-              },
+              bgcolor: 'text.secondary',
+              animation: `bounce 1.4s infinite ease-in-out`,
+              animationDelay: `${i * 0.16}s`
             }}
           />
-        </Paper>
+        ))}
       </Box>
+      
+      <style>
+        {`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+          }
+          
+          @keyframes bounce {
+            0%, 80%, 100% {
+              transform: scale(0);
+            }
+            40% {
+              transform: scale(1);
+            }
+          }
+        `}
+      </style>
     </Box>
   );
 };

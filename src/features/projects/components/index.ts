@@ -1,11 +1,11 @@
 // Materials components
 export * from './materials';
 
-// Chat components  
-export * from './chat';
-
 // Wiring components
 export * from './wiring';
+
+// Chat components  
+export * from './chat';
 
 // Other components
 export { ProjectTabs } from './ProjectTabs';

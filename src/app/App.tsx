@@ -11,6 +11,7 @@ import { AppLayout } from '../shared/components/layout';
 import HomePage from '../pages/HomePage';
 import NewProjectPage from '../pages/NewProjectPage';
 import ProjectPage from '../features/projects/pages/ProjectPage';
+import WiringTestPage from '../features/projects/components/wiring/WiringTestPage';
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/project/new" element={<NewProjectPage />} />
             <Route path="/project/:id" element={<ProjectPage />} />
+            <Route path="/wiring-test" element={<WiringTestPage />} />
           </Routes>
         </AppLayout>
       </Router>

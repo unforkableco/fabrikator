@@ -1,7 +1,16 @@
-import { prisma } from '../../prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
+import { AIService } from '../../services/ai.service';
+
+const prisma = new PrismaClient();
 
 export class WiringService {
+  private aiService: AIService;
+
+  constructor() {
+    this.aiService = new AIService();
+  }
+
   /**
    * Récupère le plan de câblage pour un projet
    */
@@ -201,169 +210,173 @@ export class WiringService {
   }
 
   /**
-   * Valide une configuration de câblage
+   * Génère des suggestions de câblage avec l'IA
    */
-  async validateWiring(projectId: string, wiringData: { connections: any[]; diagram: any }) {
+  async generateWiringSuggestions(projectId: string, prompt: string, currentDiagram: any) {
     try {
-      const { connections, diagram } = wiringData;
-      const errors: string[] = [];
-      const warnings: string[] = [];
-      const recommendations: string[] = [];
-
-      // Récupérer les matériaux du projet pour validation
+      console.log('WiringService - Generating AI suggestions for:', prompt);
+      
+      // Récupérer les matériaux du projet depuis la base de données
       const materials = await prisma.component.findMany({
         where: { projectId },
         include: { currentVersion: true }
       });
 
-      // Créer un map des composants par ID pour validation
-      const componentMap = new Map();
-      materials.forEach(material => {
-        const specs = (material.currentVersion?.specs as any) || {};
-        componentMap.set(material.id, {
+      // Transformer les matériaux en format simple pour l'IA
+      const simplifiedMaterials = materials.map(material => {
+        const specs = material.currentVersion?.specs as any || {};
+        return {
           id: material.id,
-          name: specs.name || 'Unknown',
+          name: specs.name || 'Composant',
           type: specs.type || 'unknown',
-          pins: this.getComponentPins(specs.type)
-        });
+          quantity: specs.quantity || 1,
+          description: specs.description || '',
+          specifications: specs.technicalSpecs || {}
+        };
       });
 
-      // Valider chaque connexion
-      connections.forEach((connection, index) => {
-        const connIndex = index + 1;
-        
-        // Vérifier que les composants existent
-        if (!componentMap.has(connection.from)) {
-          errors.push(`Connexion ${connIndex}: Composant source '${connection.from}' non trouvé`);
-        }
-        
-        if (!componentMap.has(connection.to)) {
-          errors.push(`Connexion ${connIndex}: Composant destination '${connection.to}' non trouvé`);
-        }
+      console.log('WiringService - Available materials:', simplifiedMaterials.length);
 
-        // Vérifier les pins si les composants existent
-        if (componentMap.has(connection.from) && connection.fromPin) {
-          const sourceComponent = componentMap.get(connection.from);
-          if (!sourceComponent.pins.includes(connection.fromPin)) {
-            warnings.push(`Connexion ${connIndex}: Pin '${connection.fromPin}' non reconnue sur ${sourceComponent.name}`);
-          }
-        }
-
-        if (componentMap.has(connection.to) && connection.toPin) {
-          const destComponent = componentMap.get(connection.to);
-          if (!destComponent.pins.includes(connection.toPin)) {
-            warnings.push(`Connexion ${connIndex}: Pin '${connection.toPin}' non reconnue sur ${destComponent.name}`);
-          }
-        }
-
-        // Vérifier les connexions de tension
-        if (connection.voltage) {
-          if (connection.fromPin?.includes('3V') && connection.voltage !== '3.3V') {
-            warnings.push(`Connexion ${connIndex}: Tension incohérente - Pin 3V avec tension ${connection.voltage}`);
-          }
-          if (connection.fromPin?.includes('5V') && connection.voltage !== '5V') {
-            warnings.push(`Connexion ${connIndex}: Tension incohérente - Pin 5V avec tension ${connection.voltage}`);
-          }
-        }
-
-        // Recommandations de couleur de câble
-        if (connection.wire) {
-          if (connection.fromPin?.includes('GND') && connection.wire !== 'noir') {
-            recommendations.push(`Connexion ${connIndex}: Utilisez un câble noir pour les connexions GND`);
-          }
-          if (connection.fromPin?.includes('5V') && connection.wire !== 'rouge') {
-            recommendations.push(`Connexion ${connIndex}: Utilisez un câble rouge pour les connexions 5V`);
-          }
-          if (connection.fromPin?.includes('3V') && connection.wire !== 'orange') {
-            recommendations.push(`Connexion ${connIndex}: Utilisez un câble orange pour les connexions 3.3V`);
-          }
-        }
+      // Utiliser l'IA pour générer les suggestions
+      const aiResponse = await this.aiService.generateWiringSuggestions({
+        prompt,
+        materials: simplifiedMaterials,
+        currentDiagram
       });
 
-      // Vérifications générales
-      const powerConnections = connections.filter(conn => 
-        conn.fromPin?.includes('5V') || conn.fromPin?.includes('3V') || conn.fromPin?.includes('VIN')
-      );
-      const groundConnections = connections.filter(conn => 
-        conn.fromPin?.includes('GND') || conn.toPin?.includes('GND')
-      );
+      console.log('WiringService - AI response received:', aiResponse);
 
-      if (powerConnections.length === 0) {
-        warnings.push('Aucune connexion d\'alimentation détectée');
-      }
-
-      if (groundConnections.length === 0) {
-        warnings.push('Aucune connexion de masse (GND) détectée');
-      }
-
-      if (powerConnections.length > 0 && groundConnections.length === 0) {
-        errors.push('Connexions d\'alimentation sans connexions de masse - Circuit incomplet');
-      }
-
-      // Vérifier les conflits de pins
-      const pinUsage = new Map();
-      connections.forEach(connection => {
-        const fromKey = `${connection.from}:${connection.fromPin}`;
-        const toKey = `${connection.to}:${connection.toPin}`;
-        
-        if (pinUsage.has(fromKey)) {
-          warnings.push(`Pin ${connection.fromPin} du composant ${connection.from} utilisée plusieurs fois`);
-        } else {
-          pinUsage.set(fromKey, true);
+      // Transformer la réponse IA en format attendu par le frontend
+      const suggestions = aiResponse.suggestions?.map((suggestion: any, index: number) => {
+        // Vérifier que la suggestion a les données de connexion nécessaires
+        if (!suggestion.connectionData) {
+          console.warn('Suggestion without connectionData:', suggestion);
+          return null;
         }
-        
-        if (pinUsage.has(toKey)) {
-          warnings.push(`Pin ${connection.toPin} du composant ${connection.to} utilisée plusieurs fois`);
-        } else {
-          pinUsage.set(toKey, true);
-        }
-      });
 
-      const isValid = errors.length === 0;
+        const connectionData = suggestion.connectionData;
+        
+        // Vérifier que les composants référencés existent dans les matériaux
+        const fromComponentExists = simplifiedMaterials.find(m => m.id === connectionData.fromComponent);
+        const toComponentExists = simplifiedMaterials.find(m => m.id === connectionData.toComponent);
+        
+        if (!fromComponentExists || !toComponentExists) {
+          console.warn('Connection references non-existent components:', {
+            fromComponent: connectionData.fromComponent,
+            toComponent: connectionData.toComponent,
+            availableComponents: simplifiedMaterials.map(m => ({ id: m.id, name: m.name, type: m.type }))
+          });
+          return null;
+        }
+
+        return {
+          id: connectionData.id || `wiring-suggestion-${Date.now()}-${index}`,
+          title: suggestion.type || `Connexion ${fromComponentExists.name} → ${toComponentExists.name}`,
+          description: suggestion.description || `Connecter ${fromComponentExists.name} (${connectionData.fromPin}) à ${toComponentExists.name} (${connectionData.toPin})`,
+          action: suggestion.action || 'add',
+          connectionData: {
+            ...connectionData,
+            wireType: this.normalizeWireType(connectionData.wireType),
+            // S'assurer que les IDs sont corrects
+            fromComponent: connectionData.fromComponent,
+            toComponent: connectionData.toComponent
+          },
+          componentData: suggestion.componentData,
+          expanded: false,
+          validated: false,
+          confidence: suggestion.confidence || 0.8
+        };
+      }).filter(Boolean) || []; // Filtrer les suggestions nulles
+
+      console.log('WiringService - Processed suggestions:', suggestions.length);
+      console.log('WiringService - Valid suggestions:', suggestions.map((s: any) => ({
+        title: s.title,
+        from: s.connectionData.fromComponent,
+        to: s.connectionData.toComponent
+      })));
 
       return {
-        isValid,
-        errors,
-        warnings,
-        recommendations,
-        connectionCount: connections.length,
-        componentCount: componentMap.size,
-        summary: isValid 
-          ? `Câblage valide avec ${connections.length} connexion(s)`
-          : `${errors.length} erreur(s) détectée(s) dans le câblage`
+        suggestions,
+        explanation: aiResponse.explanation || `J'ai généré ${suggestions.length} suggestions de connexions valides pour votre circuit.`
       };
 
     } catch (error) {
-      console.error('Error in validateWiring:', error);
-      throw error;
+      console.error('Error in generateWiringSuggestions:', error);
+      
+      // Fallback en cas d'erreur IA
+      return {
+        suggestions: [],
+        explanation: 'Désolé, je n\'ai pas pu générer de suggestions de câblage pour le moment. Veuillez réessayer.'
+      };
     }
   }
 
   /**
-   * Obtient les pins disponibles pour un type de composant
+   * Normalise les types de fils pour correspondre aux types attendus
    */
-  private getComponentPins(type?: string): string[] {
-    const componentType = type?.toLowerCase() || '';
+  private normalizeWireType(wireType: string): 'data' | 'power' | 'ground' | 'analog' | 'digital' {
+    const type = wireType?.toLowerCase() || 'data';
     
-    const pinMappings: { [key: string]: string[] } = {
-      'arduino': ['D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'VIN', '5V', '3.3V', 'GND'],
-      'esp32': ['GPIO0', 'GPIO1', 'GPIO2', 'GPIO3', 'GPIO4', 'GPIO5', 'GPIO12', 'GPIO13', 'GPIO14', 'GPIO15', 'GPIO16', 'GPIO17', 'GPIO18', 'GPIO19', 'GPIO21', 'GPIO22', 'GPIO23', '3V3', 'GND', 'VIN'],
-      'sensor': ['VCC', 'GND', 'OUT', 'SDA', 'SCL'],
-      'dht22': ['VCC', 'GND', 'DATA'],
-      'relay': ['VCC', 'GND', 'IN', 'COM', 'NO', 'NC'],
-      'led': ['ANODE', 'CATHODE'],
-      'resistor': ['PIN1', 'PIN2'],
-      'capacitor': ['POSITIVE', 'NEGATIVE'],
-      'button': ['PIN1', 'PIN2'],
-      'servo': ['VCC', 'GND', 'SIGNAL']
-    };
-    
-    for (const [key, pins] of Object.entries(pinMappings)) {
-      if (componentType.includes(key)) {
-        return pins;
-      }
+    if (type.includes('power') || type.includes('vcc') || type.includes('vdd')) {
+      return 'power';
+    } else if (type.includes('ground') || type.includes('gnd')) {
+      return 'ground';
+    } else if (type.includes('analog')) {
+      return 'analog';
+    } else if (type.includes('digital') || type.includes('communication')) {
+      return 'digital';
     }
     
-    return ['VCC', 'GND', 'OUT'];
+    return 'data';
+  }
+
+  /**
+   * Valide un schéma de câblage
+   */
+  async validateWiring(projectId: string, diagram: any) {
+    try {
+      const errors: any[] = [];
+      const warnings: any[] = [];
+
+      // Validation basique - à étendre avec une logique de validation plus sophistiquée
+      if (diagram.components && diagram.connections) {
+        for (const connection of diagram.connections) {
+          const fromComponent = diagram.components.find((c: any) => c.id === connection.fromComponent);
+          const toComponent = diagram.components.find((c: any) => c.id === connection.toComponent);
+
+          if (!fromComponent || !toComponent) {
+            errors.push({
+              id: `error-${connection.id}`,
+              type: 'invalid_connection',
+              message: `Connexion invalide: composant manquant pour ${connection.id}`,
+              connectionId: connection.id,
+              severity: 'error'
+            });
+          }
+
+          // Vérifier les incompatibilités de tension
+          const fromPin = fromComponent?.pins?.find((p: any) => p.id === connection.fromPin);
+          const toPin = toComponent?.pins?.find((p: any) => p.id === connection.toPin);
+
+          if (fromPin && toPin && fromPin.voltage && toPin.voltage && fromPin.voltage !== toPin.voltage) {
+            warnings.push({
+              id: `warning-${connection.id}`,
+              type: 'voltage_mismatch',
+              message: `Différence de tension détectée: ${fromPin.voltage}V vs ${toPin.voltage}V`,
+              suggestion: 'Vérifiez la compatibilité des tensions ou ajoutez un convertisseur.'
+            });
+          }
+        }
+      }
+
+      return {
+        isValid: errors.length === 0,
+        errors,
+        warnings
+      };
+    } catch (error) {
+      console.error('Error in validateWiring:', error);
+      throw error;
+    }
   }
 }

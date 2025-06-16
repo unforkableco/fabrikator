@@ -13,8 +13,8 @@ import { ProjectTabs } from '../components/ProjectTabs';
 import { TabPanel } from '../../../shared/components/ui/TabPanel';
 import { useProject } from '../hooks/useProject';
 import { useMaterials } from '../hooks/useMaterials';
-import { MaterialsPanel } from '../components';
-import { WiringPanel } from '../components/wiring';
+import { useWiring } from '../hooks/useWiring';
+import { MaterialsPanel, WiringPanel } from '../components';
 
 const ProjectPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -31,6 +31,11 @@ const ProjectPage: React.FC = () => {
     deleteMaterial,
     refreshMaterials
   } = useMaterials(id);
+  const { 
+    wiringDiagram,
+    isLoading: wiringLoading,
+    refreshWiring
+  } = useWiring(id);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -75,7 +80,18 @@ const ProjectPage: React.FC = () => {
       <ProjectHeader project={project} onProjectUpdate={updateProject} />
       <ProjectTabs value={tabValue} onChange={handleTabChange} />
 
-      <Container maxWidth="lg" sx={{ flexGrow: 1, py: 3 }}>
+      {/* Container avec largeur adaptée selon l'onglet */}
+      <Container 
+        maxWidth={tabValue === 2 ? "xl" : "lg"} // Plus large pour le wiring
+        sx={{ 
+          flexGrow: 1, 
+          py: 3,
+          ...(tabValue === 2 && {
+            maxWidth: '95%', // Utilise presque toute la largeur pour le wiring
+            px: 1 // Padding réduit pour plus d'espace
+          })
+        }}
+      >
         {/* Overview Tab */}
         <TabPanel value={tabValue} index={0} id="project">
           <Typography variant="h6" gutterBottom>
@@ -108,11 +124,13 @@ const ProjectPage: React.FC = () => {
 
         {/* Wiring Tab */}
         <TabPanel value={tabValue} index={2} id="project">
-          <Box sx={{ height: '80vh' }}>
+          <Box sx={{ height: '90vh' }}> {/* Hauteur augmentée pour le wiring */}
             <WiringPanel
-              projectId={id!}
+              wiringDiagram={wiringDiagram}
+              isLoading={wiringLoading}
+              projectId={id}
               materials={materials}
-              isVisible={tabValue === 2}
+              onWiringUpdated={refreshWiring}
             />
           </Box>
         </TabPanel>

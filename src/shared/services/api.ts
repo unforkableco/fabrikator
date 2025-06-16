@@ -164,6 +164,56 @@ export const api = {
       return response.data;
     },
   },
+
+  // Wiring API endpoints
+  wiring: {
+    // Get wiring diagram for a project
+    getWiringForProject: async (projectId: string): Promise<any> => {
+      const response = await apiClient.get(`/wiring/project/${projectId}`);
+      return response.data;
+    },
+
+    // Create new wiring diagram
+    createWiring: async (projectId: string, wiringData: any): Promise<any> => {
+      const response = await apiClient.post(`/wiring/project/${projectId}`, wiringData);
+      return response.data;
+    },
+
+    // Get wiring diagram by ID
+    getWiringById: async (id: string): Promise<any> => {
+      const response = await apiClient.get(`/wiring/${id}`);
+      return response.data;
+    },
+
+    // Add new version to existing wiring diagram
+    addVersion: async (wiringSchemaId: string, versionData: any): Promise<any> => {
+      const response = await apiClient.put(`/wiring/${wiringSchemaId}`, versionData);
+      return response.data;
+    },
+
+    // Get versions of a wiring diagram
+    getWiringVersions: async (wiringSchemaId: string): Promise<any> => {
+      const response = await apiClient.get(`/wiring/${wiringSchemaId}/versions`);
+      return response.data;
+    },
+
+    // Generate wiring suggestions using AI
+    generateWiringSuggestions: async (projectId: string, prompt: string, currentDiagram?: any): Promise<any> => {
+      const response = await apiClient.post(`/wiring/project/${projectId}/suggestions`, {
+        prompt,
+        currentDiagram
+      });
+      return response.data;
+    },
+
+    // Validate wiring diagram
+    validateWiring: async (projectId: string, diagram: any): Promise<any> => {
+      const response = await apiClient.post(`/wiring/project/${projectId}/validate`, {
+        diagram
+      });
+      return response.data;
+    },
+  },
 };
 
 export default api; 
