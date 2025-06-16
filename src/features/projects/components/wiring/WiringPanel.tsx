@@ -267,6 +267,42 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
 
       console.log('Found suggestion:', suggestion);
 
+      // Fonction pour afficher des informations de débogage détaillées
+      const debugConnectionIssue = (connectionData: any) => {
+        const fromComponent = diagram?.components.find(c => c.id === connectionData.fromComponent);
+        const toComponent = diagram?.components.find(c => c.id === connectionData.toComponent);
+        
+        console.group('🔍 Analyse de la connexion');
+        console.log('Connexion demandée:', connectionData);
+        
+        if (!fromComponent) {
+          console.warn(`❌ Composant source introuvable: ${connectionData.fromComponent}`);
+          console.log('Composants disponibles:', diagram?.components.map(c => ({ id: c.id, name: c.name })));
+        } else {
+          console.log(`✅ Composant source trouvé: ${fromComponent.name} (${fromComponent.id})`);
+          console.log('Broches disponibles:', fromComponent.pins.map(p => ({ id: p.id, name: p.name, type: p.type })));
+          
+          const mappedFromPin = mapPinName(connectionData.fromPin, fromComponent.pins);
+          if (mappedFromPin !== connectionData.fromPin) {
+            console.log(`🔄 Broche source mappée: ${connectionData.fromPin} → ${mappedFromPin}`);
+          }
+        }
+        
+        if (!toComponent) {
+          console.warn(`❌ Composant destination introuvable: ${connectionData.toComponent}`);
+          console.log('Composants disponibles:', diagram?.components.map(c => ({ id: c.id, name: c.name })));
+        } else {
+          console.log(`✅ Composant destination trouvé: ${toComponent.name} (${toComponent.id})`);
+          console.log('Broches disponibles:', toComponent.pins.map(p => ({ id: p.id, name: p.name, type: p.type })));
+          
+          const mappedToPin = mapPinName(connectionData.toPin, toComponent.pins);
+          if (mappedToPin !== connectionData.toPin) {
+            console.log(`🔄 Broche destination mappée: ${connectionData.toPin} → ${mappedToPin}`);
+          }
+        }
+        console.groupEnd();
+      };
+
       // Déterminer le diagramme à utiliser
       let currentDiagram = diagram;
 
@@ -314,6 +350,9 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         // Ajouter une connexion
         if (suggestion.connectionData && currentDiagram) {
           console.log('Adding connection from suggestion:', suggestion.connectionData);
+          
+          // Afficher les informations de débogage
+          debugConnectionIssue(suggestion.connectionData);
           
           // Vérifier que tous les composants nécessaires existent
           const requiredMaterialIds = new Set<string>();
@@ -532,6 +571,74 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       };
     };
 
+    // Fonction pour mapper intelligemment les noms de broches (même que dans WiringEditor)
+    const mapPinName = (suggestedPin: string, availablePins: any[]): string => {
+      // Correspondance exacte
+      const exactMatch = availablePins.find(pin => pin.id === suggestedPin || pin.name === suggestedPin);
+      if (exactMatch) return exactMatch.id;
+
+      // Mapping intelligent basé sur les types et noms courants
+      const pinMappings: { [key: string]: string[] } = {
+        // Alimentation
+        'vcc': ['vcc', 'power', '3v3', '5v', 'vin', 'v+', '+'],
+        'gnd': ['gnd', 'ground', 'gnd', '-', 'v-', 'negative'],
+        'positive': ['positive', '+', 'vcc', 'power', 'vin'],
+        'negative': ['negative', '-', 'gnd', 'ground'],
+        
+        // Communication I2C
+        'sda': ['sda', 'data', 'i2c_sda', 'serial_data'],
+        'scl': ['scl', 'clock', 'i2c_scl', 'serial_clock'],
+        
+        // GPIO et signaux
+        'gpio1': ['gpio1', 'pin1', 'd1', 'digital1', 'io1'],
+        'gpio2': ['gpio2', 'pin2', 'd2', 'digital2', 'io2'],
+        'gpio3': ['gpio3', 'pin3', 'd3', 'digital3', 'io3'],
+        'gpio4': ['gpio4', 'pin4', 'd4', 'digital4', 'io4'],
+        'data': ['data', 'signal', 'out', 'output', 'analog'],
+        
+        // Broches génériques
+        'pin1': ['pin1', 'p1', '1', 'input1'],
+        'pin2': ['pin2', 'p2', '2', 'output1', 'input2']
+      };
+
+      // Chercher une correspondance dans les mappings
+      for (const [pinId, aliases] of Object.entries(pinMappings)) {
+        const pinExists = availablePins.find(pin => pin.id === pinId);
+        if (pinExists && aliases.some(alias => 
+          suggestedPin.toLowerCase().includes(alias.toLowerCase()) ||
+          alias.toLowerCase().includes(suggestedPin.toLowerCase())
+        )) {
+          return pinId;
+        }
+      }
+
+      // Si aucune correspondance, essayer de trouver par type
+      const suggestedLower = suggestedPin.toLowerCase();
+      if (suggestedLower.includes('power') || suggestedLower.includes('vcc') || suggestedLower.includes('3v') || suggestedLower.includes('5v')) {
+        const powerPin = availablePins.find(pin => pin.type === 'power');
+        if (powerPin) return powerPin.id;
+      }
+      
+      if (suggestedLower.includes('gnd') || suggestedLower.includes('ground') || suggestedLower.includes('negative')) {
+        const groundPin = availablePins.find(pin => pin.type === 'ground');
+        if (groundPin) return groundPin.id;
+      }
+
+      if (suggestedLower.includes('data') || suggestedLower.includes('signal') || suggestedLower.includes('analog')) {
+        const dataPin = availablePins.find(pin => pin.type === 'analog' || pin.type === 'input');
+        if (dataPin) return dataPin.id;
+      }
+
+      if (suggestedLower.includes('gpio') || suggestedLower.includes('digital')) {
+        const digitalPin = availablePins.find(pin => pin.type === 'digital');
+        if (digitalPin) return digitalPin.id;
+      }
+
+      // En dernier recours, retourner la première broche disponible
+      const firstAvailable = availablePins[0];
+      return firstAvailable ? firstAvailable.id : suggestedPin;
+    };
+
     const handleConnectionAdd = (connection: WiringConnection) => {
       console.log('Adding connection:', connection);
       console.log('Current diagram:', diagram);
@@ -549,11 +656,28 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         
         console.log('Created all available components:', allComponents);
         
+        // Mapper les broches de la connexion avant de l'ajouter
+        const fromComponent = allComponents.find(c => c.id === connection.fromComponent);
+        const toComponent = allComponents.find(c => c.id === connection.toComponent);
+        
+        let mappedConnection = { ...connection };
+        if (fromComponent) {
+          mappedConnection.fromPin = mapPinName(connection.fromPin, fromComponent.pins);
+        }
+        if (toComponent) {
+          mappedConnection.toPin = mapPinName(connection.toPin, toComponent.pins);
+        }
+        
+        console.log('Mapped connection pins:', {
+          original: { fromPin: connection.fromPin, toPin: connection.toPin },
+          mapped: { fromPin: mappedConnection.fromPin, toPin: mappedConnection.toPin }
+        });
+        
         // Créer le nouveau diagramme avec tous les composants
         const newDiagram: WiringDiagram = {
           id: `diagram-${Date.now()}`,
           components: allComponents,
-          connections: [connection],
+          connections: [mappedConnection],
           metadata: {
             title: 'Circuit Optimal',
             createdAt: new Date().toISOString(),
@@ -590,11 +714,28 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           }
         }
         
+        // Mapper les broches de la connexion
+        const fromComponent = updatedComponents.find(c => c.id === connection.fromComponent);
+        const toComponent = updatedComponents.find(c => c.id === connection.toComponent);
+        
+        let mappedConnection = { ...connection };
+        if (fromComponent) {
+          mappedConnection.fromPin = mapPinName(connection.fromPin, fromComponent.pins);
+        }
+        if (toComponent) {
+          mappedConnection.toPin = mapPinName(connection.toPin, toComponent.pins);
+        }
+        
+        console.log('Mapped connection pins:', {
+          original: { fromPin: connection.fromPin, toPin: connection.toPin },
+          mapped: { fromPin: mappedConnection.fromPin, toPin: mappedConnection.toPin }
+        });
+        
         // Ajouter la connexion
         const updatedDiagram = {
           ...diagram,
           components: updatedComponents,
-          connections: [...diagram.connections, connection],
+          connections: [...diagram.connections, mappedConnection],
           metadata: {
             ...diagram.metadata,
             updatedAt: new Date().toISOString()

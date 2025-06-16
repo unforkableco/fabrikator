@@ -98,12 +98,14 @@ export const prompts = {
     3. Assure-toi que chaque connexion relie des composants qui existent réellement
     4. Analyse le type de chaque matériau pour déterminer ses broches disponibles
     
-    Types de composants et leurs broches typiques:
-    - microcontroller/arduino: vcc, gnd, gpio1, gpio2, sda, scl, tx, rx
-    - sensor/capteur: vcc, gnd, data, signal
-    - display/écran: vcc, gnd, sda, scl (I2C) ou data, clock (SPI)
+    Types de composants et leurs broches typiques (UTILISE EXACTEMENT CES NOMS):
+    - microcontroller/arduino: vcc, gnd, gpio1, gpio2, gpio3, gpio4
+    - sensor/capteur: vcc, gnd, data
+    - display/écran: vcc, gnd, sda, scl
     - battery/batterie: positive, negative
-    - power/alimentation: positive, negative, vcc, gnd
+    - power/alimentation: positive, negative
+    - button/bouton: pin1, pin2
+    - composant générique: pin1, pin2
     
     **Réponse JSON uniquement:**
     {

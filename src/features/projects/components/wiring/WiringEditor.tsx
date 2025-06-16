@@ -50,8 +50,8 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
   const [connectionInProgress, setConnectionInProgress] = useState<{
     fromComponent: string;
     fromPin: string;
-    startX: number;
-    startY: number;
+    fromX: number;
+    fromY: number;
     currentX: number;
     currentY: number;
   } | null>(null);
@@ -62,6 +62,74 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
 
   // État pour suivre les quantités utilisées de chaque matériau
   const [usedQuantities, setUsedQuantities] = useState<Record<string, number>>({});
+
+  // Fonction pour mapper intelligemment les noms de broches
+  const mapPinName = (suggestedPin: string, availablePins: WiringPin[]): string => {
+    // Correspondance exacte
+    const exactMatch = availablePins.find(pin => pin.id === suggestedPin || pin.name === suggestedPin);
+    if (exactMatch) return exactMatch.id;
+
+    // Mapping intelligent basé sur les types et noms courants
+    const pinMappings: { [key: string]: string[] } = {
+      // Alimentation
+      'vcc': ['vcc', 'power', '3v3', '5v', 'vin', 'v+', '+'],
+      'gnd': ['gnd', 'ground', 'gnd', '-', 'v-', 'negative'],
+      'positive': ['positive', '+', 'vcc', 'power', 'vin'],
+      'negative': ['negative', '-', 'gnd', 'ground'],
+      
+      // Communication I2C
+      'sda': ['sda', 'data', 'i2c_sda', 'serial_data'],
+      'scl': ['scl', 'clock', 'i2c_scl', 'serial_clock'],
+      
+      // GPIO et signaux
+      'gpio1': ['gpio1', 'pin1', 'd1', 'digital1', 'io1'],
+      'gpio2': ['gpio2', 'pin2', 'd2', 'digital2', 'io2'],
+      'gpio3': ['gpio3', 'pin3', 'd3', 'digital3', 'io3'],
+      'gpio4': ['gpio4', 'pin4', 'd4', 'digital4', 'io4'],
+      'data': ['data', 'signal', 'out', 'output', 'analog'],
+      
+      // Broches génériques
+      'pin1': ['pin1', 'p1', '1', 'input1'],
+      'pin2': ['pin2', 'p2', '2', 'output1', 'input2']
+    };
+
+    // Chercher une correspondance dans les mappings
+    for (const [pinId, aliases] of Object.entries(pinMappings)) {
+      const pinExists = availablePins.find(pin => pin.id === pinId);
+      if (pinExists && aliases.some(alias => 
+        suggestedPin.toLowerCase().includes(alias.toLowerCase()) ||
+        alias.toLowerCase().includes(suggestedPin.toLowerCase())
+      )) {
+        return pinId;
+      }
+    }
+
+    // Si aucune correspondance, essayer de trouver par type
+    const suggestedLower = suggestedPin.toLowerCase();
+    if (suggestedLower.includes('power') || suggestedLower.includes('vcc') || suggestedLower.includes('3v') || suggestedLower.includes('5v')) {
+      const powerPin = availablePins.find(pin => pin.type === 'power');
+      if (powerPin) return powerPin.id;
+    }
+    
+    if (suggestedLower.includes('gnd') || suggestedLower.includes('ground') || suggestedLower.includes('negative')) {
+      const groundPin = availablePins.find(pin => pin.type === 'ground');
+      if (groundPin) return groundPin.id;
+    }
+
+    if (suggestedLower.includes('data') || suggestedLower.includes('signal') || suggestedLower.includes('analog')) {
+      const dataPin = availablePins.find(pin => pin.type === 'analog' || pin.type === 'input');
+      if (dataPin) return dataPin.id;
+    }
+
+    if (suggestedLower.includes('gpio') || suggestedLower.includes('digital')) {
+      const digitalPin = availablePins.find(pin => pin.type === 'digital');
+      if (digitalPin) return digitalPin.id;
+    }
+
+    // En dernier recours, retourner la première broche disponible du même type suggéré
+    const firstAvailable = availablePins[0];
+    return firstAvailable ? firstAvailable.id : suggestedPin;
+  };
 
   // Fonctions de zoom et navigation
   const handleZoomIn = () => {
@@ -440,8 +508,8 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       setConnectionInProgress({
         fromComponent: componentId,
         fromPin: pinId,
-        startX: pinX,
-        startY: pinY,
+        fromX: pinX,
+        fromY: pinY,
         currentX: pinX,
         currentY: pinY
       });
@@ -616,10 +684,24 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     
     if (!fromComponent || !toComponent) return null;
     
-    const fromPin = fromComponent.pins.find(p => p.id === connection.fromPin);
-    const toPin = toComponent.pins.find(p => p.id === connection.toPin);
+    // Utiliser le mapping intelligent pour trouver les broches
+    const mappedFromPin = mapPinName(connection.fromPin, fromComponent.pins);
+    const mappedToPin = mapPinName(connection.toPin, toComponent.pins);
     
-    if (!fromPin || !toPin) return null;
+    const fromPin = fromComponent.pins.find(p => p.id === mappedFromPin);
+    const toPin = toComponent.pins.find(p => p.id === mappedToPin);
+    
+    if (!fromPin || !toPin) {
+      console.warn(`Connexion invalide: ${connection.fromPin} -> ${connection.toPin}`, {
+        fromComponent: fromComponent.name,
+        toComponent: toComponent.name,
+        availableFromPins: fromComponent.pins.map(p => p.id),
+        availableToPins: toComponent.pins.map(p => p.id),
+        mappedFromPin,
+        mappedToPin
+      });
+      return null;
+    }
     
     // Calculer les tailles des composants pour les connexions
     const getComponentSize = (type: string) => {
@@ -669,8 +751,8 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     
     return (
       <line
-        x1={connectionInProgress.startX}
-        y1={connectionInProgress.startY}
+        x1={connectionInProgress.fromX}
+        y1={connectionInProgress.fromY}
         x2={connectionInProgress.currentX}
         y2={connectionInProgress.currentY}
         stroke="#1976d2"
