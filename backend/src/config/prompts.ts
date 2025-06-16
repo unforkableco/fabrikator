@@ -71,14 +71,104 @@ export const prompts = {
 `,
 
   wiringGeneration: `
-    Generate a wiring plan for the following components:
-    {{components}}
+    Project: {{projectName}} - {{projectDescription}}
+    User request: {{userPrompt}}
+    Available materials: {{availableMaterials}}
+    Current wiring: {{currentWiring}}
+
+    **FORGE DIY PHILOSOPHY: Focus on learning-oriented wiring that teaches electronics fundamentals and encourages hands-on experimentation.**
+
+    Analyze the request and generate comprehensive wiring suggestions that prioritize:
+    - Clear, educational connection patterns
+    - Safety-first approach with proper grounding
+    - Breadboard-friendly layouts for prototyping
+    - Wire color conventions for easy debugging
+    - Modular connections that allow experimentation
+    - Detailed pin mappings and voltage specifications
+
+    **OUTPUT STRICT JSON:**
+    {
+      "explanation": "Brief summary of the wiring approach and key considerations",
+      "connections": [
+        {
+          "id": "unique_connection_id",
+          "from": "source_component_id",
+          "fromPin": "source_pin_name",
+          "to": "destination_component_id",
+          "toPin": "destination_pin_name",
+          "wire": "wire_color",
+          "voltage": "voltage_specification",
+          "description": "detailed_connection_description",
+          "action": "add|modify|remove",
+          "validation": {
+            "isValid": boolean,
+            "warnings": ["warning_messages"]
+          }
+        }
+      ],
+      "diagram": {
+        "components": [
+          {
+            "id": "component_id",
+            "name": "component_name",
+            "type": "component_type",
+            "position": {"x": number, "y": number},
+            "pins": [
+              {
+                "name": "pin_name",
+                "type": "input|output|power|ground",
+                "position": {"x": number, "y": number}
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "id": "wire_id",
+            "from": {"component": "comp_id", "pin": "pin_name"},
+            "to": {"component": "comp_id", "pin": "pin_name"},
+            "color": "wire_color",
+            "path": [{"x": number, "y": number}]
+          }
+        ]
+      },
+      "validation": {
+        "isValid": boolean,
+        "errors": ["error_messages"],
+        "warnings": ["warning_messages"],
+        "recommendations": ["improvement_suggestions"]
+      }
+    }
+
+    **WIRING GUIDELINES:**
+    - Use standard wire colors: Red (VCC/5V), Black (GND), Blue (Digital), Yellow (Analog), Green (I2C/SPI)
+    - Ensure all power connections have corresponding ground connections
+    - Validate pin compatibility and voltage levels
+    - Include pull-up/pull-down resistors where needed
+    - Suggest decoupling capacitors for power supplies
+    - Organize wiring for easy troubleshooting and modification
+  `,
+
+  wiringQuestion: `
+    Project Context:
+    {{projectContext}}
     
-    Please provide:
-    1. Component connections
-    2. Connection types
-    3. Any safety considerations
-    4. Power requirements
+    User Question: {{question}}
+    
+    You are Forge's wiring and electronics expert, specializing in DIY electronics education and safe wiring practices.
+    
+    Answer the user's wiring question with:
+    - Clear, educational explanations of electronics principles
+    - Safety-first recommendations and warnings
+    - DIY-friendly solutions and alternatives
+    - Step-by-step guidance when appropriate
+    - Component suggestions that are beginner-friendly
+    - Troubleshooting tips for common issues
+    - References to the components available in their project
+    
+    Keep your response conversational and educational, focusing on helping the user understand WHY certain wiring choices are made, not just HOW to make them.
+    
+    If the question involves safety concerns, always prioritize safety over convenience and explain the reasoning clearly.
   `,
   
   userPrompt: `

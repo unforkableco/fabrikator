@@ -14,6 +14,7 @@ import { TabPanel } from '../../../shared/components/ui/TabPanel';
 import { useProject } from '../hooks/useProject';
 import { useMaterials } from '../hooks/useMaterials';
 import { MaterialsPanel } from '../components';
+import { WiringPanel } from '../components/wiring';
 
 const ProjectPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -106,13 +107,14 @@ const ProjectPage: React.FC = () => {
 
 
         {/* Wiring Tab */}
-        <TabPanel value={tabValue} index={3} id="project">
-          <Typography variant="h6" gutterBottom>
-            Wiring & Schemas
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Wiring interface will be here.
-          </Typography>
+        <TabPanel value={tabValue} index={2} id="project">
+          <Box sx={{ height: '80vh' }}>
+            <WiringPanel
+              projectId={id!}
+              materials={materials}
+              isVisible={tabValue === 2}
+            />
+          </Box>
         </TabPanel>
       </Container>
     </Box>

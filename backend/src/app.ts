@@ -3,7 +3,7 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import { projectRouter } from './modules/project/project.router';
 import { materialRouter } from './modules/material/material.router';
-import { wiringRouter } from './modules/wiring/wiring.router';
+import wiringRouter from './modules/wiring/wiring.router';
 
 // Créer l'application Express
 const app = express();
