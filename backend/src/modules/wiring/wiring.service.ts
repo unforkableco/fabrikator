@@ -256,17 +256,38 @@ export class WiringService {
 
         const connectionData = suggestion.connectionData;
         
-        // Vérifier que les composants référencés existent dans les matériaux
+        // VALIDATION CRITIQUE: Vérifier que les composants référencés existent
         const fromComponentExists = simplifiedMaterials.find(m => m.id === connectionData.fromComponent);
         const toComponentExists = simplifiedMaterials.find(m => m.id === connectionData.toComponent);
         
         if (!fromComponentExists || !toComponentExists) {
-          console.warn('Connection references non-existent components:', {
+          console.error('❌ CONNEXION REJETÉE - Composants inexistants:', {
             fromComponent: connectionData.fromComponent,
             toComponent: connectionData.toComponent,
             availableComponents: simplifiedMaterials.map(m => ({ id: m.id, name: m.name, type: m.type }))
           });
           return null;
+        }
+
+        // VALIDATION: Vérifier que les broches sont appropriées pour le type de composant
+        const validPins = this.getValidPinsForComponentType(fromComponentExists.type);
+        const validToPins = this.getValidPinsForComponentType(toComponentExists.type);
+        
+        if (!validPins.includes(connectionData.fromPin) || !validToPins.includes(connectionData.toPin)) {
+          console.warn('⚠️ BROCHES INVALIDES - Connexion ajustée:', {
+            from: `${fromComponentExists.name}(${fromComponentExists.type}).${connectionData.fromPin}`,
+            to: `${toComponentExists.name}(${toComponentExists.type}).${connectionData.toPin}`,
+            validFromPins: validPins,
+            validToPins: validToPins
+          });
+          
+          // Ajuster les broches si nécessaire
+          if (!validPins.includes(connectionData.fromPin)) {
+            connectionData.fromPin = validPins[0] || 'pin1';
+          }
+          if (!validToPins.includes(connectionData.toPin)) {
+            connectionData.toPin = validToPins[0] || 'pin1';
+          }
         }
 
         return {
@@ -309,6 +330,36 @@ export class WiringService {
         explanation: 'Désolé, je n\'ai pas pu générer de suggestions de câblage pour le moment. Veuillez réessayer.'
       };
     }
+  }
+
+  /**
+   * Retourne les broches valides pour un type de composant donné
+   */
+  private getValidPinsForComponentType(componentType: string): string[] {
+    const type = componentType?.toLowerCase() || '';
+    
+    if (type.includes('microcontroller') || type.includes('arduino')) {
+      return ['vcc', 'gnd', 'gpio1', 'gpio2', 'gpio3', 'gpio4', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'a0', 'a1'];
+    } else if (type.includes('sensor') || type.includes('capteur')) {
+      return ['vcc', 'gnd', 'data', 'signal', 'out'];
+    } else if (type.includes('display') || type.includes('écran')) {
+      return ['vcc', 'gnd', 'sda', 'scl', 'cs', 'dc', 'rst'];
+    } else if (type.includes('battery') || type.includes('batterie')) {
+      return ['positive', 'negative'];
+    } else if (type.includes('power') || type.includes('alimentation')) {
+      return ['positive', 'negative', 'vcc', 'gnd'];
+    } else if (type.includes('button') || type.includes('bouton')) {
+      return ['pin1', 'pin2', 'signal', 'gnd'];
+    } else if (type.includes('pump') || type.includes('pompe')) {
+      return ['vcc', 'gnd', 'signal', 'control'];
+    } else if (type.includes('valve')) {
+      return ['vcc', 'gnd', 'signal', 'control'];
+    } else if (type.includes('moisture') || type.includes('humidité') || type.includes('water')) {
+      return ['vcc', 'gnd', 'data', 'signal', 'analog'];
+    }
+    
+    // Par défaut pour composants génériques
+    return ['pin1', 'pin2', 'vcc', 'gnd'];
   }
 
   /**

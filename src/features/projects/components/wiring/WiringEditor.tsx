@@ -65,70 +65,121 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
 
   // Fonction pour mapper intelligemment les noms de broches
   const mapPinName = (suggestedPin: string, availablePins: WiringPin[]): string => {
-    // Correspondance exacte
+    console.log('mapPinName - Suggested pin:', suggestedPin, 'Available pins:', availablePins.map(p => ({ id: p.id, name: p.name, type: p.type })));
+    
+    // Correspondance exacte d'abord
     const exactMatch = availablePins.find(pin => pin.id === suggestedPin || pin.name === suggestedPin);
-    if (exactMatch) return exactMatch.id;
+    if (exactMatch) {
+      console.log('Found exact match:', exactMatch.id);
+      return exactMatch.id;
+    }
 
     // Mapping intelligent basé sur les types et noms courants
     const pinMappings: { [key: string]: string[] } = {
-      // Alimentation
-      'vcc': ['vcc', 'power', '3v3', '5v', 'vin', 'v+', '+'],
-      'gnd': ['gnd', 'ground', 'gnd', '-', 'v-', 'negative'],
-      'positive': ['positive', '+', 'vcc', 'power', 'vin'],
-      'negative': ['negative', '-', 'gnd', 'ground'],
+      // Alimentation - plus de variations
+      'vcc': ['vcc', 'power', '3v3', '5v', 'vin', 'v+', '+', 'positive', '3.3v'],
+      'gnd': ['gnd', 'ground', '-', 'v-', 'negative', 'masse'],
+      'positive': ['positive', '+', 'vcc', 'power', 'vin', 'v+'],
+      'negative': ['negative', '-', 'gnd', 'ground', 'v-'],
       
       // Communication I2C
       'sda': ['sda', 'data', 'i2c_sda', 'serial_data'],
       'scl': ['scl', 'clock', 'i2c_scl', 'serial_clock'],
       
-      // GPIO et signaux
-      'gpio1': ['gpio1', 'pin1', 'd1', 'digital1', 'io1'],
-      'gpio2': ['gpio2', 'pin2', 'd2', 'digital2', 'io2'],
-      'gpio3': ['gpio3', 'pin3', 'd3', 'digital3', 'io3'],
-      'gpio4': ['gpio4', 'pin4', 'd4', 'digital4', 'io4'],
-      'data': ['data', 'signal', 'out', 'output', 'analog'],
+      // GPIO et signaux - plus de variations
+      'gpio1': ['gpio1', 'pin1', 'd1', 'digital1', 'io1', 'd0', 'gpio0'],
+      'gpio2': ['gpio2', 'pin2', 'd2', 'digital2', 'io2', 'd1'],
+      'gpio3': ['gpio3', 'pin3', 'd3', 'digital3', 'io3', 'd2'],
+      'gpio4': ['gpio4', 'pin4', 'd4', 'digital4', 'io4', 'd3'],
+      'data': ['data', 'signal', 'out', 'output', 'analog', 'sensor'],
       
-      // Broches génériques
-      'pin1': ['pin1', 'p1', '1', 'input1'],
-      'pin2': ['pin2', 'p2', '2', 'output1', 'input2']
+      // Broches génériques - plus de variations
+      'pin1': ['pin1', 'p1', '1', 'input1', 'input', 'in'],
+      'pin2': ['pin2', 'p2', '2', 'output1', 'output', 'out']
     };
 
-    // Chercher une correspondance dans les mappings
+    // Chercher une correspondance dans les mappings avec plus de tolérance
     for (const [pinId, aliases] of Object.entries(pinMappings)) {
       const pinExists = availablePins.find(pin => pin.id === pinId);
-      if (pinExists && aliases.some(alias => 
-        suggestedPin.toLowerCase().includes(alias.toLowerCase()) ||
-        alias.toLowerCase().includes(suggestedPin.toLowerCase())
-      )) {
-        return pinId;
+      if (pinExists) {
+        const suggestedLower = suggestedPin.toLowerCase();
+        const isMatch = aliases.some(alias => {
+          const aliasLower = alias.toLowerCase();
+          return suggestedLower === aliasLower || 
+                 suggestedLower.includes(aliasLower) || 
+                 aliasLower.includes(suggestedLower) ||
+                 // Correspondance partielle pour les noms composés
+                 (suggestedLower.includes(aliasLower.split('_')[0]) && aliasLower.includes('_')) ||
+                 (aliasLower.includes(suggestedLower.split('_')[0]) && suggestedLower.includes('_'));
+        });
+        
+        if (isMatch) {
+          console.log('Found mapping match:', pinId, 'for suggested:', suggestedPin);
+          return pinId;
+        }
       }
     }
 
-    // Si aucune correspondance, essayer de trouver par type
+    // Si aucune correspondance, essayer de trouver par type avec plus de flexibilité
     const suggestedLower = suggestedPin.toLowerCase();
-    if (suggestedLower.includes('power') || suggestedLower.includes('vcc') || suggestedLower.includes('3v') || suggestedLower.includes('5v')) {
+    
+    // Alimentation
+    if (suggestedLower.includes('power') || suggestedLower.includes('vcc') || 
+        suggestedLower.includes('3v') || suggestedLower.includes('5v') || 
+        suggestedLower.includes('positive') || suggestedLower.includes('+') ||
+        suggestedLower.includes('vin') || suggestedLower.includes('v+')) {
       const powerPin = availablePins.find(pin => pin.type === 'power');
-      if (powerPin) return powerPin.id;
+      if (powerPin) {
+        console.log('Found power pin by type:', powerPin.id);
+        return powerPin.id;
+      }
     }
     
-    if (suggestedLower.includes('gnd') || suggestedLower.includes('ground') || suggestedLower.includes('negative')) {
+    // Masse
+    if (suggestedLower.includes('gnd') || suggestedLower.includes('ground') || 
+        suggestedLower.includes('negative') || suggestedLower.includes('-') ||
+        suggestedLower.includes('masse') || suggestedLower.includes('v-')) {
       const groundPin = availablePins.find(pin => pin.type === 'ground');
-      if (groundPin) return groundPin.id;
+      if (groundPin) {
+        console.log('Found ground pin by type:', groundPin.id);
+        return groundPin.id;
+      }
     }
 
-    if (suggestedLower.includes('data') || suggestedLower.includes('signal') || suggestedLower.includes('analog')) {
-      const dataPin = availablePins.find(pin => pin.type === 'analog' || pin.type === 'input');
-      if (dataPin) return dataPin.id;
+    // Données/Signaux
+    if (suggestedLower.includes('data') || suggestedLower.includes('signal') || 
+        suggestedLower.includes('analog') || suggestedLower.includes('sensor') ||
+        suggestedLower.includes('out') || suggestedLower.includes('output')) {
+      const dataPin = availablePins.find(pin => pin.type === 'analog' || pin.type === 'input' || pin.type === 'output');
+      if (dataPin) {
+        console.log('Found data/signal pin by type:', dataPin.id);
+        return dataPin.id;
+      }
     }
 
-    if (suggestedLower.includes('gpio') || suggestedLower.includes('digital')) {
+    // GPIO/Digital
+    if (suggestedLower.includes('gpio') || suggestedLower.includes('digital') ||
+        suggestedLower.includes('control') || suggestedLower.includes('pin')) {
       const digitalPin = availablePins.find(pin => pin.type === 'digital');
-      if (digitalPin) return digitalPin.id;
+      if (digitalPin) {
+        console.log('Found digital pin by type:', digitalPin.id);
+        return digitalPin.id;
+      }
     }
 
-    // En dernier recours, retourner la première broche disponible du même type suggéré
-    const firstAvailable = availablePins[0];
-    return firstAvailable ? firstAvailable.id : suggestedPin;
+    // En dernier recours, utiliser la première broche disponible appropriée
+    console.log('No specific match found, using fallback logic for:', suggestedPin);
+    
+    // Essayer de trouver une broche par priorité de type
+    let fallbackPin = availablePins.find(pin => pin.type === 'power') || // Priorité aux broches d'alimentation
+                      availablePins.find(pin => pin.type === 'ground') || // Puis masse
+                      availablePins.find(pin => pin.type === 'digital') || // Puis digital
+                      availablePins.find(pin => pin.type === 'analog') || // Puis analog
+                      availablePins[0]; // En dernier recours, la première
+
+    const result = fallbackPin ? fallbackPin.id : suggestedPin;
+    console.log('Final result for', suggestedPin, ':', result);
+    return result;
   };
 
   // Fonctions de zoom et navigation
@@ -276,35 +327,58 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     
     if (typeStr.includes('microcontroller') || typeStr.includes('arduino') || typeStr.includes('esp')) {
       pins.push(
-        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -25, y: -15 }, connected: false, voltage: 3.3 },
-        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -25, y: 15 }, connected: false },
-        { id: 'gpio1', name: 'GPIO1', type: 'digital', position: { x: 25, y: -15 }, connected: false },
-        { id: 'gpio2', name: 'GPIO2', type: 'digital', position: { x: 25, y: 0 }, connected: false },
-        { id: 'gpio3', name: 'GPIO3', type: 'digital', position: { x: 25, y: 15 }, connected: false },
-        { id: 'gpio4', name: 'GPIO4', type: 'digital', position: { x: 0, y: 25 }, connected: false }
+        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -60, y: -30 }, connected: false, voltage: 3.3 },
+        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -60, y: 30 }, connected: false },
+        { id: 'gpio1', name: 'GPIO1', type: 'digital', position: { x: 60, y: -30 }, connected: false },
+        { id: 'gpio2', name: 'GPIO2', type: 'digital', position: { x: 60, y: -10 }, connected: false },
+        { id: 'gpio3', name: 'GPIO3', type: 'digital', position: { x: 60, y: 10 }, connected: false },
+        { id: 'gpio4', name: 'GPIO4', type: 'digital', position: { x: 60, y: 30 }, connected: false },
+        { id: 'd0', name: 'D0', type: 'digital', position: { x: -60, y: 0 }, connected: false },
+        { id: 'a0', name: 'A0', type: 'analog', position: { x: 0, y: 40 }, connected: false },
+        { id: 'control', name: 'CTRL', type: 'digital', position: { x: 0, y: -40 }, connected: false }
       );
     } else if (typeStr.includes('sensor') || typeStr.includes('capteur')) {
       pins.push(
-        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -15, y: -10 }, connected: false, voltage: 3.3 },
-        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -15, y: 10 }, connected: false },
-        { id: 'data', name: 'DATA', type: 'analog', position: { x: 15, y: 0 }, connected: false }
+        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -20 }, connected: false, voltage: 3.3 },
+        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 20 }, connected: false },
+        { id: 'data', name: 'DATA', type: 'analog', position: { x: 30, y: 0 }, connected: false },
+        { id: 'signal', name: 'SIGNAL', type: 'analog', position: { x: 30, y: -15 }, connected: false },
+        { id: 'out', name: 'OUT', type: 'output', position: { x: 30, y: 15 }, connected: false }
       );
     } else if (typeStr.includes('display') || typeStr.includes('écran') || typeStr.includes('screen')) {
       pins.push(
-        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -20, y: -15 }, connected: false, voltage: 3.3 },
-        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -20, y: 15 }, connected: false },
-        { id: 'sda', name: 'SDA', type: 'digital', position: { x: 20, y: -10 }, connected: false },
-        { id: 'scl', name: 'SCL', type: 'digital', position: { x: 20, y: 10 }, connected: false }
+        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -30 }, connected: false, voltage: 3.3 },
+        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 30 }, connected: false },
+        { id: 'sda', name: 'SDA', type: 'digital', position: { x: 40, y: -20 }, connected: false },
+        { id: 'scl', name: 'SCL', type: 'digital', position: { x: 40, y: 20 }, connected: false }
       );
     } else if (typeStr.includes('button') || typeStr.includes('bouton')) {
       pins.push(
-        { id: 'pin1', name: 'Pin1', type: 'input', position: { x: -20, y: 0 }, connected: false },
-        { id: 'pin2', name: 'Pin2', type: 'input', position: { x: 20, y: 0 }, connected: false }
+        { id: 'pin1', name: 'Pin1', type: 'input', position: { x: -40, y: 0 }, connected: false },
+        { id: 'pin2', name: 'Pin2', type: 'input', position: { x: 40, y: 0 }, connected: false },
+        { id: 'signal', name: 'SIGNAL', type: 'digital', position: { x: 0, y: 20 }, connected: false },
+        { id: 'gnd', name: 'GND', type: 'ground', position: { x: 0, y: -20 }, connected: false }
       );
-    } else if (typeStr.includes('battery') || typeStr.includes('batterie') || typeStr.includes('power')) {
+    } else if (typeStr.includes('valve') || typeStr.includes('vanne') || typeStr.includes('solenoid')) {
       pins.push(
-        { id: 'positive', name: '+', type: 'power', position: { x: 0, y: -20 }, connected: false, voltage: 3.7 },
-        { id: 'negative', name: '-', type: 'ground', position: { x: 0, y: 20 }, connected: false }
+        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -15 }, connected: false, voltage: 12 },
+        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 15 }, connected: false },
+        { id: 'control', name: 'CTRL', type: 'digital', position: { x: 30, y: 0 }, connected: false },
+        { id: 'signal', name: 'SIGNAL', type: 'digital', position: { x: 30, y: -15 }, connected: false }
+      );
+    } else if (typeStr.includes('pump') || typeStr.includes('pompe')) {
+      pins.push(
+        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -15 }, connected: false, voltage: 12 },
+        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 15 }, connected: false },
+        { id: 'control', name: 'CTRL', type: 'digital', position: { x: 30, y: 0 }, connected: false },
+        { id: 'signal', name: 'SIGNAL', type: 'digital', position: { x: 30, y: 15 }, connected: false }
+      );
+    } else if (typeStr.includes('battery') || typeStr.includes('batterie') || typeStr.includes('power') || typeStr.includes('supply') || typeStr.includes('alimentation')) {
+      pins.push(
+        { id: 'positive', name: '+', type: 'power', position: { x: 0, y: -25 }, connected: false, voltage: 12 },
+        { id: 'negative', name: '-', type: 'ground', position: { x: 0, y: 25 }, connected: false },
+        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -25, y: 0 }, connected: false, voltage: 12 },
+        { id: 'gnd', name: 'GND', type: 'ground', position: { x: 25, y: 0 }, connected: false }
       );
     } else {
       // Generic component

@@ -82,47 +82,59 @@ export const prompts = {
   `,
 
   wiringOptimalCircuit: `
-    Analyse des matériaux disponibles pour un projet DIY:
+    **CONTEXTE:** Projet DIY avec matériaux disponibles
+    
+    **MATÉRIAUX DISPONIBLES DANS LE PROJET:**
     {{materials}}
     
-    Schéma de câblage actuel:
+    **SCHÉMA DE CÂBLAGE ACTUEL:**
     {{currentDiagram}}
     
     **FORGE DIY PHILOSOPHY: Priorité aux solutions faites maison et auto-construites**
     
-    Génère un circuit optimal en analysant UNIQUEMENT les matériaux disponibles listés ci-dessus. 
+    **MISSION:** Génère UNIQUEMENT des connexions entre les composants listés ci-dessus, en utilisant leurs IDs exacts.
     
-    **RÈGLES CRITIQUES:**
-    1. Utilise UNIQUEMENT les IDs réels des matériaux fournis dans la liste
-    2. Pour fromComponent et toComponent, utilise les vrais IDs (pas des noms génériques)
-    3. Assure-toi que chaque connexion relie des composants qui existent réellement
-    4. Analyse le type de chaque matériau pour déterminer ses broches disponibles
+    **RÈGLES ABSOLUES (VIOLATION = ÉCHEC):**
+    1. ✅ UTILISE SEULEMENT les IDs réels des matériaux fournis (ex: "comp-abc-123")
+    2. ✅ JAMAIS de noms génériques comme "microcontroller", "sensor", etc.
+    3. ✅ Vérifie que fromComponent ET toComponent existent dans la liste des matériaux
+    4. ✅ JAMAIS de composants "Unknown" ou inexistants
+    5. ✅ Utilise seulement les broches standards selon le type de composant
     
-    Types de composants et leurs broches typiques (UTILISE EXACTEMENT CES NOMS):
-    - microcontroller/arduino: vcc, gnd, gpio1, gpio2, gpio3, gpio4
-    - sensor/capteur: vcc, gnd, data
-    - display/écran: vcc, gnd, sda, scl
-    - battery/batterie: positive, negative
-    - power/alimentation: positive, negative
-    - button/bouton: pin1, pin2
-    - composant générique: pin1, pin2
+    **BROCHES STANDARDS PAR TYPE DE COMPOSANT:**
+    - microcontroller/arduino → vcc, gnd, gpio1, gpio2, gpio3, gpio4, d0, d1, d2, d3, d4, d5, d6, d7, a0, a1
+    - sensor/capteur → vcc, gnd, data, signal, out
+    - display/écran → vcc, gnd, sda, scl, cs, dc, rst
+    - battery/batterie → positive, negative
+    - power/alimentation → positive, negative, vcc, gnd
+    - button/bouton → pin1, pin2, signal, gnd
+    - pump/pompe → vcc, gnd, signal, control
+    - valve/valve → vcc, gnd, signal, control
+    - moisture/humidité → vcc, gnd, data, analog
+    - water → vcc, gnd, data, signal
     
-    **Réponse JSON uniquement:**
+    **AVANT DE CRÉER UNE CONNEXION, VÉRIFIE:**
+    1. Le composant source existe-t-il dans {{materials}} ?
+    2. Le composant destination existe-t-il dans {{materials}} ?
+    3. La broche source correspond-elle au type du composant ?
+    4. La broche destination correspond-elle au type du composant ?
+    
+    **FORMAT DE RÉPONSE JSON STRICT:**
     {
-      "explanation": "Explication du circuit optimal proposé avec les matériaux disponibles",
+      "explanation": "Circuit proposé avec [NOMBRE] connexions entre les composants existants: [LISTE DES NOMS]",
       "suggestions": [
         {
           "action": "add",
-          "type": "Description du type de connexion",
-          "description": "Description détaillée de cette connexion spécifique",
+          "type": "Connexion [TYPE_SOURCE] vers [TYPE_DESTINATION]",
+          "description": "Connecter [NOM_SOURCE].[PIN_SOURCE] à [NOM_DESTINATION].[PIN_DESTINATION] pour [RAISON]",
           "connectionData": {
-            "id": "conn-unique-id",
-            "fromComponent": "ID_REEL_DU_MATERIAU_SOURCE",
-            "fromPin": "broche_source_appropriée",
-            "toComponent": "ID_REEL_DU_MATERIAU_DESTINATION", 
-            "toPin": "broche_destination_appropriée",
-            "wireType": "power|ground|data|communication",
-            "wireColor": "#couleurHex",
+            "id": "conn-[timestamp]-[index]",
+            "fromComponent": "[ID_EXACT_DU_MATERIAU_SOURCE]",
+            "fromPin": "[pin_standard_selon_type]",
+            "toComponent": "[ID_EXACT_DU_MATERIAU_DESTINATION]",
+            "toPin": "[pin_standard_selon_type]",
+            "wireType": "power|ground|data|analog|digital",
+            "wireColor": "#[couleur_selon_type]",
             "validated": false
           },
           "confidence": 0.9
@@ -130,16 +142,22 @@ export const prompts = {
       ]
     }
     
-    **Exemple avec des IDs réels:**
-    Si tu as un matériau avec id="comp-123" de type "arduino" et un autre avec id="comp-456" de type "sensor":
-    - fromComponent: "comp-123" (pas "microcontroller")
-    - toComponent: "comp-456" (pas "sensor")
+    **COULEURS STANDARDS:**
+    - power: "#ff0000" (rouge)
+    - ground: "#000000" (noir)
+    - data/digital: "#0000ff" (bleu)
+    - analog: "#00ff00" (vert)
     
-    **Priorités de connexion:**
-    1. Alimentation: connecter toutes les alimentations aux composants qui en ont besoin
-    2. Masse commune: établir GND pour tous les composants
-    3. Communication: connecter capteurs et écrans aux microcontrôleurs
-    4. Signaux: connecter les broches de données appropriées
+    **EXEMPLE CONCRET:**
+    Si materials contient: {id: "comp-water-123", name: "Water Pump", type: "pump"} et {id: "comp-micro-456", name: "Arduino", type: "microcontroller"}
+    ✅ Correct: fromComponent: "comp-water-123", toComponent: "comp-micro-456"
+    ❌ Incorrect: fromComponent: "pump", toComponent: "microcontroller"
+    
+    **PRIORITÉS DE CONNEXION:**
+    1. 🔴 Alimentation (VCC/positive vers vcc des composants)
+    2. ⚫ Masse commune (GND/negative vers gnd de tous les composants)
+    3. 🔵 Signaux de contrôle (GPIO vers control/signal des composants)
+    4. 🟢 Données (capteurs vers pins analogiques/digitales)
   `,
   
   userPrompt: `
