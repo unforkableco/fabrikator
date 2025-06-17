@@ -10,7 +10,6 @@ import {
   TextField,
   IconButton,
   Chip,
-  Collapse,
   Divider,
   Button,
 } from '@mui/material';
@@ -21,8 +20,6 @@ import {
   Psychology as PsychologyIcon,
   AutoFixHigh as AutoFixHighIcon,
   Stop as StopIcon,
-  ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
   Check as CheckIcon,
   Close as CloseIcon,
 } from '@mui/icons-material';
@@ -69,7 +66,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [chatMode, setChatMode] = useState<'ask' | 'agent'>('ask');
-  const [expandedSuggestions, setExpandedSuggestions] = useState<Set<string>>(new Set());
   const [suggestionStates, setSuggestionStates] = useState<Record<string, 'accepted' | 'rejected'>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -95,18 +91,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
-  const toggleSuggestionExpansion = (suggestionId: string) => {
-    setExpandedSuggestions(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(suggestionId)) {
-        newSet.delete(suggestionId);
-      } else {
-        newSet.add(suggestionId);
-      }
-      return newSet;
-    });
-  };
-
   const handleAcceptSuggestion = (messageId: string, suggestionId: string) => {
     // Marquer la suggestion comme acceptée visuellement
     setSuggestionStates(prev => ({
@@ -128,7 +112,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   const renderSuggestion = (suggestion: BaseSuggestion, messageId: string) => {
-    const isExpanded = expandedSuggestions.has(suggestion.id);
     const suggestionState = suggestionStates[suggestion.id];
     const isAccepted = suggestionState === 'accepted';
     const isRejected = suggestionState === 'rejected';
@@ -137,17 +120,39 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       <Paper
         key={suggestion.id}
         sx={{
-          mb: 1,
-          border: '1px solid',
-          borderColor: isAccepted ? 'success.main' : isRejected ? 'error.main' : 'divider',
-          borderRadius: 1,
+          mb: 1.5,
+          border: '2px solid',
+          borderColor: isAccepted 
+            ? '#4caf50' 
+            : isRejected 
+              ? '#e0e0e0' 
+              : 'divider',
+          borderRadius: 3,
           overflow: 'hidden',
-          bgcolor: isAccepted ? 'success.light' : isRejected ? 'error.light' : 'background.paper',
-          opacity: isRejected ? 0.6 : 1,
-          position: 'relative'
+          bgcolor: isAccepted 
+            ? 'linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%)' 
+            : isRejected 
+              ? '#f8f9fa' 
+              : 'background.paper',
+          opacity: isRejected ? 0.8 : 1,
+          position: 'relative',
+          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+          boxShadow: isAccepted 
+            ? '0 4px 12px rgba(76, 175, 80, 0.15), 0 2px 4px rgba(76, 175, 80, 0.1)' 
+            : isRejected 
+              ? '0 2px 4px rgba(0, 0, 0, 0.05)' 
+              : '0 2px 8px rgba(0, 0, 0, 0.1)',
+          '&:hover': {
+            transform: isAccepted || isRejected ? 'none' : 'translateY(-2px)',
+            boxShadow: isAccepted 
+              ? '0 6px 16px rgba(76, 175, 80, 0.2), 0 4px 8px rgba(76, 175, 80, 0.15)' 
+              : isRejected 
+                ? '0 2px 4px rgba(0, 0, 0, 0.05)'
+                : '0 4px 12px rgba(0, 0, 0, 0.15)'
+          }
         }}
       >
-        {/* Badge d'état */}
+        {/* Badge d'état - Simple et discret */}
         {(isAccepted || isRejected) && (
           <Box
             sx={{
@@ -155,17 +160,34 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               top: 8,
               right: 8,
               zIndex: 1,
-              bgcolor: isAccepted ? 'success.main' : 'error.main',
+              bgcolor: isAccepted ? '#4caf50' : '#bdbdbd',
               color: 'white',
               borderRadius: '50%',
               width: 24,
               height: 24,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              boxShadow: isAccepted 
+                ? '0 2px 4px rgba(76, 175, 80, 0.3)' 
+                : '0 1px 2px rgba(0, 0, 0, 0.1)',
+              border: '2px solid white',
+              animation: isAccepted ? 'checkmarkPulse 0.6s ease-out' : 'none'
             }}
           >
-            {isAccepted ? <CheckIcon sx={{ fontSize: 16 }} /> : <CloseIcon sx={{ fontSize: 16 }} />}
+            {isAccepted ? (
+              <CheckIcon sx={{ fontSize: 16 }} />
+            ) : (
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  bgcolor: 'white',
+                  opacity: 0.8
+                }}
+              />
+            )}
           </Box>
         )}
 
@@ -191,41 +213,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               >
                 {suggestion.title}
               </Typography>
-              {isAccepted && (
-                <Chip
-                  label="Acceptée"
-                  size="small"
-                  color="success"
-                  variant="filled"
-                />
-              )}
-              {isRejected && (
-                <Chip
-                  label="Refusée"
-                  size="small"
-                  color="error"
-                  variant="filled"
-                />
-              )}
+
+
             </Box>
-            <IconButton
-              size="small"
-              onClick={() => toggleSuggestionExpansion(suggestion.id)}
-            >
-              {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            </IconButton>
+
           </Box>
           
-          <Typography 
-            variant="body2" 
-            color={isRejected ? 'text.disabled' : 'text.secondary'} 
-            sx={{ 
-              mb: 1,
-              textDecoration: isRejected ? 'line-through' : 'none'
-            }}
-          >
+
             {suggestion.description}
-          </Typography>
 
           {/* Boutons seulement si pas encore traité */}
           {!isAccepted && !isRejected && (
@@ -253,40 +248,121 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </Box>
           )}
 
-          {/* Message d'état */}
-          {(isAccepted || isRejected) && (
-            <Typography 
-              variant="caption" 
-              color={isAccepted ? 'success.main' : 'error.main'}
-              sx={{ fontWeight: 600 }}
+                    {/* Message d'état - Élégant et informatif */}
+          {isAccepted && (
+            <Box 
+              sx={{ 
+                p: 1.5, 
+                mt: 2, 
+                borderRadius: 2,
+                background: 'linear-gradient(135deg, #e8f5e8 0%, #c8e6c8 100%)',
+                border: '1px solid #4caf50',
+                position: 'relative',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: '3px',
+                  background: 'linear-gradient(90deg, #4caf50 0%, #66bb6a 100%)',
+                  borderRadius: '2px 2px 0 0'
+                }
+              }}
             >
-              {isAccepted ? '✅ Suggestion acceptée et appliquée au schéma' : '❌ Suggestion refusée'}
-            </Typography>
+              <Typography 
+                variant="body2" 
+                color="#2e7d32"
+                sx={{ 
+                  fontWeight: 500, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 1.5,
+                  fontSize: '0.875rem',
+                  fontStyle: 'italic'
+                }}
+              >
+                <Box 
+                  sx={{ 
+                    bgcolor: '#4caf50', 
+                    borderRadius: '50%', 
+                    width: 20, 
+                    height: 20, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center' 
+                  }}
+                >
+                  <CheckIcon sx={{ fontSize: 14, color: 'white' }} />
+                </Box>
+                Suggestion appliquée avec succès au schéma
+              </Typography>
+            </Box>
+          )}
+          
+          {isRejected && (
+            <Box 
+              sx={{ 
+                p: 1.5, 
+                mt: 2, 
+                borderRadius: 2,
+                bgcolor: '#f5f5f5',
+                border: '1px solid #e0e0e0',
+                position: 'relative'
+              }}
+            >
+              <Typography 
+                variant="body2" 
+                color="text.secondary"
+                sx={{ 
+                  fontWeight: 500, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 1.5,
+                  fontSize: '0.875rem',
+                  fontStyle: 'italic'
+                }}
+              >
+                <Box 
+                  sx={{ 
+                    bgcolor: '#9e9e9e', 
+                    borderRadius: '50%', 
+                    width: 20, 
+                    height: 20, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center' 
+                  }}
+                >
+
+                </Box>
+                Cette suggestion n'a pas été appliquée
+              </Typography>
+            </Box>
           )}
         </Box>
 
-        <Collapse in={isExpanded}>
-          <Divider />
-          <Box sx={{ p: 1.5, bgcolor: 'grey.50' }}>
-            {suggestion.code && (
-              <Paper
-                sx={{
-                  p: 1.5,
-                  bgcolor: 'grey.900',
-                  color: 'grey.100',
-                  fontFamily: 'monospace',
-                  fontSize: '0.75rem',
-                  borderRadius: 1,
-                  overflow: 'auto'
-                }}
-              >
-                <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-                  {suggestion.code}
-                </pre>
-              </Paper>
-            )}
-          </Box>
-        </Collapse>
+
+
+        {/* CSS Animation pour le badge */}
+        <style>
+          {`
+            @keyframes checkmarkPulse {
+              0% {
+                transform: scale(0.8);
+                opacity: 0.7;
+              }
+              50% {
+                transform: scale(1.1);
+                opacity: 1;
+              }
+              100% {
+                transform: scale(1);
+                opacity: 1;
+              }
+            }
+          `}
+        </style>
       </Paper>
     );
   };
@@ -447,13 +523,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         borderColor: 'divider'
                       }}
                     >
-                      {message.isLoading ? (
-                        <TypingAnimation mode={message.mode} context={context} />
-                      ) : (
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                          {message.content}
-                        </Typography>
-                      )}
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                        {message.content}
+                      </Typography>
                     </Paper>
 
                     {/* Suggestions */}

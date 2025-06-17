@@ -520,19 +520,19 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const isSelected = selectedComponent === component.id;
     const isDragging = draggedComponent?.id === component.id;
     
-    // Determine component size based on type
+    // Determine component size based on type - Tailles agrandies pour éviter le débordement de texte
     const getComponentSize = (type: string) => {
       const typeStr = type.toLowerCase();
       if (typeStr.includes('microcontroller') || typeStr.includes('arduino')) {
-        return { width: 80, height: 60 };
+        return { width: 120, height: 80 };
       } else if (typeStr.includes('display') || typeStr.includes('écran')) {
-        return { width: 70, height: 50 };
+        return { width: 100, height: 70 };
       } else if (typeStr.includes('sensor') || typeStr.includes('capteur')) {
-        return { width: 50, height: 40 };
+        return { width: 90, height: 60 };
       } else if (typeStr.includes('battery') || typeStr.includes('batterie')) {
-        return { width: 40, height: 60 };
+        return { width: 70, height: 80 };
       }
-      return { width: 60, height: 40 };
+      return { width: 90, height: 60 };
     };
 
     const getComponentColor = (type: string) => {
@@ -587,12 +587,12 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           }}
         />
         
-        {/* Component label */}
+        {/* Component label - Amélioration de la lisibilité */}
         <text
           x={component.position.x + size.width / 2}
-          y={component.position.y + size.height / 2 - 5}
+          y={component.position.y + size.height / 2 - 8}
           textAnchor="middle"
-          fontSize={10}
+          fontSize={12}
           fill="white"
           fontWeight="bold"
           style={{ 
@@ -603,12 +603,12 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           {component.name}
         </text>
         
-        {/* Component type label */}
+        {/* Component type label - Police agrandie */}
         <text
           x={component.position.x + size.width / 2}
-          y={component.position.y + size.height / 2 + 8}
+          y={component.position.y + size.height / 2 + 10}
           textAnchor="middle"
-          fontSize={8}
+          fontSize={10}
           fill="white"
           style={{ 
             userSelect: 'none',
@@ -703,19 +703,19 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       return null;
     }
     
-    // Calculer les tailles des composants pour les connexions
+    // Calculer les tailles des composants pour les connexions - Cohérence avec renderComponent
     const getComponentSize = (type: string) => {
       const typeStr = type.toLowerCase();
       if (typeStr.includes('microcontroller') || typeStr.includes('arduino')) {
-        return { width: 80, height: 60 };
+        return { width: 120, height: 80 };
       } else if (typeStr.includes('display') || typeStr.includes('écran')) {
-        return { width: 70, height: 50 };
+        return { width: 100, height: 70 };
       } else if (typeStr.includes('sensor') || typeStr.includes('capteur')) {
-        return { width: 50, height: 40 };
+        return { width: 90, height: 60 };
       } else if (typeStr.includes('battery') || typeStr.includes('batterie')) {
-        return { width: 40, height: 60 };
+        return { width: 70, height: 80 };
       }
-      return { width: 60, height: 40 };
+      return { width: 90, height: 60 };
     };
 
     const fromSize = getComponentSize(fromComponent.type);

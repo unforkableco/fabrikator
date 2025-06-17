@@ -109,16 +109,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       await saveChatMessage(userMessage);
       setIsGenerating(true);
 
-      // Add loading message with animation
-      const loadingMessage: WiringChatMessage = {
-        id: `loading-${Date.now()}`,
-        content: mode === 'agent' ? 'Génération du câblage en cours...' : 'Analyse en cours...',
-        sender: 'ai',
-        timestamp: new Date(),
-        mode,
-        isLoading: true
-      };
-      setMessages(prev => [...prev, loadingMessage]);
+      // Plus besoin de message de chargement car l'animation isGenerating gère l'affichage
 
       try {
         let aiResponse: string;
@@ -187,19 +178,16 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           }
         }
 
-        // Remove loading message and add AI response with suggestions
-        setMessages(prev => {
-          const withoutLoading = prev.filter(msg => msg.id !== loadingMessage.id);
-          const aiMessage: WiringChatMessage = {
-            id: (Date.now() + 1).toString(),
-            content: aiResponse,
-            sender: 'ai',
-            timestamp: new Date(),
-            mode,
-            suggestions: chatSuggestions
-          };
-          return [...withoutLoading, aiMessage];
-        });
+        // Add AI response with suggestions
+        const aiMessage: WiringChatMessage = {
+          id: (Date.now() + 1).toString(),
+          content: aiResponse,
+          sender: 'ai',
+          timestamp: new Date(),
+          mode,
+          suggestions: chatSuggestions
+        };
+        setMessages(prev => [...prev, aiMessage]);
 
         // Save the final AI message
         const finalAiMessage: ChatMessage = {
@@ -215,18 +203,15 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       } catch (error) {
         console.error('Error sending wiring chat message:', error);
         
-        // Remove loading message and add error message
-        setMessages(prev => {
-          const withoutLoading = prev.filter(msg => msg.id !== loadingMessage.id);
-          const errorMessage: WiringChatMessage = {
-            id: (Date.now() + 1).toString(),
-            content: `Désolé, j'ai rencontré une erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}. Veuillez réessayer.`,
-            sender: 'ai',
-            timestamp: new Date(),
-            mode,
-          };
-          return [...withoutLoading, errorMessage];
-        });
+        // Add error message
+        const errorMessage: WiringChatMessage = {
+          id: (Date.now() + 1).toString(),
+          content: `Désolé, j'ai rencontré une erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}. Veuillez réessayer.`,
+          sender: 'ai',
+          timestamp: new Date(),
+          mode,
+        };
+        setMessages(prev => [...prev, errorMessage]);
       } finally {
         setIsGenerating(false);
       }
@@ -976,20 +961,35 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
             />
           )}
 
-          {/* Connections List */}
-          <Card sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Liste des Connexions
+                    {/* Connections List - Optimisée pour le défilement et la visibilité */}
+          <Card sx={{ 
+            p: 2, 
+            display: 'flex', 
+            flexDirection: 'column',
+            minHeight: 400, // Hauteur minimale garantie
+            maxHeight: 600, // Hauteur maximale augmentée
+            flex: 1, // Prend tout l'espace disponible
+            overflow: 'hidden' // Évite les débordements
+          }}>
+            <Typography variant="h6" gutterBottom sx={{ flexShrink: 0 }}>
+              Liste des Connexions ({diagram?.connections?.length || 0})
             </Typography>
-            <Divider sx={{ mb: 2 }} />
-            <ConnectionsList
-              connections={diagram?.connections || []}
-              components={diagram?.components || []}
-              selectedConnection={selectedConnection}
-              onConnectionSelect={setSelectedConnection}
-              onConnectionUpdate={handleConnectionUpdate}
-              onConnectionDelete={handleConnectionDelete}
-            />
+            <Divider sx={{ mb: 2, flexShrink: 0 }} />
+            <Box sx={{ 
+              flex: 1, 
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <ConnectionsList
+                connections={diagram?.connections || []}
+                components={diagram?.components || []}
+                selectedConnection={selectedConnection}
+                onConnectionSelect={setSelectedConnection}
+                onConnectionUpdate={handleConnectionUpdate}
+                onConnectionDelete={handleConnectionDelete}
+              />
+            </Box>
           </Card>
         </Box>
 

@@ -9,7 +9,6 @@ import {
   IconButton,
   Chip,
   Divider,
-  Paper,
   Select,
   MenuItem,
   FormControl,
@@ -94,9 +93,26 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
   }
 
   return (
-    <Box>
-      <List>
-        {connections.map((connection, index) => {
+    <Box sx={{ 
+      display: 'flex',
+      flexDirection: 'column',
+      border: '1px solid',
+      borderColor: 'divider',
+      borderRadius: 1,
+      bgcolor: 'background.paper',
+      maxHeight: '100%',
+      height: '100%', // Utilise toute la hauteur disponible
+      overflow: 'hidden'
+    }}>
+      {/* Zone de défilement pour la liste */}
+      <Box sx={{ 
+        flex: 1,
+        overflow: 'auto',
+        maxHeight: 'none', // Pas de limite de hauteur pour éviter l'espace blanc
+        minHeight: 0
+}}>
+        <List sx={{ p: 0 }}>
+          {connections.map((connection, index) => {
           const isSelected = selectedConnection === connection.id;
           const hasError = Boolean(connection.error);
           const isValidated = connection.validated;
@@ -216,60 +232,67 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
             </React.Fragment>
           );
         })}
-      </List>
-      
-      {/* Summary */}
-      <Paper sx={{ p: 2, mt: 2, bgcolor: 'grey.50' }}>
-        <Typography variant="subtitle2" gutterBottom>
-          Résumé des connexions
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          <Chip 
-            label={`Total: ${connections.length}`} 
-            size="small" 
-            variant="outlined"
-          />
-          <Chip 
-            label={`Validées: ${connections.filter(c => c.validated).length}`} 
-            size="small" 
-            color="success"
-            variant="outlined"
-          />
-          <Chip 
-            label={`Erreurs: ${connections.filter(c => c.error).length}`} 
-            size="small" 
-            color="error"
-            variant="outlined"
-          />
+          </List>
         </Box>
         
-        {/* Wire type breakdown */}
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-            Types de connexions:
+        {/* Summary - Toujours visible en bas */}
+        <Box sx={{ 
+          p: 2, 
+          bgcolor: 'grey.50', 
+          borderTop: '1px solid', 
+          borderColor: 'divider',
+          flexShrink: 0 // Empêche la compression du résumé
+        }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Résumé des connexions
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {Object.entries(
-              connections.reduce((acc, conn) => {
-                acc[conn.wireType] = (acc[conn.wireType] || 0) + 1;
-                return acc;
-              }, {} as Record<string, number>)
-            ).map(([type, count]) => (
-              <Chip
-                key={type}
-                label={`${type}: ${count}`}
-                size="small"
-                sx={{ 
-                  bgcolor: getWireTypeColor(type as WiringConnection['wireType']),
-                  color: 'white',
-                  fontSize: '0.7rem'
-                }}
-              />
-            ))}
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <Chip 
+              label={`Total: ${connections.length}`} 
+              size="small" 
+              variant="outlined"
+            />
+            <Chip 
+              label={`Validées: ${connections.filter(c => c.validated).length}`} 
+              size="small" 
+              color="success"
+              variant="outlined"
+            />
+            <Chip 
+              label={`Erreurs: ${connections.filter(c => c.error).length}`} 
+              size="small" 
+              color="error"
+              variant="outlined"
+            />
+          </Box>
+          
+          {/* Wire type breakdown */}
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+              Types de connexions:
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {Object.entries(
+                connections.reduce((acc, conn) => {
+                  acc[conn.wireType] = (acc[conn.wireType] || 0) + 1;
+                  return acc;
+                }, {} as Record<string, number>)
+              ).map(([type, count]) => (
+                <Chip
+                  key={type}
+                  label={`${type}: ${count}`}
+                  size="small"
+                  sx={{ 
+                    bgcolor: getWireTypeColor(type as WiringConnection['wireType']),
+                    color: 'white',
+                    fontSize: '0.7rem'
+                  }}
+                />
+              ))}
+            </Box>
           </Box>
         </Box>
-      </Paper>
-    </Box>
+      </Box>
   );
 };
 
