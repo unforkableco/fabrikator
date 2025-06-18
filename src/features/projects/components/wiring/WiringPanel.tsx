@@ -210,6 +210,28 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
             });
             
             chatSuggestions = suggestions;
+            // Debug - vérifier l'état initial des suggestions
+            console.log('🚀 Generated suggestions:', suggestions.map((s: any) => ({
+              id: s.id,
+              title: s.title,
+              validated: s.validated,
+              expanded: s.expanded,
+              action: s.action
+            })));
+            
+            // Debug - vérifier si les IDs sont déjà dans le localStorage
+            const storageKey = `suggestions-state-wiring`;
+            const savedStates = localStorage.getItem(storageKey);
+            if (savedStates) {
+              const parsed = JSON.parse(savedStates);
+              console.log('💾 Current localStorage states:', parsed);
+              suggestions.forEach((s: any) => {
+                if (parsed[s.id]) {
+                  console.log(`🔍 Suggestion ${s.id} already has state:`, parsed[s.id]);
+                }
+              });
+            }
+            
             // Si on a des suggestions, utiliser un message plus court
             aiResponse = `J'ai généré ${suggestions.length} suggestions de connexions pour votre circuit.`;
           } else {
@@ -278,6 +300,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     if (!projectId) return;
     
     // Envoyer automatiquement le prompt pour un circuit optimal
+    // IMPORTANT: Ne pas appliquer automatiquement, juste générer les suggestions
     await handleSendChatMessage("Suggère-moi un circuit optimal", 'agent');
   };
 

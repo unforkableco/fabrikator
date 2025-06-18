@@ -77,7 +77,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     try {
       const savedStates = localStorage.getItem(storageKey);
       if (savedStates) {
-        setSuggestionStates(JSON.parse(savedStates));
+        const parsed = JSON.parse(savedStates);
+        console.log('📦 Loaded suggestion states from localStorage:', parsed);
+        setSuggestionStates(parsed);
       }
     } catch (error) {
       console.error('Error loading suggestion states:', error);
@@ -143,6 +145,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     const suggestionState = suggestionStates[suggestion.id];
     const isAccepted = suggestionState === 'accepted';
     const isRejected = suggestionState === 'rejected';
+    
+    // Debug - vérifier l'état des suggestions
+    console.log('🔍 Rendering suggestion:', {
+      id: suggestion.id,
+      title: suggestion.title,
+      validated: (suggestion as any).validated,
+      suggestionState,
+      isAccepted,
+      isRejected,
+      shouldShowButtons: !isAccepted && !isRejected
+    });
+    
+    // DEBUG TEMPORAIRE - Nettoyer localStorage si nécessaire
+    if (suggestion.id.includes('debug-clear')) {
+      localStorage.removeItem(storageKey);
+      console.log('🧹 Cleared localStorage for:', storageKey);
+    }
     
     return (
       <Paper
