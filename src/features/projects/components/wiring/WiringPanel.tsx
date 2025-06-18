@@ -528,13 +528,15 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
   };
 
   // Wiring diagram operations
-  const handleComponentAdd = (component: WiringComponent) => {
-    console.log('Adding component to diagram:', component);
+  const handleComponentAdd = async (component: WiringComponent) => {
+    console.log('➕ Adding component to diagram:', component);
     console.log('Current diagram:', diagram);
+    
+    let finalDiagram: WiringDiagram;
     
     if (!diagram) {
       // Create new diagram if none exists
-      const newDiagram: WiringDiagram = {
+      finalDiagram = {
         id: `diagram-${Date.now()}`,
         components: [component],
         connections: [],
@@ -545,10 +547,10 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           version: 1
         }
       };
-      console.log('Created new diagram:', newDiagram);
-      setDiagram(newDiagram);
+      console.log('Created new diagram:', finalDiagram);
+      setDiagram(finalDiagram);
     } else {
-      const updatedDiagram = {
+      finalDiagram = {
         ...diagram,
         components: [...diagram.components, component],
         metadata: {
@@ -556,9 +558,19 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           updatedAt: new Date().toISOString()
         }
       };
-      console.log('Updated diagram:', updatedDiagram);
-      setDiagram(updatedDiagram);
+      console.log('Updated diagram:', finalDiagram);
+      setDiagram(finalDiagram);
     }
+    
+    // Sauvegarder le diagramme après ajout de composant
+    try {
+      console.log('💾 Saving diagram after component add...');
+      await saveWiringDiagram(finalDiagram);
+      console.log('✅ Diagram saved successfully after component add');
+    } catch (error) {
+      console.error('❌ Failed to save diagram after component add:', error);
+    }
+    
     onWiringUpdated?.();
   };
 
@@ -767,10 +779,12 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     return result;
   };
 
-  const handleConnectionAdd = (connection: WiringConnection) => {
-    console.log('Adding connection:', connection);
+  const handleConnectionAdd = async (connection: WiringConnection) => {
+    console.log('🔌 Adding manual connection:', connection);
     console.log('Current diagram:', diagram);
     console.log('Available materials:', materials);
+    
+    let finalDiagram: WiringDiagram;
     
     if (!diagram) {
       // Créer un nouveau diagramme en utilisant TOUS les matériaux disponibles
@@ -802,7 +816,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       });
       
       // Créer le nouveau diagramme avec tous les composants
-      const newDiagram: WiringDiagram = {
+      finalDiagram = {
         id: `diagram-${Date.now()}`,
         components: allComponents,
         connections: [mappedConnection],
@@ -814,8 +828,8 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         }
       };
       
-      console.log('Created new diagram with all materials:', newDiagram);
-      setDiagram(newDiagram);
+      console.log('Created new diagram with all materials:', finalDiagram);
+      setDiagram(finalDiagram);
     } else {
       // Vérifier si les composants de la connexion existent déjà
       const fromExists = diagram.components.find(c => c.id === connection.fromComponent);
@@ -860,7 +874,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       });
       
       // Ajouter la connexion
-      const updatedDiagram = {
+      finalDiagram = {
         ...diagram,
         components: updatedComponents,
         connections: [...diagram.connections, mappedConnection],
@@ -870,15 +884,26 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         }
       };
       
-      console.log('Updated existing diagram with connection:', updatedDiagram);
-      setDiagram(updatedDiagram);
+      console.log('Updated existing diagram with connection:', finalDiagram);
+      setDiagram(finalDiagram);
+    }
+    
+    // Sauvegarder le diagramme après ajout de connexion manuelle
+    try {
+      console.log('💾 Saving diagram after manual connection add...');
+      await saveWiringDiagram(finalDiagram);
+      console.log('✅ Diagram saved successfully after manual connection add');
+    } catch (error) {
+      console.error('❌ Failed to save diagram after manual connection add:', error);
     }
     
     onWiringUpdated?.();
   };
 
-  const handleConnectionUpdate = (connectionId: string, updates: Partial<WiringConnection>) => {
+  const handleConnectionUpdate = async (connectionId: string, updates: Partial<WiringConnection>) => {
     if (diagram) {
+      console.log('📝 Updating connection:', connectionId, 'with:', updates);
+      
       const updatedConnections = diagram.connections.map(conn =>
         conn.id === connectionId ? { ...conn, ...updates } : conn
       );
@@ -890,14 +915,28 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           updatedAt: new Date().toISOString()
         }
       };
+      
       setDiagram(updatedDiagram);
+      
+      // Sauvegarder le diagramme après mise à jour
+      try {
+        console.log('💾 Saving diagram after connection update...');
+        await saveWiringDiagram(updatedDiagram);
+        console.log('✅ Diagram saved successfully after update');
+      } catch (error) {
+        console.error('❌ Failed to save diagram after update:', error);
+      }
+      
       validateWiring(updatedDiagram);
       onWiringUpdated?.();
     }
   };
 
-  const handleConnectionDelete = (connectionId: string) => {
+  const handleConnectionDelete = async (connectionId: string) => {
     if (diagram) {
+      const connectionToDelete = diagram.connections.find(conn => conn.id === connectionId);
+      console.log('🗑️ Deleting connection:', connectionToDelete);
+      
       const updatedDiagram = {
         ...diagram,
         connections: diagram.connections.filter(conn => conn.id !== connectionId),
@@ -906,14 +945,34 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           updatedAt: new Date().toISOString()
         }
       };
+      
+      console.log('🔄 Updated diagram after deletion:', updatedDiagram.connections.length, 'connections remaining');
       setDiagram(updatedDiagram);
+      
+      // Sauvegarder le diagramme après suppression
+      try {
+        console.log('💾 Saving diagram after connection deletion...');
+        await saveWiringDiagram(updatedDiagram);
+        console.log('✅ Diagram saved successfully after deletion');
+      } catch (error) {
+        console.error('❌ Failed to save diagram after deletion:', error);
+      }
+      
       validateWiring(updatedDiagram);
       onWiringUpdated?.();
     }
   };
 
-  const handleComponentDelete = (componentId: string) => {
+  const handleComponentDelete = async (componentId: string) => {
     if (diagram) {
+      const componentToDelete = diagram.components.find(comp => comp.id === componentId);
+      const connectionsToDelete = diagram.connections.filter(
+        conn => conn.fromComponent === componentId || conn.toComponent === componentId
+      );
+      
+      console.log('🗑️ Deleting component:', componentToDelete?.name);
+      console.log('🗑️ This will also delete', connectionsToDelete.length, 'connections');
+      
       // Supprimer le composant et toutes ses connexions
       const updatedDiagram = {
         ...diagram,
@@ -926,7 +985,19 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           updatedAt: new Date().toISOString()
         }
       };
+      
+      console.log('🔄 Updated diagram after component deletion:', updatedDiagram.components.length, 'components,', updatedDiagram.connections.length, 'connections');
       setDiagram(updatedDiagram);
+      
+      // Sauvegarder le diagramme après suppression
+      try {
+        console.log('💾 Saving diagram after component deletion...');
+        await saveWiringDiagram(updatedDiagram);
+        console.log('✅ Diagram saved successfully after component deletion');
+      } catch (error) {
+        console.error('❌ Failed to save diagram after component deletion:', error);
+      }
+      
       validateWiring(updatedDiagram);
       onWiringUpdated?.();
     }
