@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -69,6 +69,30 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [suggestionStates, setSuggestionStates] = useState<Record<string, 'accepted' | 'rejected'>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Clé pour le localStorage basée sur le contexte
+  const storageKey = `suggestions-state-${context || 'general'}`;
+
+  // Charger l'état des suggestions depuis le localStorage
+  useEffect(() => {
+    try {
+      const savedStates = localStorage.getItem(storageKey);
+      if (savedStates) {
+        setSuggestionStates(JSON.parse(savedStates));
+      }
+    } catch (error) {
+      console.error('Error loading suggestion states:', error);
+    }
+  }, [storageKey]);
+
+  // Sauvegarder l'état des suggestions dans le localStorage
+  const saveSuggestionStates = useCallback((newStates: Record<string, 'accepted' | 'rejected'>) => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(newStates));
+    } catch (error) {
+      console.error('Error saving suggestion states:', error);
+    }
+  }, [storageKey]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -93,20 +117,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const handleAcceptSuggestion = (messageId: string, suggestionId: string) => {
     // Marquer la suggestion comme acceptée visuellement
-    setSuggestionStates(prev => ({
-      ...prev,
-      [suggestionId]: 'accepted'
-    }));
+    const newStates = {
+      ...suggestionStates,
+      [suggestionId]: 'accepted' as const
+    };
+    setSuggestionStates(newStates);
+    saveSuggestionStates(newStates);
     // Appeler la fonction parent
     onAcceptSuggestion(messageId, suggestionId);
   };
 
   const handleRejectSuggestion = (messageId: string, suggestionId: string) => {
     // Marquer la suggestion comme refusée visuellement
-    setSuggestionStates(prev => ({
-      ...prev,
-      [suggestionId]: 'rejected'
-    }));
+    const newStates = {
+      ...suggestionStates,
+      [suggestionId]: 'rejected' as const
+    };
+    setSuggestionStates(newStates);
+    saveSuggestionStates(newStates);
     // Appeler la fonction parent
     onRejectSuggestion(messageId, suggestionId);
   };

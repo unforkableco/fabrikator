@@ -51,7 +51,9 @@ export class WiringService {
             createdBy: wiringData.createdBy || 'User',
             wiringData: {
               connections: wiringData.connections || [],
-              diagram: wiringData.diagram || {}
+              components: wiringData.components || [],
+              diagram: wiringData.diagram || {},
+              metadata: wiringData.metadata || {}
             }
           }
         });
@@ -142,7 +144,9 @@ export class WiringService {
             createdBy: versionData.createdBy || 'User',
             wiringData: {
               connections: versionData.connections || [],
-              diagram: versionData.diagram || {}
+              components: versionData.components || [],
+              diagram: versionData.diagram || {},
+              metadata: versionData.metadata || {}
             }
           }
         });

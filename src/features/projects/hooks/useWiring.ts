@@ -53,18 +53,46 @@ export const useWiring = (projectId?: string) => {
       const wiringData = {
         components: diagram.components,
         connections: diagram.connections,
+        diagram: {
+          components: diagram.components,
+          connections: diagram.connections,
+          metadata: diagram.metadata
+        },
         createdBy: 'User'
       };
 
+      console.log('Saving wiring diagram:', wiringData);
+
       if (wiringDiagram) {
         // Update existing diagram
-        await api.wiring.addVersion(wiringDiagram.id, wiringData);
+        const result = await api.wiring.addVersion(wiringDiagram.id, wiringData);
+        console.log('Version added successfully:', result);
+        
+        // Mettre à jour le diagramme local avec les nouvelles données
+        if (result?.wiringSchema?.currentVersion) {
+          const updatedDiagram: WiringDiagram = {
+            id: result.wiringSchema.id,
+            components: result.wiringSchema.currentVersion.wiringData?.components || diagram.components,
+            connections: result.wiringSchema.currentVersion.wiringData?.connections || diagram.connections,
+            metadata: {
+              title: 'Wiring Diagram',
+              description: 'Project wiring diagram',
+              createdAt: result.wiringSchema.currentVersion.createdAt || new Date().toISOString(),
+              updatedAt: result.wiringSchema.currentVersion.createdAt || new Date().toISOString(),
+              version: result.wiringSchema.currentVersion.versionNumber || 1
+            }
+          };
+          setWiringDiagram(updatedDiagram);
+        }
       } else {
         // Create new diagram
-        await api.wiring.createWiring(projectId, wiringData);
+        const result = await api.wiring.createWiring(projectId, wiringData);
+        console.log('Wiring created successfully:', result);
+        
+        // Rafraîchir seulement lors de la création
+        await fetchWiringDiagram();
       }
       
-      await fetchWiringDiagram(); // Refresh
       setError(null);
     } catch (err) {
       console.error('Error saving wiring diagram:', err);
