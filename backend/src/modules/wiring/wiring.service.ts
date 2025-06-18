@@ -129,67 +129,95 @@ export class WiringService {
         throw new Error('Wiring schema not found');
       }
       
-      return await prisma.$transaction(async (tx) => {
-        // Obtenir le numéro de la prochaine version en cherchant la version max
-        const maxVersion = await tx.wireVersion.findFirst({
-          where: { wiringSchemaId },
-          orderBy: { versionNumber: 'desc' }
-        });
-        
-        const nextVersionNumber = maxVersion ? maxVersion.versionNumber + 1 : 1;
-        
-        // Créer une nouvelle version
-        const version = await tx.wireVersion.create({
-          data: {
-            id: uuidv4(),
-            wiringSchemaId,
-            versionNumber: nextVersionNumber,
-            createdBy: versionData.createdBy || 'User',
-            wiringData: {
-              connections: versionData.connections || [],
-              components: versionData.components || [],
-              diagram: versionData.diagram || {},
-              metadata: versionData.metadata || {}
+      // Retry logic for finding available version number
+      const maxAttempts = 5;
+      
+      for (let attempts = 0; attempts < maxAttempts; attempts++) {
+        try {
+          return await prisma.$transaction(async (tx) => {
+            // Obtenir toutes les versions existantes pour ce schéma
+            const existingVersions = await tx.wireVersion.findMany({
+              where: { wiringSchemaId },
+              select: { versionNumber: true },
+              orderBy: { versionNumber: 'desc' }
+            });
+            
+            // Calculer le prochain numéro de version disponible
+            let nextVersionNumber = 1;
+            if (existingVersions.length > 0) {
+              const usedNumbers = existingVersions.map(v => v.versionNumber).sort((a, b) => a - b);
+              nextVersionNumber = usedNumbers[usedNumbers.length - 1] + 1;
             }
-          }
-        });
-        
-        // Mettre à jour le schéma pour pointer vers cette version
-        await tx.wiringSchema.update({
-          where: { id: wiringSchemaId },
-          data: { currentVersionId: version.id }
-        });
-        
-        // Créer une entrée de changelog
-        await tx.changeLog.create({
-          data: {
-            id: uuidv4(),
-            entity: 'wire_versions',
-            changeType: 'update',
-            author: versionData.createdBy || 'User',
-            wireVersionId: version.id,
-            diffPayload: {
-              type: 'update_wiring',
-              action: 'update',
-              versionNumber: nextVersionNumber,
-              connectionCount: versionData.connections?.length || 0
-            }
-          }
-        });
-        
-        return { 
-          wiringSchema: await tx.wiringSchema.findUnique({
-            where: { id: wiringSchemaId },
-            include: { 
-              currentVersion: true,
-              versions: {
-                orderBy: { versionNumber: 'desc' }
+            
+            // Ajouter l'offset des tentatives pour éviter les collisions
+            nextVersionNumber += attempts;
+            
+            console.log(`Creating version ${nextVersionNumber} for schema ${wiringSchemaId}`);
+            
+            // Créer une nouvelle version
+            const version = await tx.wireVersion.create({
+              data: {
+                id: uuidv4(),
+                wiringSchemaId,
+                versionNumber: nextVersionNumber,
+                createdBy: versionData.createdBy || 'User',
+                wiringData: {
+                  connections: versionData.connections || [],
+                  components: versionData.components || [],
+                  diagram: versionData.diagram || {},
+                  metadata: versionData.metadata || {}
+                }
               }
-            }
-          }), 
-          version 
-        };
-      });
+            });
+            
+            // Mettre à jour le schéma pour pointer vers cette version
+            await tx.wiringSchema.update({
+              where: { id: wiringSchemaId },
+              data: { currentVersionId: version.id }
+            });
+            
+            // Créer une entrée de changelog
+            await tx.changeLog.create({
+              data: {
+                id: uuidv4(),
+                entity: 'wire_versions',
+                changeType: 'update',
+                author: versionData.createdBy || 'User',
+                wireVersionId: version.id,
+                diffPayload: {
+                  type: 'update_wiring',
+                  action: 'update',
+                  versionNumber: nextVersionNumber,
+                  connectionCount: versionData.connections?.length || 0
+                }
+              }
+            });
+            
+            return { 
+              wiringSchema: await tx.wiringSchema.findUnique({
+                where: { id: wiringSchemaId },
+                include: { 
+                  currentVersion: true,
+                  versions: {
+                    orderBy: { versionNumber: 'desc' }
+                  }
+                }
+              }), 
+              version 
+            };
+          });
+        } catch (error: any) {
+          if (error.code === 'P2002' && attempts < maxAttempts - 1) {
+            // Unique constraint violation, try with next attempt
+            console.log(`Version conflict on attempt ${attempts + 1}, retrying...`);
+            continue;
+          } else {
+            throw error;
+          }
+        }
+      }
+      
+      throw new Error('Failed to create version after multiple attempts');
     } catch (error) {
       console.error('Error in addVersion:', error);
       throw error;
@@ -248,19 +276,60 @@ export class WiringService {
       const existingConnections = currentDiagram?.connections || [];
       console.log('WiringService - Existing connections:', existingConnections.length);
       console.log('WiringService - Current diagram:', JSON.stringify(currentDiagram, null, 2));
+      
+      // Créer un mapping des connexions existantes pour l'IA
+      const existingConnectionsForAI = existingConnections.map((conn: any) => ({
+        id: conn.id,
+        fromComponent: conn.fromComponent,
+        fromPin: conn.fromPin,
+        toComponent: conn.toComponent,
+        toPin: conn.toPin,
+        wireType: conn.wireType,
+        wireColor: conn.wireColor
+      }));
 
       // Utiliser l'IA pour générer les suggestions
       const aiResponse = await this.aiService.generateWiringSuggestions({
         prompt,
         materials: simplifiedMaterials,
-        currentDiagram
+        currentDiagram: {
+          ...currentDiagram,
+          existingConnections: existingConnectionsForAI
+        }
       });
 
       console.log('WiringService - AI response received:', aiResponse);
 
       // Transformer la réponse IA en format attendu par le frontend
       const suggestions = aiResponse.suggestions?.map((suggestion: any, index: number) => {
-        // Vérifier que la suggestion a les données de connexion nécessaires
+        // Pour les actions "remove", connectionData peut être null
+        if (suggestion.action === 'remove') {
+          if (!suggestion.existingConnectionId) {
+            console.warn('Remove action without existingConnectionId:', suggestion);
+            return null;
+          }
+          
+          // Trouver la connexion existante à supprimer
+          const connectionToRemove = existingConnections.find((conn: any) => conn.id === suggestion.existingConnectionId);
+          if (!connectionToRemove) {
+            console.warn('Existing connection not found for removal:', suggestion.existingConnectionId);
+            return null;
+          }
+          
+          return {
+            id: `remove-suggestion-${Date.now()}-${index}`,
+            title: suggestion.type || `Remove connection`,
+            description: suggestion.description || `Remove connection ${connectionToRemove.fromComponent} → ${connectionToRemove.toComponent}`,
+            action: 'remove',
+            existingConnectionId: suggestion.existingConnectionId,
+            connectionData: connectionToRemove, // Include existing connection data for reference
+            expanded: false,
+            validated: false,
+            confidence: suggestion.confidence || 0.8
+          };
+        }
+        
+        // Pour les actions "add" et "update", vérifier que la suggestion a les données de connexion nécessaires
         if (!suggestion.connectionData) {
           console.warn('Suggestion without connectionData:', suggestion);
           return null;

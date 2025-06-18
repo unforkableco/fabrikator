@@ -102,10 +102,30 @@ export const prompts = {
     - If they ask to "improve power distribution", focus on power connections
     
     **EXISTING CONNECTIONS ANALYSIS:**
-    Current diagram has these connections: {{currentDiagram}}
-    - AVOID DUPLICATING existing connections unless they need improvement
-    - IDENTIFY missing connections that should be added
-    - IDENTIFY problematic connections that should be removed or updated
+    Current diagram: {{currentDiagram}}
+    
+    **EXISTING CONNECTIONS TO ANALYZE:**
+    {{currentDiagram.existingConnections}}
+    
+    **FOR EACH EXISTING CONNECTION, CHECK:**
+    1. Is this connection necessary? (power, control, data)
+    2. Is the pin assignment correct? (analog sensors on analog pins, etc.)
+    3. Is there a duplicate connection doing the same job?
+    4. Is the wire type appropriate? (power/ground/data/analog/digital)
+    5. Are multiple devices incorrectly sharing the same pin?
+    
+    **REMOVAL CRITERIA:**
+    - Suggest "remove" action for connections that are:
+      * Redundant (duplicate power/ground to same component)
+      * Incorrect (wrong pin types)
+      * Conflicting (pin conflicts)
+      * Unnecessary (unused connections)
+    
+    **ADDITION CRITERIA:**
+    - Suggest "add" action for missing:
+      * Essential power connections
+      * Required control signals
+      * Missing sensor data connections
     
     **ABSOLUTE RULES (VIOLATION = FAILURE):**
     1. ✅ COPY THE EXACT ID STRINGS from the materials list above - they look like UUIDs (e.g.: "3d16b272-c0b5-489e-855e-10ac19b5821c")
@@ -139,7 +159,7 @@ export const prompts = {
     3. Does the source pin match the component type?
     4. Does the destination pin match the component type?
     
-    **STRICT JSON RESPONSE FORMAT:**
+    **STRICT JSON RESPONSE FORMAT (MUST BE VALID JSON - NO JAVASCRIPT EXPRESSIONS):**
     {
       "explanation": "Analysis of current circuit and suggestions based on user request: [USER_REQUEST]",
       "suggestions": [
@@ -148,7 +168,7 @@ export const prompts = {
           "type": "Connection [SOURCE_TYPE] to [DESTINATION_TYPE]",
           "description": "Connect/Remove/Update [SOURCE_NAME].[SOURCE_PIN] to [DESTINATION_NAME].[DESTINATION_PIN] for [REASON]",
           "connectionData": {
-            "id": "conn-[timestamp]-[index]",
+            "id": "conn-1234567890-[index]",
             "fromComponent": "[EXACT_SOURCE_MATERIAL_ID]",
             "fromPin": "[standard_pin_according_to_type]",
             "toComponent": "[EXACT_DESTINATION_MATERIAL_ID]",
@@ -157,7 +177,7 @@ export const prompts = {
             "wireColor": "#[color_according_to_type]",
             "validated": false
           },
-          "existingConnectionId": "[ID_OF_EXISTING_CONNECTION_TO_REMOVE_OR_UPDATE]",
+          "existingConnectionId": "[ONLY_FOR_REMOVE_OR_UPDATE_ACTIONS]",
           "confidence": 0.9
         }
       ]
@@ -167,6 +187,24 @@ export const prompts = {
     - "add": Create a new connection
     - "remove": Delete an existing connection (provide existingConnectionId)
     - "update": Modify an existing connection (provide existingConnectionId and new connectionData)
+    
+    **EXAMPLE REMOVE ACTION:**
+    If you find an existing connection with id "conn-existing-123" that is redundant:
+    {
+      "action": "remove",
+      "type": "Remove redundant connection", 
+      "description": "Remove duplicate power connection to Moisture Sensor",
+      "existingConnectionId": "conn-existing-123",
+      "connectionData": null,
+      "confidence": 0.8
+    }
+    
+    **CRITICAL: JSON FORMATTING RULES**
+    - Use ONLY static strings for IDs like "conn-1234567890-1", "conn-1234567890-2", etc.
+    - NEVER use JavaScript expressions like "conn-"+Date.now()+"-0"
+    - ALL values must be valid JSON strings, numbers, or booleans
+    - NO concatenation operators (+) in the JSON
+    - For "remove" actions, set connectionData to null and provide existingConnectionId
     
     **STANDARD COLORS:**
     - power: "#ff0000" (red)
@@ -187,29 +225,31 @@ export const prompts = {
     3. Copy that exact ID string into fromComponent and toComponent
     4. Double-check that both IDs exist in the materials list
     
-    **CONNECTION STRATEGY - CONNECT ALL COMPONENTS:**
+    **INTELLIGENT CONNECTION ANALYSIS:**
     
-    **STEP 1: Power connections (MANDATORY for all components)**
-    - Connect power source (battery/power supply) VCC to ALL components VCC
-    - Connect power source GND to ALL components GND
+    **ANALYZE EXISTING CONNECTIONS FOR PROBLEMS:**
+    1. 🔍 **Identify redundant connections** - multiple connections doing the same job
+    2. 🔍 **Find incorrect pin assignments** - wrong pin types for component functions
+    3. 🔍 **Detect missing essential connections** - components without power or control
+    4. 🔍 **Spot conflicting connections** - same pin used for multiple purposes
+    5. 🔍 **Find inefficient routing** - unnecessarily complex wiring
     
-    **STEP 2: Sensor connections (connect ALL sensors to microcontroller)**
-    - Moisture sensors → microcontroller analog pins (a0, a1, etc.)
-    - Temperature sensors → microcontroller analog pins (a2, a3, etc.)
-    - Light sensors → microcontroller analog pins (a4, a5, etc.)
-    - Digital sensors → microcontroller digital pins (d0, d1, etc.)
+    **SUGGEST APPROPRIATE ACTIONS:**
+    - **ADD**: Missing essential connections (power, control, data)
+    - **REMOVE**: Redundant, incorrect, or conflicting connections
+    - **UPDATE**: Connections with wrong pins or wire types
     
-    **STEP 3: Output device connections**
-    - Displays → microcontroller (SDA, SCL for I2C or specific pins)
-    - Motors/pumps → microcontroller GPIO pins for control
-    - Speakers/buzzers → microcontroller GPIO pins
-    - LEDs → microcontroller GPIO pins
+    **EXAMPLES OF WHEN TO REMOVE CONNECTIONS:**
+    - Duplicate power connections to the same component
+    - Sensors connected to wrong pin types (digital sensor on analog pin)
+    - Multiple components sharing the same GPIO pin incorrectly
+    - Unnecessary ground loops
+    - Wrong wire types (data wire used for power)
     
-    **STEP 4: Communication modules**
-    - WiFi/Bluetooth modules → microcontroller UART/SPI pins
-    - Speech synthesizers → microcontroller UART or GPIO pins
-    
-    **MANDATORY: Every component in the materials list MUST appear in at least one connection**
+    **EXAMPLES OF WHEN TO UPDATE CONNECTIONS:**
+    - Change analog sensor from digital pin to analog pin
+    - Fix incorrect wire colors or types
+    - Optimize pin assignments for better organization
   `,
   
   userPrompt: `

@@ -245,10 +245,45 @@ export class AIService {
   async generateWiringSuggestions(params: { prompt: string; materials: any[]; currentDiagram?: any }) {
     const { prompt, materials, currentDiagram } = params;
     
+    // Simplify materials to reduce prompt size
+    const simplifiedMaterials = materials.map(material => ({
+      id: material.id,
+      name: material.name,
+      type: material.type,
+      quantity: material.quantity || 1,
+      description: material.description || ''
+    }));
+    
+    // Simplify current diagram to reduce prompt size
+    let simplifiedDiagram = {};
+    if (currentDiagram && currentDiagram.components) {
+      simplifiedDiagram = {
+        components: currentDiagram.components.map((comp: any) => ({
+          id: comp.id,
+          name: comp.name,
+          type: comp.type,
+          pins: comp.pins?.map((pin: any) => ({
+            id: pin.id,
+            name: pin.name,
+            type: pin.type,
+            voltage: pin.voltage
+          })) || []
+        })),
+        connections: (currentDiagram.connections || []).map((conn: any) => ({
+          id: conn.id,
+          fromComponent: conn.fromComponent,
+          fromPin: conn.fromPin,
+          toComponent: conn.toComponent,
+          toPin: conn.toPin,
+          wireType: conn.wireType
+        }))
+      };
+    }
+    
     // Build the system prompt by replacing variables
     let systemPrompt = prompts.wiringOptimalCircuit
-      .replace('{{materials}}', JSON.stringify(materials, null, 2))
-      .replace('{{currentDiagram}}', JSON.stringify(currentDiagram || {}, null, 2))
+      .replace('{{materials}}', JSON.stringify(simplifiedMaterials, null, 2))
+      .replace('{{currentDiagram}}', JSON.stringify(simplifiedDiagram, null, 2))
       .replace('{{prompt}}', prompt);
     
     const messages = [
@@ -264,15 +299,17 @@ export class AIService {
 
     console.log('AI Service - Generating wiring suggestions...');
     console.log('Materials count:', materials.length);
+    console.log('System prompt length:', systemPrompt.length);
     
     const response = await this.callOpenAI(messages, 0.7);
     console.log('AI Service - Raw wiring response:', response);
     
     let parsedResponse;
+    let cleanedResponse = '';
     
     try {
       // Clean the response in case of additional content
-      let cleanedResponse = response.trim();
+      cleanedResponse = response.trim();
       
       // Extract JSON if the response contains additional text
       const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
@@ -280,10 +317,17 @@ export class AIService {
         cleanedResponse = jsonMatch[0];
       }
       
+      // Fix common JavaScript expressions in JSON
+      cleanedResponse = cleanedResponse.replace(/"conn-"\+Date\.now\(\)\+"-(\d+)"/g, '"conn-$1"');
+      cleanedResponse = cleanedResponse.replace(/Date\.now\(\)/g, '1234567890');
+      
+      console.log('AI Service - Cleaned response for parsing:', cleanedResponse.substring(0, 500) + '...');
+      
       parsedResponse = JSON.parse(cleanedResponse);
     } catch (error) {
       console.error('Error parsing AI wiring response:', error);
       console.error('Raw response:', response);
+      console.error('Cleaned response:', cleanedResponse);
       
       // Fallback: return a default structure
       parsedResponse = {
