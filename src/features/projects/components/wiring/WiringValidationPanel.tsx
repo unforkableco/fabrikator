@@ -26,6 +26,8 @@ interface WiringValidationPanelProps {
   onFixError: (errorId: string) => void;
 }
 
+
+
 const WiringValidationPanel: React.FC<WiringValidationPanelProps> = ({
   validationResults,
   onFixError
@@ -58,7 +60,7 @@ const WiringValidationPanel: React.FC<WiringValidationPanelProps> = ({
     }
   };
 
-  if (errors.length === 0 && warnings.length === 0) {
+    if (errors.length === 0 && warnings.length === 0) {
     return (
       <Card sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

@@ -235,63 +235,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
           </List>
         </Box>
         
-        {/* Summary - Toujours visible en bas */}
-        <Box sx={{ 
-          p: 2, 
-          bgcolor: 'grey.50', 
-          borderTop: '1px solid', 
-          borderColor: 'divider',
-          flexShrink: 0 // Empêche la compression du résumé
-        }}>
-          <Typography variant="subtitle2" gutterBottom>
-            Résumé des connexions
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            <Chip 
-              label={`Total: ${connections.length}`} 
-              size="small" 
-              variant="outlined"
-            />
-            <Chip 
-              label={`Validées: ${connections.filter(c => c.validated).length}`} 
-              size="small" 
-              color="success"
-              variant="outlined"
-            />
-            <Chip 
-              label={`Erreurs: ${connections.filter(c => c.error).length}`} 
-              size="small" 
-              color="error"
-              variant="outlined"
-            />
-          </Box>
-          
-          {/* Wire type breakdown */}
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-              Types de connexions:
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {Object.entries(
-                connections.reduce((acc, conn) => {
-                  acc[conn.wireType] = (acc[conn.wireType] || 0) + 1;
-                  return acc;
-                }, {} as Record<string, number>)
-              ).map(([type, count]) => (
-                <Chip
-                  key={type}
-                  label={`${type}: ${count}`}
-                  size="small"
-                  sx={{ 
-                    bgcolor: getWireTypeColor(type as WiringConnection['wireType']),
-                    color: 'white',
-                    fontSize: '0.7rem'
-                  }}
-                />
-              ))}
-            </Box>
-          </Box>
-        </Box>
+
       </Box>
   );
 };

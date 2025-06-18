@@ -35,15 +35,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
   // Utiliser le hook useWiring pour la gestion des données
   const {
     wiringDiagram: hookDiagram,
-    isLoading: hookIsLoading,
-    error,
-    saveWiringDiagram,
-    addConnection: hookAddConnection,
-    updateConnection: hookUpdateConnection,
-    deleteConnection: hookDeleteConnection,
-    addComponent: hookAddComponent,
-    updateComponent: hookUpdateComponent,
-    deleteComponent: hookDeleteComponent
+    saveWiringDiagram
   } = useWiring(projectId);
 
   // État local pour l'interface utilisateur
@@ -977,11 +969,24 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         console.log('💾 Saving diagram after connection deletion...');
         await saveWiringDiagram(updatedDiagram);
         console.log('✅ Diagram saved successfully after deletion');
+        
+        // Pas de message de suppression - l'utilisateur voit que c'est effectif
+        
       } catch (error) {
         console.error('❌ Failed to save diagram after deletion:', error);
+        setValidationResults({
+          isValid: false,
+          errors: [{
+            id: 'delete-error',
+            type: 'save_error' as const,
+            message: 'Erreur lors de la sauvegarde après suppression',
+            severity: 'error' as const
+          }],
+          warnings: []
+        });
       }
       
-      validateWiring(updatedDiagram);
+      // Ne pas appeler validateWiring pour éviter le message de validation
       onWiringUpdated?.();
     }
   };
@@ -1017,11 +1022,24 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         console.log('💾 Saving diagram after component deletion...');
         await saveWiringDiagram(updatedDiagram);
         console.log('✅ Diagram saved successfully after component deletion');
+        
+        // Pas de message de suppression - l'utilisateur voit que c'est effectif
+        
       } catch (error) {
         console.error('❌ Failed to save diagram after component deletion:', error);
+        setValidationResults({
+          isValid: false,
+          errors: [{
+            id: 'delete-component-error',
+            type: 'save_error' as const,
+            message: 'Erreur lors de la sauvegarde après suppression du composant',
+            severity: 'error' as const
+          }],
+          warnings: []
+        });
       }
       
-      validateWiring(updatedDiagram);
+      // Ne pas appeler validateWiring pour éviter le message de validation
       onWiringUpdated?.();
     }
   };

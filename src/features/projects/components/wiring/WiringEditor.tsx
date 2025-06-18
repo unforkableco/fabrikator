@@ -231,7 +231,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     }
   }, [diagram]);
 
-  // Gestion des raccourcis clavier pour le zoom
+  // Gestion des raccourcis clavier pour le zoom et la suppression
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) {
@@ -250,12 +250,25 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
             handleResetView();
             break;
         }
+      } else {
+        // Gestion de la touche Supprimer pour supprimer l'élément sélectionné
+        switch (e.key) {
+          case 'Delete':
+          case 'Backspace':
+            e.preventDefault();
+            if (selectedComponent) {
+              handleComponentDelete(selectedComponent);
+            } else if (selectedConnection) {
+              onConnectionDelete(selectedConnection);
+            }
+            break;
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [selectedComponent, selectedConnection]);
 
   // Désactiver le scroll de la page quand la souris est dans la zone de dessin
   const [isMouseInCanvas, setIsMouseInCanvas] = useState(false);
@@ -449,9 +462,6 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           onSelectionChange(null, componentId);
         }
       }
-    } else if (e.button === 2) { // Right mouse button - Delete component
-      e.preventDefault();
-      handleComponentDelete(componentId);
     }
   };
 
@@ -654,7 +664,6 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           strokeWidth={isSelected ? 2 : 1}
           rx={5}
           onMouseDown={(e) => handleComponentMouseDown(e, component.id)}
-          onContextMenu={(e) => e.preventDefault()}
           style={{ 
             cursor: isDragging ? 'grabbing' : 'grab',
             opacity: isDragging ? 0.7 : 1
@@ -841,34 +850,59 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       {/* Toolbar */}
       <Box>
         {/* First row - Components */}
-        <Toolbar variant="dense" sx={{ bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
-          <Typography variant="subtitle2" sx={{ mr: 2 }}>
+        <Box sx={{ 
+          bgcolor: 'background.paper', 
+          borderBottom: 1, 
+          borderColor: 'divider',
+          p: 1,
+          minHeight: 48
+        }}>
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
             Composants disponibles:
           </Typography>
-          {materials.map((material) => {
-            const currentlyUsed = usedQuantities[material.id] || 0;
-            const availableQuantity = material.quantity || 1;
-            const isMaxedOut = currentlyUsed >= availableQuantity;
-            
-            return (
-              <Chip
-                key={material.id}
-                label={`${material.name || 'Component'} (${currentlyUsed}/${availableQuantity})`}
-                variant={isMaxedOut ? "filled" : "outlined"}
-                size="small"
-                icon={<AddIcon />}
-                onClick={() => !isMaxedOut && handleAddComponent(material)}
-                disabled={isMaxedOut}
-                color={isMaxedOut ? "default" : "primary"}
-                sx={{ 
-                  mr: 1,
-                  opacity: isMaxedOut ? 0.5 : 1,
-                  cursor: isMaxedOut ? 'not-allowed' : 'pointer'
-                }}
-              />
-            );
-          })}
-        </Toolbar>
+          <Box sx={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: 1,
+            alignItems: 'center'
+          }}>
+            {materials.map((material) => {
+              const currentlyUsed = usedQuantities[material.id] || 0;
+              const availableQuantity = material.quantity || 1;
+              const isMaxedOut = currentlyUsed >= availableQuantity;
+              
+              // Tronquer le nom s'il est trop long et afficher le nom complet au survol
+              const displayName = material.name || 'Component';
+              const truncatedName = displayName.length > 15 
+                ? `${displayName.substring(0, 15)}...` 
+                : displayName;
+              
+              return (
+                <Chip
+                  key={material.id}
+                  label={`${truncatedName} (${currentlyUsed}/${availableQuantity})`}
+                  variant={isMaxedOut ? "filled" : "outlined"}
+                  size="small"
+                  icon={<AddIcon />}
+                  onClick={() => !isMaxedOut && handleAddComponent(material)}
+                  disabled={isMaxedOut}
+                  color={isMaxedOut ? "default" : "primary"}
+                  title={`${displayName} - ${currentlyUsed}/${availableQuantity} utilisé(s)`}
+                  sx={{ 
+                    opacity: isMaxedOut ? 0.5 : 1,
+                    cursor: isMaxedOut ? 'not-allowed' : 'pointer',
+                    maxWidth: 200, // Largeur maximale pour éviter les chips trop larges
+                    '& .MuiChip-label': {
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }
+                  }}
+                />
+              );
+            })}
+          </Box>
+        </Box>
 
         {/* Second row - Controls */}
         <Toolbar variant="dense" sx={{ bgcolor: 'background.default', minHeight: 40 }}>
@@ -930,7 +964,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           <Box sx={{ flexGrow: 1 }} />
           
           <Typography variant="caption" color="text.secondary">
-            Glisser composant: déplacer • Clic droit: supprimer • Glisser zone vide: naviguer • Molette: zoom
+            Glisser composant: déplacer • Touche Suppr: supprimer • Glisser zone vide: naviguer • Molette: zoom
           </Typography>
         </Toolbar>
       </Box>
@@ -1036,7 +1070,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
               {diagram.components.find(c => c.id === selectedComponent)?.name}
             </Typography>
             <Typography variant="caption">
-              Glissez pour déplacer • Clic droit pour supprimer
+              Glissez pour déplacer • Touche Suppr pour supprimer
             </Typography>
           </Box>
         )}
