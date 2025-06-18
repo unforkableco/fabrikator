@@ -92,7 +92,20 @@ export const prompts = {
     
     **FORGE DIY PHILOSOPHY: Priority to homemade and self-built solutions**
     
-    **MISSION:** Generate connections for ALL components in the materials list above. Create a complete circuit that connects every component.
+    **MISSION:** Analyze the current wiring diagram and user request, then suggest improvements. You can ADD new connections, REMOVE existing ones, or UPDATE them based on the user's specific request.
+    
+    **USER REQUEST ANALYSIS:**
+    Consider the user's specific request: "{{prompt}}"
+    - If they ask for "optimal circuit", provide a complete wiring solution
+    - If they ask to "add sensor X", focus on connecting that specific sensor
+    - If they ask to "remove connection Y", suggest removing that connection
+    - If they ask to "improve power distribution", focus on power connections
+    
+    **EXISTING CONNECTIONS ANALYSIS:**
+    Current diagram has these connections: {{currentDiagram}}
+    - AVOID DUPLICATING existing connections unless they need improvement
+    - IDENTIFY missing connections that should be added
+    - IDENTIFY problematic connections that should be removed or updated
     
     **ABSOLUTE RULES (VIOLATION = FAILURE):**
     1. ✅ COPY THE EXACT ID STRINGS from the materials list above - they look like UUIDs (e.g.: "3d16b272-c0b5-489e-855e-10ac19b5821c")
@@ -101,9 +114,9 @@ export const prompts = {
     4. ✅ Verify that fromComponent AND toComponent exist in the materials list
     5. ✅ NEVER use "Unknown" or non-existent components
     6. ✅ Use only standard pins according to component type
-    7. ✅ CONNECT ALL COMPONENTS - don't leave any component unconnected
-    8. ✅ Every sensor must be connected to the microcontroller
-    9. ✅ Every component must have power (VCC) and ground (GND) connections
+    7. ✅ RESPOND TO USER'S SPECIFIC REQUEST - don't ignore their prompt
+    8. ✅ CHECK FOR DUPLICATE CONNECTIONS - don't suggest connections that already exist
+    9. ✅ USE APPROPRIATE ACTIONS: "add" for new connections, "remove" for deletions, "update" for modifications
     
     **STANDARD PINS BY COMPONENT TYPE:**
     - microcontroller/arduino → vcc, gnd, gpio1, gpio2, gpio3, gpio4, d0, d1, d2, d3, d4, d5, d6, d7, a0, a1
@@ -128,12 +141,12 @@ export const prompts = {
     
     **STRICT JSON RESPONSE FORMAT:**
     {
-      "explanation": "Proposed circuit with [NUMBER] connections between existing components: [LIST OF NAMES]",
+      "explanation": "Analysis of current circuit and suggestions based on user request: [USER_REQUEST]",
       "suggestions": [
         {
-          "action": "add",
+          "action": "add|remove|update",
           "type": "Connection [SOURCE_TYPE] to [DESTINATION_TYPE]",
-          "description": "Connect [SOURCE_NAME].[SOURCE_PIN] to [DESTINATION_NAME].[DESTINATION_PIN] for [REASON]",
+          "description": "Connect/Remove/Update [SOURCE_NAME].[SOURCE_PIN] to [DESTINATION_NAME].[DESTINATION_PIN] for [REASON]",
           "connectionData": {
             "id": "conn-[timestamp]-[index]",
             "fromComponent": "[EXACT_SOURCE_MATERIAL_ID]",
@@ -144,10 +157,16 @@ export const prompts = {
             "wireColor": "#[color_according_to_type]",
             "validated": false
           },
+          "existingConnectionId": "[ID_OF_EXISTING_CONNECTION_TO_REMOVE_OR_UPDATE]",
           "confidence": 0.9
         }
       ]
     }
+    
+    **ACTION TYPES:**
+    - "add": Create a new connection
+    - "remove": Delete an existing connection (provide existingConnectionId)
+    - "update": Modify an existing connection (provide existingConnectionId and new connectionData)
     
     **STANDARD COLORS:**
     - power: "#ff0000" (red)

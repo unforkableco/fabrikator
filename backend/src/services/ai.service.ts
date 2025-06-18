@@ -248,7 +248,8 @@ export class AIService {
     // Build the system prompt by replacing variables
     let systemPrompt = prompts.wiringOptimalCircuit
       .replace('{{materials}}', JSON.stringify(materials, null, 2))
-      .replace('{{currentDiagram}}', JSON.stringify(currentDiagram || {}, null, 2));
+      .replace('{{currentDiagram}}', JSON.stringify(currentDiagram || {}, null, 2))
+      .replace('{{prompt}}', prompt);
     
     const messages = [
       {

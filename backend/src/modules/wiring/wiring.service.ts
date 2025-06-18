@@ -268,6 +268,30 @@ export class WiringService {
 
         const connectionData = suggestion.connectionData;
         
+        // Vérifier si cette connexion existe déjà pour les actions 'add'
+        if (suggestion.action === 'add') {
+          const isDuplicate = existingConnections.some((existing: any) => 
+            (existing.fromComponent === connectionData.fromComponent && 
+             existing.toComponent === connectionData.toComponent &&
+             existing.fromPin === connectionData.fromPin &&
+             existing.toPin === connectionData.toPin) ||
+            (existing.fromComponent === connectionData.toComponent && 
+             existing.toComponent === connectionData.fromComponent &&
+             existing.fromPin === connectionData.toPin &&
+             existing.toPin === connectionData.fromPin)
+          );
+          
+          if (isDuplicate) {
+            console.log('⚠️ Skipping duplicate connection:', {
+              from: connectionData.fromComponent,
+              to: connectionData.toComponent,
+              fromPin: connectionData.fromPin,
+              toPin: connectionData.toPin
+            });
+            return null;
+          }
+        }
+        
         // VALIDATION CRITIQUE: Vérifier que les composants référencés existent
         const fromComponentExists = simplifiedMaterials.find(m => m.id === connectionData.fromComponent);
         const toComponentExists = simplifiedMaterials.find(m => m.id === connectionData.toComponent);
@@ -304,8 +328,8 @@ export class WiringService {
 
         return {
           id: connectionData.id || `wiring-suggestion-${Date.now()}-${index}`,
-          title: suggestion.type || `Connexion ${fromComponentExists.name} → ${toComponentExists.name}`,
-          description: suggestion.description || `Connecter ${fromComponentExists.name} (${connectionData.fromPin}) à ${toComponentExists.name} (${connectionData.toPin})`,
+          title: suggestion.type || `${suggestion.action || 'add'} ${fromComponentExists.name} → ${toComponentExists.name}`,
+          description: suggestion.description || this.getActionDescription(suggestion.action, fromComponentExists.name, toComponentExists.name, connectionData.fromPin, connectionData.toPin),
           action: suggestion.action || 'add',
           connectionData: {
             ...connectionData,
@@ -314,6 +338,7 @@ export class WiringService {
             fromComponent: connectionData.fromComponent,
             toComponent: connectionData.toComponent
           },
+          existingConnectionId: suggestion.existingConnectionId,
           componentData: suggestion.componentData,
           expanded: false,
           validated: false,
@@ -378,6 +403,22 @@ export class WiringService {
     
     // Par défaut pour composants génériques
     return ['pin1', 'pin2', 'vcc', 'gnd'];
+  }
+
+  /**
+   * Generate action description based on action type
+   */
+  private getActionDescription(action: string, fromName: string, toName: string, fromPin: string, toPin: string): string {
+    switch (action) {
+      case 'add':
+        return `Connect ${fromName} (${fromPin}) to ${toName} (${toPin})`;
+      case 'remove':
+        return `Remove connection between ${fromName} (${fromPin}) and ${toName} (${toPin})`;
+      case 'update':
+        return `Update connection from ${fromName} (${fromPin}) to ${toName} (${toPin})`;
+      default:
+        return `Connect ${fromName} (${fromPin}) to ${toName} (${toPin})`;
+    }
   }
 
   /**
