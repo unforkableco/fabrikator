@@ -600,58 +600,197 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     }
   };
 
+  // Fonction pour créer un path SVG orthogonal (angles droits)
+  const createOrthogonalPath = (
+    fromX: number, 
+    fromY: number, 
+    toX: number, 
+    toY: number,
+    fromPin: WiringPin,
+    toPin: WiringPin,
+    fromComponent: WiringComponent,
+    toComponent: WiringComponent
+  ): string => {
+    // Déterminer la direction de sortie de chaque pin basée sur sa position relative au composant
+    const getConnectionDirection = (pin: WiringPin, component: WiringComponent) => {
+      const componentSize = getComponentSize(component.type);
+      const pinPosX = pin.position.x;
+      const pinPosY = pin.position.y;
+      
+      // Seuils pour déterminer les côtés (ajustés pour être plus précis)
+      const leftThreshold = -componentSize.width * 0.4;
+      const rightThreshold = componentSize.width * 0.4;
+      const topThreshold = -componentSize.height * 0.4;
+      const bottomThreshold = componentSize.height * 0.4;
+      
+      if (pinPosX <= leftThreshold) return 'left';
+      if (pinPosX >= rightThreshold) return 'right';
+      if (pinPosY <= topThreshold) return 'top';
+      if (pinPosY >= bottomThreshold) return 'bottom';
+      
+      // Par défaut, choisir la direction la plus proche du bord
+      const distances = {
+        left: Math.abs(pinPosX - leftThreshold),
+        right: Math.abs(pinPosX - rightThreshold),
+        top: Math.abs(pinPosY - topThreshold),
+        bottom: Math.abs(pinPosY - bottomThreshold)
+      };
+      
+             return Object.entries(distances).reduce((a, b) => distances[a[0] as keyof typeof distances] < distances[b[0] as keyof typeof distances] ? a : b)[0] as 'left' | 'right' | 'top' | 'bottom';
+    };
+    
+    const fromDirection = getConnectionDirection(fromPin, fromComponent);
+    const toDirection = getConnectionDirection(toPin, toComponent);
+    
+    // Distance minimale pour les segments orthogonaux
+    const minDistance = 30;
+    
+    // Calculer les points intermédiaires pour créer un chemin orthogonal
+    let waypoints: { x: number, y: number }[] = [];
+    
+    // Point de départ avec offset selon la direction
+    let startX = fromX;
+    let startY = fromY;
+    
+    // Point d'arrivée avec offset selon la direction
+    let endX = toX;
+    let endY = toY;
+    
+    // Ajouter des offsets pour sortir proprement des composants
+    switch (fromDirection) {
+      case 'left':
+        startX -= minDistance;
+        waypoints.push({ x: startX, y: fromY });
+        break;
+      case 'right':
+        startX += minDistance;
+        waypoints.push({ x: startX, y: fromY });
+        break;
+      case 'top':
+        startY -= minDistance;
+        waypoints.push({ x: fromX, y: startY });
+        break;
+      case 'bottom':
+        startY += minDistance;
+        waypoints.push({ x: fromX, y: startY });
+        break;
+    }
+    
+    // Calculer le chemin optimal
+    if (fromDirection === 'left' || fromDirection === 'right') {
+      if (toDirection === 'left' || toDirection === 'right') {
+        // Connexion horizontale -> horizontale
+        const midY = (startY + toY) / 2;
+        waypoints.push({ x: startX, y: midY });
+        waypoints.push({ x: toX + (toDirection === 'left' ? -minDistance : minDistance), y: midY });
+        waypoints.push({ x: toX + (toDirection === 'left' ? -minDistance : minDistance), y: toY });
+      } else {
+        // Connexion horizontale -> verticale
+        waypoints.push({ x: startX, y: toY });
+      }
+    } else {
+      if (toDirection === 'top' || toDirection === 'bottom') {
+        // Connexion verticale -> verticale
+        const midX = (startX + toX) / 2;
+        waypoints.push({ x: midX, y: startY });
+        waypoints.push({ x: midX, y: toY + (toDirection === 'top' ? -minDistance : minDistance) });
+        waypoints.push({ x: toX, y: toY + (toDirection === 'top' ? -minDistance : minDistance) });
+      } else {
+        // Connexion verticale -> horizontale
+        waypoints.push({ x: toX, y: startY });
+      }
+    }
+    
+    // Construire le path SVG
+    let path = `M ${fromX} ${fromY}`;
+    
+    // Ajouter tous les waypoints
+    waypoints.forEach(point => {
+      path += ` L ${point.x} ${point.y}`;
+    });
+    
+    // Terminer au point final
+    path += ` L ${toX} ${toY}`;
+    
+    return path;
+  };
+
+  // Fonction helper pour obtenir la taille d'un composant (dupliquée pour éviter les conflits)
+  const getComponentSize = (type: string) => {
+    const typeStr = type.toLowerCase();
+    if (typeStr.includes('microcontroller') || typeStr.includes('arduino')) {
+      return { width: 120, height: 80 };
+    } else if (typeStr.includes('display') || typeStr.includes('écran')) {
+      return { width: 100, height: 70 };
+    } else if (typeStr.includes('sensor') || typeStr.includes('capteur')) {
+      return { width: 90, height: 60 };
+    } else if (typeStr.includes('battery') || typeStr.includes('batterie')) {
+      return { width: 70, height: 80 };
+    }
+    return { width: 90, height: 60 };
+  };
+
   const renderComponent = (component: WiringComponent) => {
     const isSelected = selectedComponent === component.id;
     const isDragging = draggedComponent?.id === component.id;
     
     // Determine component size based on type - Tailles agrandies pour éviter le débordement de texte
-    const getComponentSize = (type: string) => {
-      const typeStr = type.toLowerCase();
-      if (typeStr.includes('microcontroller') || typeStr.includes('arduino')) {
-        return { width: 120, height: 80 };
-      } else if (typeStr.includes('display') || typeStr.includes('écran')) {
-        return { width: 100, height: 70 };
-      } else if (typeStr.includes('sensor') || typeStr.includes('capteur')) {
-        return { width: 90, height: 60 };
-      } else if (typeStr.includes('battery') || typeStr.includes('batterie')) {
-        return { width: 70, height: 80 };
-      }
-      return { width: 90, height: 60 };
-    };
-
+    const size = getComponentSize(component.type);
+    
+    // Couleurs basées sur le type de composant pour une meilleure identification
     const getComponentColor = (type: string) => {
       const typeStr = type.toLowerCase();
       if (typeStr.includes('microcontroller') || typeStr.includes('arduino')) {
-        return '#2196f3';
+        return { primary: '#2196f3', secondary: '#1976d2', text: 'white' };
       } else if (typeStr.includes('display') || typeStr.includes('écran')) {
-        return '#4caf50';
+        return { primary: '#4caf50', secondary: '#388e3c', text: 'white' };
       } else if (typeStr.includes('sensor') || typeStr.includes('capteur')) {
-        return '#ff9800';
+        return { primary: '#ff9800', secondary: '#f57c00', text: 'white' };
       } else if (typeStr.includes('battery') || typeStr.includes('batterie')) {
-        return '#f44336';
+        return { primary: '#f44336', secondary: '#d32f2f', text: 'white' };
       }
-      return '#9e9e9e';
+      return { primary: '#9e9e9e', secondary: '#757575', text: 'white' };
     };
-
-    const size = getComponentSize(component.type);
-    const color = getComponentColor(component.type);
+    
+    const colors = getComponentColor(component.type);
+    const mainColor = isSelected ? '#1976d2' : colors.primary;
+    const borderColor = isSelected ? '#0d47a1' : colors.secondary;
     
     return (
       <g key={component.id}>
+        {/* Ombre pour donner de la profondeur */}
+        <rect
+          x={component.position.x + 2}
+          y={component.position.y + 2}
+          width={size.width}
+          height={size.height}
+          fill="rgba(0,0,0,0.2)"
+          rx={8}
+        />
+        
         {/* Selection highlight */}
         {isSelected && (
           <rect
-            x={component.position.x - 5}
-            y={component.position.y - 5}
-            width={size.width + 10}
-            height={size.height + 10}
+            x={component.position.x - 4}
+            y={component.position.y - 4}
+            width={size.width + 8}
+            height={size.height + 8}
             fill="none"
             stroke="#1976d2"
-            strokeWidth={2}
-            strokeDasharray="5,5"
-            rx={8}
+            strokeWidth={3}
+            strokeDasharray="8,4"
+            rx={10}
+            opacity={0.8}
           />
         )}
+        
+        {/* Gradient pour le corps du composant */}
+        <defs>
+          <linearGradient id={`gradient-${component.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={mainColor} />
+            <stop offset="100%" stopColor={borderColor} />
+          </linearGradient>
+        </defs>
         
         {/* Component body */}
         <rect
@@ -659,14 +798,14 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           y={component.position.y}
           width={size.width}
           height={size.height}
-          fill={color}
-          stroke={isSelected ? '#1976d2' : '#666'}
-          strokeWidth={isSelected ? 2 : 1}
-          rx={5}
+          fill={`url(#gradient-${component.id})`}
+          stroke={borderColor}
+          strokeWidth={isSelected ? 3 : 2}
+          rx={8}
           onMouseDown={(e) => handleComponentMouseDown(e, component.id)}
           style={{ 
             cursor: isDragging ? 'grabbing' : 'grab',
-            opacity: isDragging ? 0.7 : 1
+            opacity: isDragging ? 0.8 : 1
           }}
         />
         
@@ -707,32 +846,81 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           const pinX = component.position.x + size.width / 2 + pin.position.x;
           const pinY = component.position.y + size.height / 2 + pin.position.y;
           
+          // Couleurs des broches selon leur type
+          const getPinColor = (pinType: string) => {
+            switch (pinType) {
+              case 'power': return { fill: '#f44336', stroke: '#d32f2f' };
+              case 'ground': return { fill: '#424242', stroke: '#212121' };
+              case 'digital': return { fill: '#2196f3', stroke: '#1976d2' };
+              case 'analog': return { fill: '#4caf50', stroke: '#388e3c' };
+              default: return { fill: '#9e9e9e', stroke: '#757575' };
+            }
+          };
+          
+          const pinColors = getPinColor(pin.type);
+          const isConnected = pin.connected;
+          
           return (
             <g key={pin.id}>
+              {/* Ombre de la broche */}
+              <circle
+                cx={pinX + 1}
+                cy={pinY + 1}
+                r={6}
+                fill="rgba(0,0,0,0.2)"
+              />
+              
+              {/* Corps de la broche */}
               <circle
                 cx={pinX}
                 cy={pinY}
-                r={5}
-                fill={pin.connected ? '#4caf50' : '#fff'}
-                stroke={pin.type === 'power' ? '#f44336' : 
-                        pin.type === 'ground' ? '#000' : '#666'}
-                strokeWidth={2}
+                r={6}
+                fill={isConnected ? pinColors.fill : '#ffffff'}
+                stroke={pinColors.stroke}
+                strokeWidth={isConnected ? 3 : 2}
                 onClick={(e) => {
                   e.stopPropagation();
                   handlePinClick(component.id, pin.id, pinX, pinY);
                 }}
-                style={{ cursor: 'pointer' }}
+                style={{ 
+                  cursor: 'pointer',
+                  filter: isConnected ? 'brightness(1.1)' : 'none'
+                }}
               />
-              <text
-                x={pinX + (pin.position.x > 0 ? 8 : -8)}
-                y={pinY + 3}
-                fontSize={8}
-                fill="#333"
-                textAnchor={pin.position.x > 0 ? 'start' : 'end'}
-                style={{ pointerEvents: 'none' }}
-              >
-                {pin.name}
-              </text>
+              
+              {/* Indicateur de connexion */}
+              {isConnected && (
+                <circle
+                  cx={pinX}
+                  cy={pinY}
+                  r={3}
+                  fill="white"
+                />
+              )}
+              
+              {/* Label de la broche avec fond */}
+              <g style={{ pointerEvents: 'none' }}>
+                <rect
+                  x={pinX + (pin.position.x > 0 ? 10 : -10 - pin.name.length * 4)}
+                  y={pinY - 6}
+                  width={pin.name.length * 4 + 4}
+                  height={12}
+                  fill="rgba(255,255,255,0.9)"
+                  stroke="rgba(0,0,0,0.2)"
+                  strokeWidth={1}
+                  rx={2}
+                />
+                <text
+                  x={pinX + (pin.position.x > 0 ? 12 : -8)}
+                  y={pinY + 2}
+                  fontSize={8}
+                  fill="#333"
+                  fontWeight="bold"
+                  textAnchor={pin.position.x > 0 ? 'start' : 'end'}
+                >
+                  {pin.name}
+                </text>
+              </g>
             </g>
           );
         })}
@@ -786,21 +974,6 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       return null;
     }
     
-    // Calculer les tailles des composants pour les connexions - Cohérence avec renderComponent
-    const getComponentSize = (type: string) => {
-      const typeStr = type.toLowerCase();
-      if (typeStr.includes('microcontroller') || typeStr.includes('arduino')) {
-        return { width: 120, height: 80 };
-      } else if (typeStr.includes('display') || typeStr.includes('écran')) {
-        return { width: 100, height: 70 };
-      } else if (typeStr.includes('sensor') || typeStr.includes('capteur')) {
-        return { width: 90, height: 60 };
-      } else if (typeStr.includes('battery') || typeStr.includes('batterie')) {
-        return { width: 70, height: 80 };
-      }
-      return { width: 90, height: 60 };
-    };
-
     const fromSize = getComponentSize(fromComponent.type);
     const toSize = getComponentSize(toComponent.type);
     
@@ -810,38 +983,146 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const toY = toComponent.position.y + toSize.height / 2 + toPin.position.y;
     
     const isSelected = selectedConnection === connection.id;
-    const wireColor = connection.wireColor || '#000';
+    const wireColor = connection.wireColor || '#666';
     const hasError = connection.error;
     
+    // Créer le path orthogonal
+    const pathData = createOrthogonalPath(
+      fromX, fromY, toX, toY, 
+      fromPin, toPin, 
+      fromComponent, toComponent
+    );
+    
     return (
-      <line
-        key={connection.id}
-        x1={fromX}
-        y1={fromY}
-        x2={toX}
-        y2={toY}
-        stroke={hasError ? '#f44336' : isSelected ? '#1976d2' : wireColor}
-        strokeWidth={isSelected ? 3 : 2}
-        strokeDasharray={hasError ? "5,5" : undefined}
-        onClick={() => onSelectionChange(connection.id, null)}
-        style={{ cursor: 'pointer' }}
-      />
+      <g key={connection.id}>
+        {/* Ombre pour donner de la profondeur */}
+        <path
+          d={pathData}
+          stroke="rgba(0,0,0,0.1)"
+          strokeWidth={isSelected ? 4 : 3}
+          fill="none"
+          transform="translate(1,1)"
+        />
+        {/* Connexion principale */}
+        <path
+          d={pathData}
+          stroke={hasError ? '#f44336' : isSelected ? '#1976d2' : wireColor}
+          strokeWidth={isSelected ? 3 : 2}
+          strokeDasharray={hasError ? "5,5" : undefined}
+          fill="none"
+          onClick={() => onSelectionChange(connection.id, null)}
+          style={{ 
+            cursor: 'pointer',
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round'
+          }}
+        />
+        {/* Points de connexion */}
+        <circle
+          cx={fromX}
+          cy={fromY}
+          r={isSelected ? 4 : 3}
+          fill={hasError ? '#f44336' : isSelected ? '#1976d2' : wireColor}
+          stroke="white"
+          strokeWidth={1}
+        />
+        <circle
+          cx={toX}
+          cy={toY}
+          r={isSelected ? 4 : 3}
+          fill={hasError ? '#f44336' : isSelected ? '#1976d2' : wireColor}
+          stroke="white"
+          strokeWidth={1}
+        />
+        {/* Label de la connexion si sélectionnée */}
+        {isSelected && (
+          <text
+            x={(fromX + toX) / 2}
+            y={(fromY + toY) / 2 - 10}
+            textAnchor="middle"
+            fontSize="10"
+            fill="#1976d2"
+            fontWeight="bold"
+            style={{ pointerEvents: 'none' }}
+          >
+            {`${fromPin.name} → ${toPin.name}`}
+          </text>
+        )}
+      </g>
     );
   };
 
   const renderConnectionInProgress = () => {
     if (!connectionInProgress) return null;
     
+    // Créer un path orthogonal temporaire pour la connexion en cours
+    const fromX = connectionInProgress.fromX;
+    const fromY = connectionInProgress.fromY;
+    const toX = connectionInProgress.currentX;
+    const toY = connectionInProgress.currentY;
+    
+    // Path simple orthogonal pour la connexion temporaire
+    let path = `M ${fromX} ${fromY}`;
+    
+    // Si la distance est suffisante, créer un chemin orthogonal
+    const deltaX = Math.abs(toX - fromX);
+    const deltaY = Math.abs(toY - fromY);
+    
+    if (deltaX > 20 || deltaY > 20) {
+      if (deltaX > deltaY) {
+        // Mouvement principalement horizontal
+        const midX = fromX + (toX - fromX) * 0.7;
+        path += ` L ${midX} ${fromY} L ${midX} ${toY}`;
+      } else {
+        // Mouvement principalement vertical
+        const midY = fromY + (toY - fromY) * 0.7;
+        path += ` L ${fromX} ${midY} L ${toX} ${midY}`;
+      }
+    }
+    
+    path += ` L ${toX} ${toY}`;
+    
     return (
-      <line
-        x1={connectionInProgress.fromX}
-        y1={connectionInProgress.fromY}
-        x2={connectionInProgress.currentX}
-        y2={connectionInProgress.currentY}
-        stroke="#1976d2"
-        strokeWidth={2}
-        strokeDasharray="5,5"
-      />
+      <g>
+        {/* Ombre pour la connexion temporaire */}
+        <path
+          d={path}
+          stroke="rgba(25, 118, 210, 0.3)"
+          strokeWidth={3}
+          fill="none"
+          transform="translate(1,1)"
+        />
+        {/* Connexion temporaire */}
+        <path
+          d={path}
+          stroke="#1976d2"
+          strokeWidth={2}
+          strokeDasharray="5,5"
+          fill="none"
+          style={{
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round'
+          }}
+        />
+        {/* Point de début */}
+        <circle
+          cx={fromX}
+          cy={fromY}
+          r={4}
+          fill="#1976d2"
+          stroke="white"
+          strokeWidth={2}
+        />
+        {/* Point de fin (curseur) */}
+        <circle
+          cx={toX}
+          cy={toY}
+          r={3}
+          fill="#1976d2"
+          stroke="white"
+          strokeWidth={1}
+        />
+      </g>
     );
   };
 
