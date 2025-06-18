@@ -268,7 +268,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedComponent, selectedConnection]);
+  }, [selectedComponent, selectedConnection]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Désactiver le scroll de la page quand la souris est dans la zone de dessin
   const [isMouseInCanvas, setIsMouseInCanvas] = useState(false);
@@ -327,7 +327,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     console.log('Creating component from material:', material); // Debug log
     
     const specs = material.currentVersion?.specs || {};
-    const materialName = material.name || specs.name || 'Composant';
+    const materialName = material.name || specs.name || 'Component';
     const materialType = specs.type || material.type || material.category || 'Component';
     
     console.log('Material name:', materialName, 'Type:', materialType); // Debug log
@@ -418,7 +418,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const availableQuantity = material.quantity || 1; // Par défaut 1 si pas de quantité spécifiée
     
     if (currentlyUsed >= availableQuantity) {
-      console.warn(`Quantité maximale atteinte pour ${material.name}: ${availableQuantity}`);
+      console.warn(`Maximum quantity reached for ${material.name}: ${availableQuantity}`);
       return;
     }
 
@@ -858,7 +858,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           minHeight: 48
         }}>
           <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-            Composants disponibles:
+            Available components:
           </Typography>
           <Box sx={{ 
             display: 'flex', 
@@ -887,7 +887,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
                   onClick={() => !isMaxedOut && handleAddComponent(material)}
                   disabled={isMaxedOut}
                   color={isMaxedOut ? "default" : "primary"}
-                  title={`${displayName} - ${currentlyUsed}/${availableQuantity} utilisé(s)`}
+                  title={`${displayName} - ${currentlyUsed}/${availableQuantity} used`}
                   sx={{ 
                     opacity: isMaxedOut ? 0.5 : 1,
                     cursor: isMaxedOut ? 'not-allowed' : 'pointer',
@@ -909,24 +909,24 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           {/* Canvas Size Controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 3 }}>
             <Typography variant="caption" sx={{ mr: 1, fontWeight: 'bold' }}>
-              Zone:
+              Canvas:
             </Typography>
-            <Tooltip title="Réduire largeur">
+            <Tooltip title="Reduce width">
               <IconButton size="small" onClick={handleShrinkWidth}>
                 <ChevronLeftIcon />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Agrandir largeur">
+            <Tooltip title="Increase width">
               <IconButton size="small" onClick={handleExpandWidth}>
                 <ChevronRightIcon />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Réduire hauteur">
+            <Tooltip title="Reduce height">
               <IconButton size="small" onClick={handleShrinkHeight}>
                 <ExpandLessIcon />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Agrandir hauteur">
+            <Tooltip title="Increase height">
               <IconButton size="small" onClick={handleExpandHeight}>
                 <ExpandMoreIcon />
               </IconButton>
@@ -941,7 +941,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
             <Typography variant="caption" sx={{ mr: 1, fontWeight: 'bold' }}>
               Zoom:
             </Typography>
-            <Tooltip title="Zoom avant">
+            <Tooltip title="Zoom in">
               <IconButton size="small" onClick={handleZoomIn}>
                 <ZoomInIcon />
               </IconButton>
@@ -949,12 +949,12 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
             <Typography variant="caption" sx={{ minWidth: 40, textAlign: 'center' }}>
               {Math.round(zoom * 100)}%
             </Typography>
-            <Tooltip title="Zoom arrière">
+            <Tooltip title="Zoom out">
               <IconButton size="small" onClick={handleZoomOut}>
                 <ZoomOutIcon />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Réinitialiser la vue">
+            <Tooltip title="Reset view">
               <IconButton size="small" onClick={handleResetView}>
                 <DeleteIcon />
               </IconButton>
@@ -964,7 +964,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           <Box sx={{ flexGrow: 1 }} />
           
           <Typography variant="caption" color="text.secondary">
-            Glisser composant: déplacer • Touche Suppr: supprimer • Glisser zone vide: naviguer • Molette: zoom
+            Drag component: move • Delete key: delete • Drag empty space: navigate • Wheel: zoom
           </Typography>
         </Toolbar>
       </Box>
@@ -1021,10 +1021,10 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           >
             <CableIcon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
             <Typography variant="h6" gutterBottom>
-              Aucun composant dans le schéma
+              No components in the schema
             </Typography>
             <Typography variant="body2">
-              Cliquez sur un composant dans la barre d'outils pour commencer
+              Click on a component in the toolbar to start
             </Typography>
           </Box>
         )}
@@ -1044,7 +1044,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
             }}
           >
             <Typography variant="caption">
-              Cliquez sur une broche de destination pour terminer la connexion
+              Click on a destination pin to complete the connection
             </Typography>
           </Box>
         )}
@@ -1064,13 +1064,13 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
             }}
           >
             <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
-              Composant sélectionné:
+              Selected component:
             </Typography>
             <Typography variant="body2">
               {diagram.components.find(c => c.id === selectedComponent)?.name}
             </Typography>
             <Typography variant="caption">
-              Glissez pour déplacer • Touche Suppr pour supprimer
+              Drag to move • Delete key to delete
             </Typography>
           </Box>
         )}

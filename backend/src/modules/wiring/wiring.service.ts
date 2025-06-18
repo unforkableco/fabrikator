@@ -130,10 +130,13 @@ export class WiringService {
       }
       
       return await prisma.$transaction(async (tx) => {
-        // Obtenir le numéro de la prochaine version
-        const nextVersionNumber = wiringSchema.versions.length > 0 
-          ? wiringSchema.versions[0].versionNumber + 1 
-          : 1;
+        // Obtenir le numéro de la prochaine version en cherchant la version max
+        const maxVersion = await tx.wireVersion.findFirst({
+          where: { wiringSchemaId },
+          orderBy: { versionNumber: 'desc' }
+        });
+        
+        const nextVersionNumber = maxVersion ? maxVersion.versionNumber + 1 : 1;
         
         // Créer une nouvelle version
         const version = await tx.wireVersion.create({
@@ -240,6 +243,11 @@ export class WiringService {
       });
 
       console.log('WiringService - Available materials:', simplifiedMaterials.length);
+      
+      // Analyser les connexions existantes
+      const existingConnections = currentDiagram?.connections || [];
+      console.log('WiringService - Existing connections:', existingConnections.length);
+      console.log('WiringService - Current diagram:', JSON.stringify(currentDiagram, null, 2));
 
       // Utiliser l'IA pour générer les suggestions
       const aiResponse = await this.aiService.generateWiringSuggestions({
@@ -346,11 +354,19 @@ export class WiringService {
       return ['vcc', 'gnd', 'gpio1', 'gpio2', 'gpio3', 'gpio4', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'a0', 'a1'];
     } else if (type.includes('sensor') || type.includes('capteur')) {
       return ['vcc', 'gnd', 'data', 'signal', 'out'];
-    } else if (type.includes('display') || type.includes('écran')) {
+    } else if (type.includes('moisture') || type.includes('humidité') || type.includes('water')) {
+      return ['vcc', 'gnd', 'data', 'signal', 'analog'];
+    } else if (type.includes('temperature') || type.includes('temp')) {
+      return ['vcc', 'gnd', 'data', 'signal', 'analog'];
+    } else if (type.includes('light') || type.includes('photo') || type.includes('ldr')) {
+      return ['vcc', 'gnd', 'data', 'signal', 'analog'];
+    } else if (type.includes('speech') || type.includes('audio') || type.includes('speaker')) {
+      return ['vcc', 'gnd', 'data', 'signal', 'pin1', 'pin2'];
+    } else if (type.includes('display') || type.includes('écran') || type.includes('lcd') || type.includes('oled')) {
       return ['vcc', 'gnd', 'sda', 'scl', 'cs', 'dc', 'rst'];
     } else if (type.includes('battery') || type.includes('batterie')) {
       return ['positive', 'negative'];
-    } else if (type.includes('power') || type.includes('alimentation')) {
+    } else if (type.includes('power') || type.includes('supply') || type.includes('alimentation')) {
       return ['positive', 'negative', 'vcc', 'gnd'];
     } else if (type.includes('button') || type.includes('bouton')) {
       return ['pin1', 'pin2', 'signal', 'gnd'];
@@ -358,8 +374,6 @@ export class WiringService {
       return ['vcc', 'gnd', 'signal', 'control'];
     } else if (type.includes('valve')) {
       return ['vcc', 'gnd', 'signal', 'control'];
-    } else if (type.includes('moisture') || type.includes('humidité') || type.includes('water')) {
-      return ['vcc', 'gnd', 'data', 'signal', 'analog'];
     }
     
     // Par défaut pour composants génériques

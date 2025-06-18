@@ -211,7 +211,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           aiResponse = `J'ai analysé votre demande et préparé ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} de modifications. Veuillez examiner les changements proposés ci-dessous et choisir d'accepter ou de rejeter les modifications.`;
           }
         } else {
-          aiResponse = 'Je comprends votre demande de modifications de composants. Je travaille sur l\'analyse de vos besoins et vais suggérer les composants appropriés.';
+                      aiResponse = 'I understand your component modification request. I am working on analyzing your needs and will suggest appropriate components.';
         }
       }
 
@@ -332,7 +332,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     // Ajouter un message de rejet
     const rejectMessage: ChatMessage = {
       id: Date.now().toString(),
-      content: `❌ Suggestions rejetées. Aucune modification n'a été apportée à vos composants.`,
+              content: `❌ Suggestions rejected. No changes have been made to your components.`,
       sender: 'ai',
       timestamp: new Date(),
       mode: 'agent',

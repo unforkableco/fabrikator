@@ -157,7 +157,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           aiResponse = response.answer;
         } catch (error) {
           console.error('Error asking wiring question:', error);
-          aiResponse = `Désolé, j'ai rencontré une erreur en analysant votre question de câblage. Pourriez-vous reformuler ?`;
+          aiResponse = `Sorry, I encountered an error analyzing your wiring question. Could you rephrase it?`;
         }
       } else {
         // Agent mode - Generate wiring suggestions and modifications
@@ -175,8 +175,8 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
               if (suggestion.type && suggestion.details) {
                 return {
                   id: `wiring-suggestion-${Date.now()}-${index}`,
-                  title: suggestion.type || 'Connexion',
-                  description: suggestion.details?.description || `${suggestion.action} connexion`,
+                  title: suggestion.type || 'Connection',
+                  description: suggestion.details?.description || `${suggestion.action} connection`,
                   action: suggestion.action || 'add',
                   connectionData: suggestion.connectionData,
                   componentData: suggestion.componentData,
@@ -189,8 +189,8 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
               else {
                 return {
                   id: suggestion.id || `wiring-suggestion-${Date.now()}-${index}`,
-                  title: suggestion.title || 'Connexion',
-                  description: suggestion.description || `${suggestion.action} connexion`,
+                  title: suggestion.title || 'Connection',
+                  description: suggestion.description || `${suggestion.action} connection`,
                   action: suggestion.action || 'add',
                   connectionData: suggestion.connectionData,
                   componentData: suggestion.componentData,
@@ -225,13 +225,13 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
             }
             
             // Si on a des suggestions, utiliser un message plus court
-            aiResponse = `J'ai généré ${suggestions.length} suggestions de connexions pour votre circuit.`;
+            aiResponse = `I generated ${suggestions.length} connection suggestions for your circuit.`;
           } else {
-            aiResponse = 'J\'ai compris votre demande de câblage. Je travaille sur l\'analyse des connexions appropriées.';
+            aiResponse = 'I understood your wiring request. I am working on analyzing the appropriate connections.';
           }
         } catch (error) {
           console.error('Error with wiring agent:', error);
-          aiResponse = 'Désolé, j\'ai rencontré une erreur en analysant votre demande de câblage. Veuillez réessayer.';
+          aiResponse = 'Sorry, I encountered an error analyzing your wiring request. Please try again.';
         }
       }
 
@@ -263,7 +263,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       // Add error message
       const errorMessage: WiringChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: `Désolé, j'ai rencontré une erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}. Veuillez réessayer.`,
+        content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
         sender: 'ai',
         timestamp: new Date(),
         mode,
@@ -279,7 +279,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     // Add stop message
     const stopMessage: WiringChatMessage = {
       id: (Date.now() + 1).toString(),
-      content: 'Génération arrêtée par l\'utilisateur.',
+      content: 'Generation stopped by user.',
       sender: 'ai',
       timestamp: new Date(),
       mode: 'agent',
@@ -293,7 +293,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     
     // Envoyer automatiquement le prompt pour un circuit optimal
     // IMPORTANT: Ne pas appliquer automatiquement, juste générer les suggestions
-    await handleSendChatMessage("Suggère-moi un circuit optimal", 'agent');
+    await handleSendChatMessage("Suggest me an optimal circuit", 'agent');
   };
 
   const handleAcceptSuggestion = async (messageId: string, suggestionId: string) => {
@@ -665,7 +665,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     
     return {
       id: material.id,
-      name: specs.name || 'Composant',
+              name: specs.name || 'Component',
       type: componentType,
       position: {
         x: startX + (col * componentSpacingX),
@@ -1032,7 +1032,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           errors: [{
             id: 'delete-component-error',
             type: 'save_error' as const,
-            message: 'Erreur lors de la sauvegarde après suppression du composant',
+            message: 'Error saving after component deletion',
             severity: 'error' as const
           }],
           warnings: []
@@ -1078,7 +1078,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           errors.push({
             id: `error-${connection.id}`,
             type: 'invalid_connection' as const,
-            message: `Connexion invalide: composant manquant`,
+            message: `Invalid connection: missing component`,
             connectionId: connection.id,
             severity: 'error' as const
           });
@@ -1110,13 +1110,13 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     return (
       <Box sx={{ p: 3, textAlign: 'center' }}>
         <Typography variant="h6">
-          Composant Wiring - Debug
+          Wiring Component - Debug
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Projet ID: {projectId || 'Non défini'}
+          Project ID: {projectId || 'Not defined'}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Matériaux: {materials.length}
+          Materials: {materials.length}
         </Typography>
       </Box>
     );
@@ -1125,7 +1125,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
   // Ajouter des quantités par défaut aux matériaux s'ils n'en ont pas
   const materialsWithQuantities = materials.map(material => ({
     ...material,
-    quantity: material.quantity || 2 // Par défaut 2 de chaque composant
+    quantity: material.quantity || 2 // Default 2 of each component
   }));
 
   return (
@@ -1156,7 +1156,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <CableIcon color="primary" />
             <Typography variant="h5" fontWeight={600}>
-              Éditeur de Câblage
+              Wiring Editor
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -1167,7 +1167,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
               onClick={() => diagram && validateWiring(diagram)}
               disabled={!diagram || isValidating}
             >
-              {isValidating ? 'Validation...' : 'Valider'}
+              {isValidating ? 'Validating...' : 'Validate'}
             </Button>
             <Button
               variant="contained"
@@ -1177,7 +1177,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
               onClick={handleSuggestOptimalCircuit}
               disabled={isGenerating}
             >
-              Circuit Optimal
+              Optimal Circuit
             </Button>
           </Box>
         </Box>
@@ -1227,7 +1227,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           overflow: 'hidden' // Évite les débordements
         }}>
           <Typography variant="h6" gutterBottom sx={{ flexShrink: 0 }}>
-            Liste des Connexions ({diagram?.connections?.length || 0})
+            Connections List ({diagram?.connections?.length || 0})
           </Typography>
           <Divider sx={{ mb: 2, flexShrink: 0 }} />
           <Box sx={{ 

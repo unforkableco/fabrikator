@@ -11,7 +11,7 @@ export class AIService {
   }
 
   /**
-   * Appel générique à l'API OpenAI avec retry logic
+   * Generic call to OpenAI API with retry logic
    */
   private async callOpenAI(messages: any[], temperature = 0.7, model = 'gpt-4', retries = 2) {
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -35,7 +35,7 @@ export class AIService {
       } catch (error: any) {
         console.error(`Error calling OpenAI (attempt ${attempt + 1}):`, error?.response?.status, error?.message);
         
-        // Si c'est une erreur 429 (rate limiting) et qu'il reste des tentatives
+        // If it's a 429 error (rate limiting) and there are remaining attempts
         if (error?.response?.status === 429 && attempt < retries) {
           const retryAfter = error?.response?.headers['retry-after'] || 10;
           console.log(`Rate limited. Waiting ${retryAfter} seconds before retry...`);
@@ -49,7 +49,7 @@ export class AIService {
   }
 
   /**
-   * Analyse un prompt de projet pour créer ses entités
+   * Analyzes a project prompt to create its entities
    */
   async analyzeProjectPrompt(prompt: string) {
     // Utiliser le prompt de configuration en remplaçant les variables
@@ -66,10 +66,10 @@ export class AIService {
     let parsedResponse = {};
     
     try {
-      // Nettoyer la réponse en cas de contenu supplémentaire
+      // Clean the response in case of additional content
       let cleanedResponse = response.trim();
       
-      // Extraire le JSON si la réponse contient du texte supplémentaire
+      // Extract JSON if the response contains additional text
       const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         cleanedResponse = jsonMatch[0];
@@ -80,7 +80,7 @@ export class AIService {
       console.error('Error parsing AI response:', error);
       console.error('Raw response:', response);
       
-      // Fallback: retourner une structure par défaut
+      // Fallback: return a default structure
       parsedResponse = {
         name: "New Project",
                   description: "Automatically generated description",
@@ -97,18 +97,18 @@ export class AIService {
   }
 
   /**
-   * Suggère des composants matériels pour un projet
+   * Suggests hardware components for a project
    */
   async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[] }) {
     const { name, description, userPrompt = '', previousComponents = [], currentMaterials = [] } = params;
     
-    // Construire le système prompt en remplaçant les variables
+    // Build the system prompt by replacing variables
     let systemPrompt = prompts.materialsSearch
       .replace('{{projectName}}', name)
       .replace('{{projectDescription}}', description)
       .replace('{{userPrompt}}', userPrompt);
     
-    // Simplifier les matériaux actuels pour réduire la taille du prompt
+    // Simplify current materials to reduce prompt size
     const simplifiedMaterials = currentMaterials.map(material => ({
       id: material.id,
       type: material.currentVersion?.specs?.type || 'unknown',
@@ -124,9 +124,9 @@ export class AIService {
     
     systemPrompt = systemPrompt.replace('{{currentMaterials}}', currentMaterialsJson);
     
-    // Ajouter les composants précédents au prompt si disponibles
+    // Add previous components to prompt if available
     const previousCompJson = previousComponents.length > 0 
-      ? JSON.stringify(previousComponents.slice(0, 3)) // Limiter à 3 composants
+      ? JSON.stringify(previousComponents.slice(0, 3)) // Limit to 3 components
       : '[]';
     
     systemPrompt = systemPrompt.replace('{{previousComponents}}', previousCompJson);
@@ -148,10 +148,10 @@ export class AIService {
     let parsedResponse;
     
     try {
-      // Nettoyer la réponse en cas de contenu supplémentaire
+      // Clean the response in case of additional content
       let cleanedResponse = response.trim();
       
-      // Extraire le JSON si la réponse contient du texte supplémentaire
+      // Extract JSON if the response contains additional text
       const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         cleanedResponse = jsonMatch[0];
@@ -162,7 +162,7 @@ export class AIService {
       console.error('Error parsing AI response:', error);
       console.error('Raw response:', response);
       
-      // Fallback: retourner une structure par défaut
+      // Fallback: return a default structure
       parsedResponse = {
         components: [
           {
@@ -181,7 +181,7 @@ export class AIService {
   }
 
   /**
-   * Répond à une question utilisateur concernant un projet
+   * Answers a user question about a project
    */
   async answerProjectQuestion(params: { project: any; materials?: any[]; wiring?: any; userQuestion: string }) {
     const { project, materials = [], wiring = null, userQuestion } = params;
@@ -194,10 +194,10 @@ export class AIService {
         projectContext += '\n\nProject Materials/Components:';
       materials.forEach((material: any, index: number) => {
         const specs = material.currentVersion?.specs || {};
-        projectContext += `\n${index + 1}. ${specs.type || specs.name || 'Composant'} - `;
-        projectContext += `Quantité: ${specs.quantity || 1}`;
+        projectContext += `\n${index + 1}. ${specs.type || specs.name || 'Component'} - `;
+        projectContext += `Quantity: ${specs.quantity || 1}`;
         if (specs.description) projectContext += ` - ${specs.description}`;
-        if (specs.status) projectContext += ` (Statut: ${specs.status})`;
+        if (specs.status) projectContext += ` (Status: ${specs.status})`;
       });
     }
     
@@ -213,11 +213,11 @@ export class AIService {
           }
         });
       } else {
-        projectContext += '\n- Schéma de câblage en cours de définition';
+        projectContext += '\n- Wiring diagram in progress';
       }
     }
     
-    // Construire le prompt en utilisant le prompt userPrompt
+    // Build the prompt using the userPrompt template
     const systemPrompt = prompts.userPrompt
       .replace('{{project}}', projectContext)
       .replace('{{userInput}}', userQuestion);
@@ -235,17 +235,17 @@ export class AIService {
     const response = await this.callOpenAI(messages, 0.7);
     console.log('AI Service - Question response received');
     
-    // Pour les questions, on retourne la réponse directement (pas de parsing JSON nécessaire)
+    // For questions, we return the response directly (no JSON parsing needed)
     return response.trim();
   }
 
   /**
-   * Génère des suggestions de câblage avec l'IA
+   * Generates wiring suggestions with AI
    */
   async generateWiringSuggestions(params: { prompt: string; materials: any[]; currentDiagram?: any }) {
     const { prompt, materials, currentDiagram } = params;
     
-    // Construire le prompt système en remplaçant les variables
+    // Build the system prompt by replacing variables
     let systemPrompt = prompts.wiringOptimalCircuit
       .replace('{{materials}}', JSON.stringify(materials, null, 2))
       .replace('{{currentDiagram}}', JSON.stringify(currentDiagram || {}, null, 2));
@@ -270,10 +270,10 @@ export class AIService {
     let parsedResponse;
     
     try {
-      // Nettoyer la réponse en cas de contenu supplémentaire
+      // Clean the response in case of additional content
       let cleanedResponse = response.trim();
       
-      // Extraire le JSON si la réponse contient du texte supplémentaire
+      // Extract JSON if the response contains additional text
       const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         cleanedResponse = jsonMatch[0];
@@ -284,9 +284,9 @@ export class AIService {
       console.error('Error parsing AI wiring response:', error);
       console.error('Raw response:', response);
       
-      // Fallback: retourner une structure par défaut
+      // Fallback: return a default structure
       parsedResponse = {
-        explanation: "Je n'ai pas pu analyser correctement vos matériaux pour le moment.",
+        explanation: "I couldn't analyze your materials correctly at the moment.",
         suggestions: []
       };
     }

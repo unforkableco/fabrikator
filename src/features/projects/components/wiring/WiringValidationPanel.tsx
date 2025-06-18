@@ -26,8 +26,6 @@ interface WiringValidationPanelProps {
   onFixError: (errorId: string) => void;
 }
 
-
-
 const WiringValidationPanel: React.FC<WiringValidationPanelProps> = ({
   validationResults,
   onFixError
@@ -41,36 +39,37 @@ const WiringValidationPanel: React.FC<WiringValidationPanelProps> = ({
     return severity === 'error' ? <ErrorIcon color="error" /> : <WarningIcon color="warning" />;
   };
 
-  const getErrorTypeLabel = (type: string) => {
+  const getErrorTypeLabel = (type: string): string => {
     switch (type) {
-      case 'voltage_mismatch': return 'Tension incompatible';
-      case 'current_overload': return 'Surcharge de courant';
-      case 'invalid_connection': return 'Connexion invalide';
-      case 'missing_connection': return 'Connexion manquante';
-      default: return 'Erreur inconnue';
+      case 'invalid_connection': return 'Invalid connection';
+      case 'missing_connection': return 'Missing connection';
+      case 'voltage_mismatch': return 'Voltage mismatch';
+      case 'pin_conflict': return 'Pin conflict';
+      case 'component_error': return 'Component error';
+      default: return type;
     }
   };
 
   const getWarningTypeLabel = (type: string) => {
     switch (type) {
-      case 'optimization': return 'Optimisation possible';
-      case 'best_practice': return 'Bonne pratique';
-      case 'redundancy': return 'Redondance détectée';
-      default: return 'Avertissement';
+      case 'optimization': return 'Optimization possible';
+      case 'best_practice': return 'Best practice';
+      case 'redundancy': return 'Redundancy detected';
+      default: return 'Warning';
     }
   };
 
-    if (errors.length === 0 && warnings.length === 0) {
+  if (errors.length === 0 && warnings.length === 0) {
     return (
       <Card sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CheckCircleIcon />
           <Typography variant="subtitle2">
-            ✅ Schéma de câblage validé avec succès
+            ✅ Wiring schema validated successfully
           </Typography>
         </Box>
         <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
-          Aucune erreur ou avertissement détecté.
+          No errors or warnings detected.
         </Typography>
       </Card>
     );
@@ -85,22 +84,28 @@ const WiringValidationPanel: React.FC<WiringValidationPanelProps> = ({
           ) : (
             <ErrorIcon color="error" />
           )}
-          <Typography variant="h6">
-            Validation du Schéma
+          <Typography variant="h6" gutterBottom sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1,
+            fontWeight: 'bold'
+          }}>
+            <ErrorIcon color="error" />
+            Schema Validation
           </Typography>
         </Box>
         
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           {errors.length > 0 && (
             <Chip
-              label={`${errors.length} erreur${errors.length > 1 ? 's' : ''}`}
+              label={`${errors.length} error${errors.length > 1 ? 's' : ''}`}
               color="error"
               size="small"
             />
           )}
           {warnings.length > 0 && (
             <Chip
-              label={`${warnings.length} avertissement${warnings.length > 1 ? 's' : ''}`}
+              label={`${warnings.length} warning${warnings.length > 1 ? 's' : ''}`}
               color="warning"
               size="small"
             />
@@ -120,7 +125,7 @@ const WiringValidationPanel: React.FC<WiringValidationPanelProps> = ({
         {errors.length > 0 && (
           <Box sx={{ mb: 2 }}>
             <Typography variant="subtitle2" color="error" gutterBottom>
-              🚫 Erreurs à corriger
+              🚫 Errors to correct
             </Typography>
             <List dense>
               {errors.map((error) => (
@@ -145,7 +150,7 @@ const WiringValidationPanel: React.FC<WiringValidationPanelProps> = ({
                     secondary={
                       error.connectionId && (
                         <Typography variant="caption" color="text.secondary">
-                          Connexion ID: {error.connectionId}
+                          Connection ID: {error.connectionId}
                         </Typography>
                       )
                     }
@@ -157,7 +162,7 @@ const WiringValidationPanel: React.FC<WiringValidationPanelProps> = ({
                     variant="outlined"
                     color="error"
                   >
-                    Corriger
+                    Correct
                   </Button>
                 </ListItem>
               ))}
@@ -169,7 +174,7 @@ const WiringValidationPanel: React.FC<WiringValidationPanelProps> = ({
         {warnings.length > 0 && (
           <Box>
             <Typography variant="subtitle2" color="warning.main" gutterBottom>
-              ⚠️ Avertissements
+              ⚠️ Warnings
             </Typography>
             <List dense>
               {warnings.map((warning, index) => (
@@ -207,21 +212,22 @@ const WiringValidationPanel: React.FC<WiringValidationPanelProps> = ({
 
         {/* Summary */}
         <Alert 
-          severity={isValid ? 'success' : 'error'} 
+          severity={isValid ? "success" : "error"}
           sx={{ mt: 2 }}
         >
-          <Typography variant="subtitle2">
+          <Typography variant="body2">
             {isValid 
-              ? '✅ Le schéma de câblage est fonctionnellement correct'
-              : '❌ Le schéma de câblage contient des erreurs qui doivent être corrigées'
+              ? '✅ The wiring schema is functionally correct'
+              : '❌ The wiring schema contains errors that must be corrected'
             }
           </Typography>
-          {!isValid && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              Corrigez les erreurs ci-dessus avant de continuer avec ce schéma de câblage.
-            </Typography>
-          )}
         </Alert>
+        
+        {!isValid && (
+          <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+            Fix the errors above before continuing with this wiring schema.
+          </Typography>
+        )}
       </Collapse>
     </Card>
   );

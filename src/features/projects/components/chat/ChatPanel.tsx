@@ -279,7 +279,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 onClick={() => handleRejectSuggestion(messageId, suggestion.id)}
                 sx={{ textTransform: 'none' }}
               >
-                Refuser
+                Refuse
               </Button>
               <Button
                 size="small"
@@ -289,7 +289,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 onClick={() => handleAcceptSuggestion(messageId, suggestion.id)}
                 sx={{ textTransform: 'none' }}
               >
-                Accepter
+                Accept
               </Button>
             </Box>
           )}
@@ -341,7 +341,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 >
                   <CheckIcon sx={{ fontSize: 14, color: 'white' }} />
                 </Box>
-                Suggestion appliquée avec succès au schéma
+                Suggestion applied successfully to the schema
               </Typography>
             </Box>
           )}
@@ -382,7 +382,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 >
 
                 </Box>
-                Cette suggestion n'a pas été appliquée
+                This suggestion was not applied
               </Typography>
             </Box>
           )}

@@ -10,6 +10,8 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
+  Accordion,
+  AccordionSummary,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -17,6 +19,9 @@ import {
   Edit as EditIcon,
   Check as CheckIcon,
   Close as CloseIcon,
+  Build as BuildIcon,
+  ExpandMore as ExpandMoreIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { Material } from '../../../../shared/types';
 
@@ -85,12 +90,12 @@ const MaterialSuggestionDiff: React.FC<MaterialSuggestionDiffProps> = ({
             )}
             {suggestion.details?.quantity && (
               <Typography variant="caption" color="text.secondary" component="span" sx={{ ml: 1 }}>
-                Quantité: {suggestion.details.quantity}
+                Quantity: {suggestion.details.quantity}
               </Typography>
             )}
             {suggestion.action === 'update' && suggestion.currentMaterial && (
               <Typography variant="caption" color="text.secondary" component="span" sx={{ display: 'block', mt: 0.5 }}>
-                Ancien: {suggestion.currentMaterial.name || suggestion.currentMaterial.type}
+                Old: {suggestion.currentMaterial.name || suggestion.currentMaterial.type}
               </Typography>
             )}
           </React.Fragment>
@@ -110,8 +115,14 @@ const MaterialSuggestionDiff: React.FC<MaterialSuggestionDiffProps> = ({
       }}
     >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Suggestions de Matériaux
+        <Typography variant="h6" gutterBottom sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 1,
+          fontWeight: 'bold'
+        }}>
+          <BuildIcon color="primary" />
+          Material Suggestions
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button
@@ -123,7 +134,7 @@ const MaterialSuggestionDiff: React.FC<MaterialSuggestionDiffProps> = ({
             disabled={isProcessing}
             sx={{ textTransform: 'none' }}
           >
-            Rejeter
+            Reject
           </Button>
           <Button
             variant="contained"
@@ -134,64 +145,62 @@ const MaterialSuggestionDiff: React.FC<MaterialSuggestionDiffProps> = ({
             disabled={isProcessing}
             sx={{ textTransform: 'none' }}
           >
-            Accepter
+            Accept
           </Button>
         </Box>
       </Box>
 
       <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
-        {newMaterials.length > 0 && (
-          <>
-            <Typography variant="subtitle2" color="success.main" sx={{ mb: 1, fontWeight: 600 }}>
-              + Nouveaux composants ({newMaterials.length})
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AddIcon color="success" />
+              + New components ({newMaterials.length})
             </Typography>
-            <List dense sx={{ mb: 2 }}>
-              {newMaterials.map(suggestion => 
-                renderMaterialItem(suggestion, 'success', <AddIcon />)
-              )}
-            </List>
-          </>
-        )}
+          </AccordionSummary>
+          <List dense sx={{ mb: 2 }}>
+            {newMaterials.map(suggestion => 
+              renderMaterialItem(suggestion, 'success', <AddIcon />)
+            )}
+          </List>
+        </Accordion>
 
-        {updatedMaterials.length > 0 && (
-          <>
-            <Typography variant="subtitle2" color="warning.main" sx={{ mb: 1, fontWeight: 600 }}>
-              ~ Composants modifiés ({updatedMaterials.length})
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <EditIcon color="warning" />
+              ~ Modified components ({updatedMaterials.length})
             </Typography>
-            <List dense sx={{ mb: 2 }}>
-              {updatedMaterials.map(suggestion => 
-                renderMaterialItem(suggestion, 'warning', <EditIcon />)
-              )}
-            </List>
-          </>
-        )}
+          </AccordionSummary>
+          <List dense sx={{ mb: 2 }}>
+            {updatedMaterials.map(suggestion => 
+              renderMaterialItem(suggestion, 'warning', <EditIcon />)
+            )}
+          </List>
+        </Accordion>
 
-        {removedMaterials.length > 0 && (
-          <>
-            <Typography variant="subtitle2" color="error.main" sx={{ mb: 1, fontWeight: 600 }}>
-              - Composants supprimés ({removedMaterials.length})
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <DeleteIcon color="error" />
+              - Removed components ({removedMaterials.length})
             </Typography>
-            <List dense sx={{ mb: 2 }}>
-              {removedMaterials.map(suggestion => 
-                renderMaterialItem(suggestion, 'error', <RemoveIcon />)
-              )}
-            </List>
-          </>
-        )}
+          </AccordionSummary>
+          <List dense sx={{ mb: 2 }}>
+            {removedMaterials.map(suggestion => 
+              renderMaterialItem(suggestion, 'error', <RemoveIcon />)
+            )}
+          </List>
+        </Accordion>
 
-        {keptMaterials.length > 0 && (
-          <>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="caption" color="text.secondary">
-              {keptMaterials.length} composant(s) inchangé(s)
-            </Typography>
-          </>
-        )}
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+          {keptMaterials.length} component(s) unchanged
+        </Typography>
       </Box>
 
       <Divider sx={{ my: 2 }} />
       <Typography variant="caption" color="text.secondary">
-        Résumé: {newMaterials.length} ajout(s), {updatedMaterials.length} modification(s), {removedMaterials.length} suppression(s)
+        Summary: {newMaterials.length} addition(s), {updatedMaterials.length} modification(s), {removedMaterials.length} deletion(s)
       </Typography>
     </Paper>
   );

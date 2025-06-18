@@ -82,59 +82,66 @@ export const prompts = {
   `,
 
   wiringOptimalCircuit: `
-    **CONTEXTE:** Projet DIY avec matériaux disponibles
+    **CONTEXT:** DIY project with available materials
     
-    **MATÉRIAUX DISPONIBLES DANS LE PROJET:**
+    **AVAILABLE MATERIALS IN THE PROJECT:**
     {{materials}}
     
-    **SCHÉMA DE CÂBLAGE ACTUEL:**
+    **CURRENT WIRING DIAGRAM:**
     {{currentDiagram}}
     
-    **FORGE DIY PHILOSOPHY: Priorité aux solutions faites maison et auto-construites**
+    **FORGE DIY PHILOSOPHY: Priority to homemade and self-built solutions**
     
-    **MISSION:** Génère UNIQUEMENT des connexions entre les composants listés ci-dessus, en utilisant leurs IDs exacts.
+    **MISSION:** Generate connections for ALL components in the materials list above. Create a complete circuit that connects every component.
     
-    **RÈGLES ABSOLUES (VIOLATION = ÉCHEC):**
-    1. ✅ UTILISE SEULEMENT les IDs réels des matériaux fournis (ex: "comp-abc-123")
-    2. ✅ JAMAIS de noms génériques comme "microcontroller", "sensor", etc.
-    3. ✅ Vérifie que fromComponent ET toComponent existent dans la liste des matériaux
-    4. ✅ JAMAIS de composants "Unknown" ou inexistants
-    5. ✅ Utilise seulement les broches standards selon le type de composant
+    **ABSOLUTE RULES (VIOLATION = FAILURE):**
+    1. ✅ COPY THE EXACT ID STRINGS from the materials list above - they look like UUIDs (e.g.: "3d16b272-c0b5-489e-855e-10ac19b5821c")
+    2. ✅ NEVER generate fake IDs like "comp-1234567" or "comp-micro-456" 
+    3. ✅ NEVER use generic names like "microcontroller", "sensor", etc.
+    4. ✅ Verify that fromComponent AND toComponent exist in the materials list
+    5. ✅ NEVER use "Unknown" or non-existent components
+    6. ✅ Use only standard pins according to component type
+    7. ✅ CONNECT ALL COMPONENTS - don't leave any component unconnected
+    8. ✅ Every sensor must be connected to the microcontroller
+    9. ✅ Every component must have power (VCC) and ground (GND) connections
     
-    **BROCHES STANDARDS PAR TYPE DE COMPOSANT:**
+    **STANDARD PINS BY COMPONENT TYPE:**
     - microcontroller/arduino → vcc, gnd, gpio1, gpio2, gpio3, gpio4, d0, d1, d2, d3, d4, d5, d6, d7, a0, a1
-    - sensor/capteur → vcc, gnd, data, signal, out
-    - display/écran → vcc, gnd, sda, scl, cs, dc, rst
-    - battery/batterie → positive, negative
-    - power/alimentation → positive, negative, vcc, gnd
-    - button/bouton → pin1, pin2, signal, gnd
-    - pump/pompe → vcc, gnd, signal, control
-    - valve/valve → vcc, gnd, signal, control
-    - moisture/humidité → vcc, gnd, data, analog
-    - water → vcc, gnd, data, signal
+    - sensor (generic) → vcc, gnd, data, signal, out
+    - moisture sensor → vcc, gnd, data, signal, analog
+    - temperature sensor → vcc, gnd, data, signal, analog
+    - light sensor → vcc, gnd, data, signal, analog
+    - speech/audio → vcc, gnd, data, signal, pin1, pin2
+    - display/screen/lcd/oled → vcc, gnd, sda, scl, cs, dc, rst
+    - battery → positive, negative
+    - power supply → positive, negative, vcc, gnd
+    - button → pin1, pin2, signal, gnd
+    - pump → vcc, gnd, signal, control
+    - valve → vcc, gnd, signal, control
+    - motor → vcc, gnd, signal, control
     
-    **AVANT DE CRÉER UNE CONNEXION, VÉRIFIE:**
-    1. Le composant source existe-t-il dans {{materials}} ?
-    2. Le composant destination existe-t-il dans {{materials}} ?
-    3. La broche source correspond-elle au type du composant ?
-    4. La broche destination correspond-elle au type du composant ?
+    **BEFORE CREATING A CONNECTION, VERIFY:**
+    1. Does the source component exist in {{materials}}?
+    2. Does the destination component exist in {{materials}}?
+    3. Does the source pin match the component type?
+    4. Does the destination pin match the component type?
     
-    **FORMAT DE RÉPONSE JSON STRICT:**
+    **STRICT JSON RESPONSE FORMAT:**
     {
-      "explanation": "Circuit proposé avec [NOMBRE] connexions entre les composants existants: [LISTE DES NOMS]",
+      "explanation": "Proposed circuit with [NUMBER] connections between existing components: [LIST OF NAMES]",
       "suggestions": [
         {
           "action": "add",
-          "type": "Connexion [TYPE_SOURCE] vers [TYPE_DESTINATION]",
-          "description": "Connecter [NOM_SOURCE].[PIN_SOURCE] à [NOM_DESTINATION].[PIN_DESTINATION] pour [RAISON]",
+          "type": "Connection [SOURCE_TYPE] to [DESTINATION_TYPE]",
+          "description": "Connect [SOURCE_NAME].[SOURCE_PIN] to [DESTINATION_NAME].[DESTINATION_PIN] for [REASON]",
           "connectionData": {
             "id": "conn-[timestamp]-[index]",
-            "fromComponent": "[ID_EXACT_DU_MATERIAU_SOURCE]",
-            "fromPin": "[pin_standard_selon_type]",
-            "toComponent": "[ID_EXACT_DU_MATERIAU_DESTINATION]",
-            "toPin": "[pin_standard_selon_type]",
+            "fromComponent": "[EXACT_SOURCE_MATERIAL_ID]",
+            "fromPin": "[standard_pin_according_to_type]",
+            "toComponent": "[EXACT_DESTINATION_MATERIAL_ID]",
+            "toPin": "[standard_pin_according_to_type]",
             "wireType": "power|ground|data|analog|digital",
-            "wireColor": "#[couleur_selon_type]",
+            "wireColor": "#[color_according_to_type]",
             "validated": false
           },
           "confidence": 0.9
@@ -142,22 +149,48 @@ export const prompts = {
       ]
     }
     
-    **COULEURS STANDARDS:**
-    - power: "#ff0000" (rouge)
-    - ground: "#000000" (noir)
-    - data/digital: "#0000ff" (bleu)
-    - analog: "#00ff00" (vert)
+    **STANDARD COLORS:**
+    - power: "#ff0000" (red)
+    - ground: "#000000" (black)
+    - data/digital: "#0000ff" (blue)
+    - analog: "#00ff00" (green)
     
-    **EXEMPLE CONCRET:**
-    Si materials contient: {id: "comp-water-123", name: "Water Pump", type: "pump"} et {id: "comp-micro-456", name: "Arduino", type: "microcontroller"}
-    ✅ Correct: fromComponent: "comp-water-123", toComponent: "comp-micro-456"
-    ❌ Incorrect: fromComponent: "pump", toComponent: "microcontroller"
+    **CRITICAL: COPY THE EXACT IDs FROM THE MATERIALS LIST**
     
-    **PRIORITÉS DE CONNEXION:**
-    1. 🔴 Alimentation (VCC/positive vers vcc des composants)
-    2. ⚫ Masse commune (GND/negative vers gnd de tous les composants)
-    3. 🔵 Signaux de contrôle (GPIO vers control/signal des composants)
-    4. 🟢 Données (capteurs vers pins analogiques/digitales)
+    You MUST copy the exact ID strings from the materials list above. For example:
+    - If you see {id: "3d16b272-c0b5-489e-855e-10ac19b5821c", name: "Moisture Sensor", type: "Moisture Sensor"}
+    - Then use: fromComponent: "3d16b272-c0b5-489e-855e-10ac19b5821c"
+    - NEVER make up IDs like "comp-1234567" or "comp-moisture-sensor"
+    
+    **STEP-BY-STEP PROCESS:**
+    1. Look at the materials list above
+    2. Find the exact "id" field for each component you want to connect
+    3. Copy that exact ID string into fromComponent and toComponent
+    4. Double-check that both IDs exist in the materials list
+    
+    **CONNECTION STRATEGY - CONNECT ALL COMPONENTS:**
+    
+    **STEP 1: Power connections (MANDATORY for all components)**
+    - Connect power source (battery/power supply) VCC to ALL components VCC
+    - Connect power source GND to ALL components GND
+    
+    **STEP 2: Sensor connections (connect ALL sensors to microcontroller)**
+    - Moisture sensors → microcontroller analog pins (a0, a1, etc.)
+    - Temperature sensors → microcontroller analog pins (a2, a3, etc.)
+    - Light sensors → microcontroller analog pins (a4, a5, etc.)
+    - Digital sensors → microcontroller digital pins (d0, d1, etc.)
+    
+    **STEP 3: Output device connections**
+    - Displays → microcontroller (SDA, SCL for I2C or specific pins)
+    - Motors/pumps → microcontroller GPIO pins for control
+    - Speakers/buzzers → microcontroller GPIO pins
+    - LEDs → microcontroller GPIO pins
+    
+    **STEP 4: Communication modules**
+    - WiFi/Bluetooth modules → microcontroller UART/SPI pins
+    - Speech synthesizers → microcontroller UART or GPIO pins
+    
+    **MANDATORY: Every component in the materials list MUST appear in at least one connection**
   `,
   
   userPrompt: `

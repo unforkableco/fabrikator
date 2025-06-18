@@ -12,14 +12,14 @@ const TypingAnimation: React.FC<TypingAnimationProps> = ({ mode, context = 'gene
     if (context === 'wiring') {
       return {
         icon: <CableIcon sx={{ fontSize: 16, color: 'primary.main' }} />,
-        text: 'Génération du câblage en cours...',
-        subtext: 'Analyse des connexions optimales'
+        text: 'Generating wiring in progress...',
+        subtext: 'Analyzing optimal connections'
       };
     } else if (context === 'materials') {
       return {
         icon: <MemoryIcon sx={{ fontSize: 16, color: 'secondary.main' }} />,
-        text: 'Analyse des matériaux...',
-        subtext: 'Recherche de composants'
+        text: 'Analyzing materials...',
+        subtext: 'Searching for components'
       };
     } else {
       return {

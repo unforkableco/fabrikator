@@ -82,11 +82,11 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
     return (
       <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
         <CableIcon sx={{ fontSize: 48, mb: 2, opacity: 0.3 }} />
-        <Typography variant="body2">
-          Aucune connexion dans le schéma
+        <Typography variant="h6" gutterBottom>
+          No connections in the schema
         </Typography>
-        <Typography variant="caption">
-          Cliquez sur les broches des composants pour créer des connexions
+        <Typography variant="body2">
+          Click on component pins to create connections
         </Typography>
       </Box>
     );
@@ -171,29 +171,29 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
                   <Box sx={{ width: '100%', mt: 2, pl: 7 }}>
                     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                       <FormControl size="small" sx={{ minWidth: 120 }}>
-                        <InputLabel>Type de fil</InputLabel>
+                        <InputLabel>Wire type</InputLabel>
                         <Select
                           value={connection.wireType}
-                          label="Type de fil"
+                          label="Wire type"
                           onChange={(e) => handleWireTypeChange(
                             connection.id, 
                             e.target.value as WiringConnection['wireType']
                           )}
                         >
-                          <MenuItem value="power">Alimentation</MenuItem>
-                          <MenuItem value="ground">Masse</MenuItem>
-                          <MenuItem value="data">Données</MenuItem>
-                          <MenuItem value="analog">Analogique</MenuItem>
-                          <MenuItem value="digital">Numérique</MenuItem>
+                          <MenuItem value="power">Power</MenuItem>
+                          <MenuItem value="ground">Ground</MenuItem>
+                          <MenuItem value="data">Data</MenuItem>
+                          <MenuItem value="analog">Analog</MenuItem>
+                          <MenuItem value="digital">Digital</MenuItem>
                         </Select>
                       </FormControl>
                       
                       <TextField
                         size="small"
-                        label="Étiquette"
+                        label="Label"
                         value={connection.label || ''}
                         onChange={(e) => handleLabelChange(connection.id, e.target.value)}
-                        placeholder="Nom de la connexion..."
+                        placeholder="Connection name..."
                         sx={{ minWidth: 160 }}
                       />
                       
