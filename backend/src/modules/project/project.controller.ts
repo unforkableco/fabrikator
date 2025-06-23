@@ -244,4 +244,36 @@ export class ProjectController {
       res.status(500).json({ error: 'Failed to answer project question' });
     }
   }
+
+  /**
+   * Mettre à jour l'état d'une suggestion dans un message
+   */
+  async updateSuggestionStatus(req: Request, res: Response) {
+    try {
+      const { id, messageId, suggestionId } = req.params;
+      const { status } = req.body;
+      
+      if (!status || !['accepted', 'rejected'].includes(status)) {
+        return res.status(400).json({ error: 'Status must be "accepted" or "rejected"' });
+      }
+      
+      console.log(`Updating suggestion ${suggestionId} in message ${messageId} to status: ${status}`);
+      
+      const updatedMessage = await this.projectService.updateSuggestionStatus(
+        id, 
+        messageId, 
+        suggestionId, 
+        status
+      );
+      
+      if (!updatedMessage) {
+        return res.status(404).json({ error: 'Message or suggestion not found' });
+      }
+      
+      res.json(updatedMessage);
+    } catch (error) {
+      console.error('Error updating suggestion status:', error);
+      res.status(500).json({ error: 'Failed to update suggestion status' });
+    }
+  }
 }

@@ -9,6 +9,9 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Chip,
+  Button,
+  Link,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -29,6 +32,9 @@ import {
   Settings as SettingsIcon,
   Thermostat as ThermostatIcon,
   Lightbulb as LightbulbIcon,
+  ShoppingCart as ShoppingCartIcon,
+  Launch as LaunchIcon,
+  Description as DescriptionIcon,
 } from '@mui/icons-material';
 import { Material, MaterialStatus } from '../../../../shared/types';
 
@@ -232,7 +238,52 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
     return notes;
   };
 
+  // Extraire les informations de référence de produit
+  const getProductReference = () => {
+    const specs = material.currentVersion?.specs as any;
+    return specs?.productReference || material.productReference;
+  };
+
+  // Générer des liens de recherche fiables
+  const generateWorkingPurchaseUrl = (productReference: any) => {
+    if (!productReference) return null;
+    
+    const productName = productReference.name;
+    const supplier = productReference.supplier?.toLowerCase();
+    const materialType = material.type?.toLowerCase() || '';
+    
+    // Ajouter des mots-clés spécifiques selon le type de composant
+    let searchQuery = productName;
+    if (materialType.includes('sensor')) {
+      searchQuery += ' sensor module';
+    } else if (materialType.includes('microcontroller')) {
+      searchQuery += ' development board';
+    } else if (materialType.includes('power') || materialType.includes('battery')) {
+      searchQuery += ' power supply';
+    } else if (materialType.includes('display')) {
+      searchQuery += ' display module';
+    }
+    
+    // Encoder le nom du produit pour l'URL
+    const encodedProductName = encodeURIComponent(searchQuery);
+    
+    // Générer des URLs de recherche qui fonctionnent vraiment
+    const searchUrls: { [key: string]: string } = {
+      'amazon': `https://www.amazon.com/s?k=${encodedProductName}&ref=nb_sb_noss`,
+      'adafruit': `https://www.adafruit.com/search?q=${encodedProductName}`,
+      'sparkfun': `https://www.sparkfun.com/search/results?term=${encodedProductName}`,
+      'aliexpress': `https://www.aliexpress.com/wholesale?SearchText=${encodedProductName}`,
+      'mouser': `https://www.mouser.com/c/?q=${encodedProductName}`,
+      'digikey': `https://www.digikey.com/products/en?keywords=${encodedProductName}`,
+    };
+    
+    // Retourner l'URL de recherche appropriée
+    return searchUrls[supplier] || `https://www.google.com/search?q=${encodedProductName}+buy+electronics`;
+  };
+
   const technicalSpecs = getFilteredTechnicalSpecs(material.requirements);
+  const productReference = getProductReference();
+  const workingPurchaseUrl = generateWorkingPurchaseUrl(productReference);
 
   return (
     <Card sx={{ border: '1px solid', borderColor: 'divider' }}>
@@ -307,6 +358,80 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {getMaterialNotes()}
           </Typography>
+        )}
+
+        {/* Product Reference Section */}
+        {productReference && (
+          <Box sx={{ mb: 2, p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ShoppingCartIcon sx={{ fontSize: 16 }} />
+              Référence Produit Suggérée
+            </Typography>
+            
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+              <Chip 
+                size="small" 
+                label={productReference.manufacturer} 
+                sx={{ bgcolor: 'primary.light', color: 'primary.contrastText' }}
+              />
+              <Chip 
+                size="small" 
+                label={productReference.estimatedPrice} 
+                sx={{ bgcolor: 'success.light', color: 'success.contrastText' }}
+              />
+              <Chip 
+                size="small" 
+                label={productReference.supplier} 
+                sx={{ bgcolor: 'info.light', color: 'info.contrastText' }}
+              />
+            </Box>
+            
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+              {productReference.name}
+            </Typography>
+            
+            {productReference.partNumber && (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Référence: {productReference.partNumber}
+              </Typography>
+            )}
+            
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {workingPurchaseUrl && (
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="primary"
+                  startIcon={<ShoppingCartIcon />}
+                  endIcon={<LaunchIcon />}
+                  component={Link}
+                  href={workingPurchaseUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ textTransform: 'none' }}
+                  title={`Rechercher "${productReference.name}" sur ${productReference.supplier}`}
+                >
+                  Rechercher & Acheter
+                </Button>
+              )}
+              
+              {productReference.datasheet && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<DescriptionIcon />}
+                  endIcon={<LaunchIcon />}
+                  component={Link}
+                  href={productReference.datasheet}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ textTransform: 'none' }}
+                >
+                  Datasheet
+                </Button>
+              )}
+            </Box>
+          </Box>
         )}
 
         {/* Specifications - Seulement les techniques */}

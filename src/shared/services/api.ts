@@ -94,6 +94,13 @@ export const api = {
       return response.data;
     },
 
+    addMaterialFromSuggestion: async (projectId: string, suggestion: any): Promise<Material> => {
+      const response = await apiClient.post(`/materials/project/${projectId}/add-from-suggestion`, {
+        suggestion,
+      });
+      return response.data;
+    },
+
     updateMaterialStatus: async (materialId: string, status: string): Promise<Material> => {
       const response = await apiClient.put(`/materials/${materialId}`, { action: status });
       return response.data;
@@ -130,6 +137,13 @@ export const api = {
 
     sendMessage: async (projectId: string, message: Omit<Message, 'id' | 'createdAt'>): Promise<Message> => {
       const response = await apiClient.post(`/projects/${projectId}/messages`, message);
+      return response.data;
+    },
+
+    updateSuggestionStatus: async (projectId: string, messageId: string, suggestionId: string, status: 'accepted' | 'rejected'): Promise<Message> => {
+      const response = await apiClient.put(`/projects/${projectId}/messages/${messageId}/suggestions/${suggestionId}`, {
+        status
+      });
       return response.data;
     },
 

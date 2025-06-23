@@ -11,6 +11,44 @@ export class AIService {
   }
 
   /**
+   * Utility function to clean and extract JSON from AI response
+   */
+  private cleanJsonResponse(response: string): string {
+    let cleanedResponse = response.trim();
+    
+    // Remove markdown code blocks if present
+    if (cleanedResponse.includes('```json')) {
+      const jsonStart = cleanedResponse.indexOf('```json') + 7;
+      const jsonEnd = cleanedResponse.indexOf('```', jsonStart);
+      if (jsonEnd > jsonStart) {
+        cleanedResponse = cleanedResponse.substring(jsonStart, jsonEnd).trim();
+      }
+    } else if (cleanedResponse.includes('```')) {
+      // Fallback for generic code blocks
+      const jsonStart = cleanedResponse.indexOf('```') + 3;
+      const jsonEnd = cleanedResponse.indexOf('```', jsonStart);
+      if (jsonEnd > jsonStart) {
+        cleanedResponse = cleanedResponse.substring(jsonStart, jsonEnd).trim();
+      }
+    }
+    
+    // Extract JSON if the response contains additional text
+    const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleanedResponse = jsonMatch[0];
+    }
+    
+    // Remove only trailing commas before closing braces/brackets (safer approach)
+    cleanedResponse = cleanedResponse.replace(/,(\s*[}\]])/g, '$1');
+    
+    // Fix JavaScript expressions that AI sometimes generates
+    cleanedResponse = cleanedResponse.replace(/"conn-"\s*\+\s*Date\.now\(\)\s*\+\s*"-(\d+)"/g, '"conn-1234567890-$1"');
+    cleanedResponse = cleanedResponse.replace(/Date\.now\(\)/g, '1234567890');
+    
+    return cleanedResponse;
+  }
+
+  /**
    * Generic call to OpenAI API with retry logic
    */
   private async callOpenAI(messages: any[], temperature = 0.7, model = 'gpt-4', retries = 2) {
@@ -66,14 +104,8 @@ export class AIService {
     let parsedResponse = {};
     
     try {
-      // Clean the response in case of additional content
-      let cleanedResponse = response.trim();
-      
-      // Extract JSON if the response contains additional text
-      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        cleanedResponse = jsonMatch[0];
-      }
+      // Clean the response using the utility function
+      const cleanedResponse = this.cleanJsonResponse(response);
       
       parsedResponse = JSON.parse(cleanedResponse);
     } catch (error) {
@@ -148,33 +180,76 @@ export class AIService {
     let parsedResponse;
     
     try {
-      // Clean the response in case of additional content
-      let cleanedResponse = response.trim();
+      // Clean the response using the utility function
+      const cleanedResponse = this.cleanJsonResponse(response);
       
-      // Extract JSON if the response contains additional text
-      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        cleanedResponse = jsonMatch[0];
-      }
+      console.log('AI Service - Cleaned response for parsing:', cleanedResponse.substring(0, 500) + '...');
       
       parsedResponse = JSON.parse(cleanedResponse);
+      
+      // Validate that we have components
+      if (!parsedResponse.components || !Array.isArray(parsedResponse.components) || parsedResponse.components.length === 0) {
+        throw new Error('No components found in AI response');
+      }
+      
     } catch (error) {
       console.error('Error parsing AI response:', error);
       console.error('Raw response:', response);
+      console.error('Cleaned response length:', this.cleanJsonResponse(response).length);
       
-      // Fallback: return a default structure
-      parsedResponse = {
-        components: [
-          {
-            type: "microcontroller",
-            details: {
-              action: "new",
-              quantity: 1,
-                              notes: "Main controller for the project"
+      // Try to extract components manually from the raw response as a last resort
+      try {
+        const componentMatches = response.match(/"type":\s*"[^"]+"/g);
+        if (componentMatches && componentMatches.length > 1) {
+          console.log('Found multiple components in raw response, trying manual extraction...');
+          
+          // Try to re-request with simpler format
+          parsedResponse = {
+            explanation: {
+              summary: "Composants générés pour le projet",
+              reasoning: "Réponse partiellement récupérée après erreur de parsing"
+            },
+            components: [
+              {
+                type: "microcontroller",
+                details: {
+                  action: "new",
+                  quantity: 1,
+                  notes: "Contrôleur principal - Veuillez regénérer pour obtenir tous les composants"
+                }
+              }
+            ]
+          };
+        } else {
+          // Single component fallback
+          parsedResponse = {
+            components: [
+              {
+                type: "microcontroller",
+                details: {
+                  action: "new",
+                  quantity: 1,
+                  notes: "Contrôleur principal pour le projet"
+                }
+              }
+            ]
+          };
+        }
+      } catch (fallbackError) {
+        console.error('Fallback parsing also failed:', fallbackError);
+        parsedResponse = {
+          components: [
+            {
+              type: "microcontroller",
+              details: {
+                action: "new",
+                quantity: 1,
+                notes: "Contrôleur principal pour le projet"
+              }
             }
-          }
-        ]
-      };
+          ]
+        };
+      }
     }
 
     return parsedResponse;

@@ -55,6 +55,7 @@ export class MaterialService {
         quantity, 
         description, 
         requirements, 
+        productReference,
         status = MaterialStatus.SUGGESTED,
         createdBy = 'User' 
       } = materialData;
@@ -79,6 +80,7 @@ export class MaterialService {
               quantity,
               description,
               requirements,
+              productReference,
               status
             }
           }
@@ -219,6 +221,7 @@ export class MaterialService {
         quantity, 
         description, 
         requirements, 
+        productReference,
         status,
         createdBy = 'User' 
       } = versionData;
@@ -249,6 +252,7 @@ export class MaterialService {
           quantity: quantity ?? currentSpecs.quantity,
           description: description ?? currentSpecs.description,
           requirements: requirements ?? currentSpecs.requirements,
+          productReference: productReference ?? currentSpecs.productReference,
           status: status ?? currentSpecs.status
         };
         

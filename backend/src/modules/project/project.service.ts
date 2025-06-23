@@ -148,4 +148,50 @@ export class ProjectService {
       throw error;
     }
   }
+
+  /**
+   * Mettre à jour l'état d'une suggestion dans un message
+   */
+  async updateSuggestionStatus(projectId: string, messageId: string, suggestionId: string, status: 'accepted' | 'rejected') {
+    try {
+      // Récupérer le message avec ses suggestions
+      const message = await prisma.message.findFirst({
+        where: { 
+          id: messageId,
+          projectId 
+        }
+      });
+
+      if (!message || !message.suggestions) {
+        return null;
+      }
+
+      // Parser les suggestions
+      const suggestions = Array.isArray(message.suggestions) ? message.suggestions : [];
+      
+      // Trouver et mettre à jour la suggestion
+      const updatedSuggestions = suggestions.map((suggestion: any) => {
+        if (suggestion.id === suggestionId) {
+          return {
+            ...suggestion,
+            status: status
+          };
+        }
+        return suggestion;
+      });
+
+      // Mettre à jour le message avec les nouvelles suggestions
+      const updatedMessage = await prisma.message.update({
+        where: { id: messageId },
+        data: {
+          suggestions: updatedSuggestions
+        }
+      });
+
+      return updatedMessage;
+    } catch (error) {
+      console.error('Error in updateSuggestionStatus:', error);
+      throw error;
+    }
+  }
 }

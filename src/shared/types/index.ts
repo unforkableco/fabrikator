@@ -84,6 +84,16 @@ export interface MaterialType {
   };
 }
 
+export interface ProductReference {
+  name: string;
+  manufacturer: string;
+  purchaseUrl: string;
+  estimatedPrice: string;
+  supplier: string;
+  partNumber?: string;
+  datasheet?: string;
+}
+
 export interface Material {
   id: string;
   name?: string;
@@ -96,6 +106,7 @@ export interface Material {
   aiSuggested?: boolean;
   suggestedAlternatives?: SelectedPart[];
   status?: MaterialStatus;
+  productReference?: ProductReference;
   // New backend structure support
   projectId?: string;
   currentVersionId?: string;

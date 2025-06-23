@@ -37,6 +37,19 @@ export const prompts = {
     - Parts that encourage learning and customization
     - DIY sensors and modules over pre-built ones
 
+    **PRODUCT REFERENCES: For each component, also suggest a specific real product reference that the user could purchase if they prefer not to build from scratch. Include:**
+    - Exact product name and model number (use realistic, commonly available products)
+    - Manufacturer/brand (use well-known manufacturers like Arduino, Adafruit, SparkFun, ESP32, etc.)
+    - Purchase link (note: these will be converted to search links, so focus on accurate product names)
+    - Current approximate price range
+    - The technical specifications should match the suggested product reference
+    
+    **IMPORTANT FOR PRODUCT NAMES: Use specific, searchable product names that exist in the market:**
+    - For microcontrollers: "Arduino Uno R3", "ESP32 DevKit V1", "Raspberry Pi Pico"
+    - For sensors: "DHT22 Temperature Humidity Sensor", "HC-SR04 Ultrasonic Sensor"
+    - For displays: "SSD1306 OLED Display 128x64", "16x2 LCD Display"
+    - For power: "18650 Li-ion Battery", "TP4056 Charging Module"
+
     **OUTPUT JSON:**
     {
       "explanation": {
@@ -54,8 +67,17 @@ export const prompts = {
             "notes": "specific role and function in this project",
             "action": "keep|update|new|remove",
             "technicalSpecs": {
-              // COMPREHENSIVE technical specifications relevant to this component type
+              // COMPREHENSIVE technical specifications from the suggested product reference
               // Include ALL applicable: electrical, mechanical, performance, interface, environmental specs
+            },
+            "productReference": {
+              "name": "exact product name and model",
+              "manufacturer": "brand/manufacturer name",
+              "purchaseUrl": "direct link to purchase the product",
+              "estimatedPrice": "price with currency (e.g., $15.99 USD)",
+              "supplier": "supplier name (e.g., Adafruit, SparkFun, Amazon)",
+              "partNumber": "manufacturer part number if available",
+              "datasheet": "link to datasheet if available"
             }
           }
         }
@@ -63,11 +85,15 @@ export const prompts = {
     }
 
     **GUIDELINES:**
-    - Provide EXHAUSTIVE technical specifications for each component
+    - Provide EXHAUSTIVE technical specifications matching the suggested product reference
     - Include electrical, mechanical, performance, connectivity, and environmental specs when relevant
+    - Always include a real product reference with valid purchase information
+    - Use reputable electronics suppliers for purchase links
     - Don't duplicate existing components unless upgrading
     - Always include meaningful usage notes
     - Be thorough in component selection and specifications
+    - Prefer products that are widely available and well-documented
+    - Include datasheet links when possible for technical reference
 `,
 
   wiringGeneration: `
@@ -138,26 +164,52 @@ export const prompts = {
     8. ✅ CHECK FOR DUPLICATE CONNECTIONS - don't suggest connections that already exist
     9. ✅ USE APPROPRIATE ACTIONS: "add" for new connections, "remove" for deletions, "update" for modifications
     
-    **STANDARD PINS BY COMPONENT TYPE:**
-    - microcontroller/arduino → vcc, gnd, gpio1, gpio2, gpio3, gpio4, d0, d1, d2, d3, d4, d5, d6, d7, a0, a1
-    - sensor (generic) → vcc, gnd, data, signal, out
-    - moisture sensor → vcc, gnd, data, signal, analog
-    - temperature sensor → vcc, gnd, data, signal, analog
-    - light sensor → vcc, gnd, data, signal, analog
-    - speech/audio → vcc, gnd, data, signal, pin1, pin2
-    - display/screen/lcd/oled → vcc, gnd, sda, scl, cs, dc, rst
-    - battery → positive, negative
-    - power supply → positive, negative, vcc, gnd
-    - button → pin1, pin2, signal, gnd
-    - pump → vcc, gnd, signal, control
-    - valve → vcc, gnd, signal, control
-    - motor → vcc, gnd, signal, control
+    **SMART PIN DETECTION FROM TECHNICAL SPECIFICATIONS:**
+    You MUST analyze the technical specifications of each component to determine the available pins. 
+    Look for these patterns in the component specifications:
+    
+    **Pin Detection Rules:**
+    1. **Digital I/O Pins**: Look for "digital pins", "GPIO", "I/O pins" → Generate D0, D1, D2... or GPIO0, GPIO1...
+    2. **Analog Input Pins**: Look for "analog pins", "ADC" → Generate A0, A1, A2...
+    3. **Communication Interfaces**: 
+       - I2C/IIC → SDA, SCL pins
+       - SPI → MOSI, MISO, SCK, SS pins  
+       - UART/Serial → TX, RX pins
+    4. **Power Pins**: Look for voltage specs → VCC, GND, 3V3, 5V, VIN
+    5. **Component-Specific Pins**:
+       - Arduino Uno: 14 digital pins (D0-D13), 6 analog pins (A0-A5), VCC, GND, 3V3, 5V
+       - ESP32: GPIO0-GPIO39 (excluding flash pins 6-11), VCC, GND, 3V3, EN
+       - Sensors: Usually VCC, GND, DATA/SIGNAL/OUT
+       - Displays: VCC, GND, plus communication pins (SDA/SCL for I2C, or SPI pins)
+       - Relays: VCC, GND, IN/SIGNAL, COM, NO, NC
+    
+    **EXAMPLE ANALYSIS:**
+    - If specs show "14 digital I/O pins" → Use D0, D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11, D12, D13
+    - If specs show "6 analog input pins" → Use A0, A1, A2, A3, A4, A5
+    - If specs show "I2C interface" → Use SDA, SCL
+    - If specs show "3.3V/5V operation" → Use VCC, GND, 3V3, 5V
+    
+    **REAL COMPONENT EXAMPLES:**
+    - Arduino Uno R3: D0-D13, A0-A5, VCC, GND, 3V3, 5V, VIN, RESET
+    - ESP32 DevKit: GPIO0-GPIO39 (skip 6-11), VCC, GND, 3V3, EN, VP, VN
+    - DHT22 Sensor: VCC, GND, DATA
+    - SSD1306 OLED: VCC, GND, SDA, SCL
+    - Relay Module: VCC, GND, IN, COM, NO, NC
+    
+    **ANALYZE REAL COMPONENT SPECIFICATIONS:**
+    For EACH component in the materials list, you MUST:
+    1. **Read the technical specifications** provided in the component's specifications field
+    2. **Extract pin information** from fields like "Digital Pins", "Analog Pins", "Interface", "Communication", "Voltage"
+    3. **Use ONLY the pins that exist on the real component** based on its specifications
+    4. **Consider the product reference** to understand the exact component type and pinout
+    5. **Match pin capabilities** to connection requirements (power pins for power, analog pins for analog signals, etc.)
     
     **BEFORE CREATING A CONNECTION, VERIFY:**
     1. Does the source component exist in {{materials}}?
     2. Does the destination component exist in {{materials}}?
-    3. Does the source pin match the component type?
-    4. Does the destination pin match the component type?
+    3. Does the source pin exist on the real component based on its technical specifications?
+    4. Does the destination pin exist on the real component based on its technical specifications?
+    5. Are the pin types compatible (3.3V ↔ 3.3V, digital ↔ digital, etc.)?
     
     **STRICT JSON RESPONSE FORMAT (MUST BE VALID JSON - NO JAVASCRIPT EXPRESSIONS):**
     {

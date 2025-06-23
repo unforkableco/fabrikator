@@ -362,43 +362,74 @@ export class WiringService {
         }
         
         // VALIDATION CRITIQUE: Vérifier que les composants référencés existent
-        const fromComponentExists = simplifiedMaterials.find(m => m.id === connectionData.fromComponent);
-        const toComponentExists = simplifiedMaterials.find(m => m.id === connectionData.toComponent);
+        const fromComponentExists = materials.find(m => m.id === connectionData.fromComponent);
+        const toComponentExists = materials.find(m => m.id === connectionData.toComponent);
         
         if (!fromComponentExists || !toComponentExists) {
           console.error('❌ CONNEXION REJETÉE - Composants inexistants:', {
             fromComponent: connectionData.fromComponent,
             toComponent: connectionData.toComponent,
-            availableComponents: simplifiedMaterials.map(m => ({ id: m.id, name: m.name, type: m.type }))
+            availableComponents: materials.map(m => {
+              const specs = m.currentVersion?.specs as any || {};
+              return { id: m.id, name: specs.name || 'Unknown', type: specs.type || 'unknown' };
+            })
           });
           return null;
         }
 
-        // VALIDATION: Vérifier que les broches sont appropriées pour le type de composant
-        const validPins = this.getValidPinsForComponentType(fromComponentExists.type);
-        const validToPins = this.getValidPinsForComponentType(toComponentExists.type);
+        // VALIDATION: Vérifier que les broches sont appropriées basées sur les spécifications techniques
+        const validFromPins = this.getValidPinsForComponent(fromComponentExists);
+        const validToPins = this.getValidPinsForComponent(toComponentExists);
         
-        if (!validPins.includes(connectionData.fromPin) || !validToPins.includes(connectionData.toPin)) {
-          console.warn('⚠️ BROCHES INVALIDES - Connexion ajustée:', {
-            from: `${fromComponentExists.name}(${fromComponentExists.type}).${connectionData.fromPin}`,
-            to: `${toComponentExists.name}(${toComponentExists.type}).${connectionData.toPin}`,
-            validFromPins: validPins,
-            validToPins: validToPins
+        if (!validFromPins.includes(connectionData.fromPin) || !validToPins.includes(connectionData.toPin)) {
+          const fromSpecs = fromComponentExists.currentVersion?.specs as any || {};
+          const toSpecs = toComponentExists.currentVersion?.specs as any || {};
+          
+          console.warn('⚠️ BROCHES INVALIDES - Connexion ajustée (basée sur spécifications techniques):', {
+            from: `${fromSpecs.name || 'Unknown'}(${fromSpecs.type || 'Unknown'}).${connectionData.fromPin}`,
+            to: `${toSpecs.name || 'Unknown'}(${toSpecs.type || 'Unknown'}).${connectionData.toPin}`,
+            validFromPins: validFromPins,
+            validToPins: validToPins,
+            fromComponentSpecs: fromSpecs.requirements || {},
+            toComponentSpecs: toSpecs.requirements || {}
           });
           
-          // Ajuster les broches si nécessaire
-          if (!validPins.includes(connectionData.fromPin)) {
-            connectionData.fromPin = validPins[0] || 'pin1';
+          // Ajuster les broches si nécessaire en privilégiant les broches appropriées
+          if (!validFromPins.includes(connectionData.fromPin)) {
+            // Choisir une broche appropriée selon le type de connexion
+            if (connectionData.wireType === 'power') {
+              connectionData.fromPin = validFromPins.find(p => ['VCC', '5V', '3V3', 'POSITIVE', 'OUT+'].includes(p)) || validFromPins[0];
+            } else if (connectionData.wireType === 'ground') {
+              connectionData.fromPin = validFromPins.find(p => ['GND', 'NEGATIVE', 'OUT-'].includes(p)) || validFromPins[0];
+            } else {
+              connectionData.fromPin = validFromPins.find(p => !['VCC', 'GND', '5V', '3V3'].includes(p)) || validFromPins[0];
           }
+          }
+          
           if (!validToPins.includes(connectionData.toPin)) {
-            connectionData.toPin = validToPins[0] || 'pin1';
+            // Choisir une broche appropriée selon le type de connexion
+            if (connectionData.wireType === 'power') {
+              connectionData.toPin = validToPins.find(p => ['VCC', '5V', '3V3', 'POSITIVE'].includes(p)) || validToPins[0];
+            } else if (connectionData.wireType === 'ground') {
+              connectionData.toPin = validToPins.find(p => ['GND', 'NEGATIVE'].includes(p)) || validToPins[0];
+            } else {
+              connectionData.toPin = validToPins.find(p => !['VCC', 'GND', '5V', '3V3'].includes(p)) || validToPins[0];
+            }
           }
-        }
+          
+          console.log('🔧 BROCHES AJUSTÉES:', {
+            fromPin: connectionData.fromPin,
+            toPin: connectionData.toPin
+          });
+          }
+
+        const fromSpecs = fromComponentExists.currentVersion?.specs as any || {};
+        const toSpecs = toComponentExists.currentVersion?.specs as any || {};
 
         return {
           id: connectionData.id || `wiring-suggestion-${Date.now()}-${index}`,
-          title: suggestion.type || `${suggestion.action || 'add'} ${fromComponentExists.name} → ${toComponentExists.name}`,
-          description: suggestion.description || this.getActionDescription(suggestion.action, fromComponentExists.name, toComponentExists.name, connectionData.fromPin, connectionData.toPin),
+          title: suggestion.type || `${suggestion.action || 'add'} ${fromSpecs.name || 'Unknown'} → ${toSpecs.name || 'Unknown'}`,
+          description: suggestion.description || this.getActionDescription(suggestion.action, fromSpecs.name || 'Unknown', toSpecs.name || 'Unknown', connectionData.fromPin, connectionData.toPin),
           action: suggestion.action || 'add',
           connectionData: {
             ...connectionData,
@@ -439,39 +470,175 @@ export class WiringService {
   }
 
   /**
-   * Retourne les broches valides pour un type de composant donné
+   * Extrait les broches depuis les spécifications techniques d'un composant
+   */
+  private extractPinsFromTechnicalSpecs(component: any): string[] {
+    const specs = component.currentVersion?.specs || {};
+    const technicalSpecs = specs.requirements || {};
+    const productReference = specs.productReference || {};
+    
+    console.log(`🔍 Extracting pins for component: ${specs.type || component.type}`);
+    console.log(`📋 Technical specs:`, technicalSpecs);
+    
+    // Collecter toutes les broches mentionnées dans les spécifications
+    const pins: string[] = [];
+    
+    // 1. Chercher dans les spécifications techniques pour des mentions de broches/pins
+    Object.entries(technicalSpecs).forEach(([key, value]) => {
+      const keyLower = key.toLowerCase();
+      const valueStr = String(value).toLowerCase();
+      
+      // Broches communes
+      if (keyLower.includes('pin') || keyLower.includes('broche') || keyLower.includes('gpio')) {
+        // Extraire des patterns comme "14 digital pins", "6 analog pins"
+        const digitalPins = valueStr.match(/(\d+)\s*digital/i);
+        const analogPins = valueStr.match(/(\d+)\s*analog/i);
+        const gpioPins = valueStr.match(/(\d+)\s*gpio/i);
+        
+        if (digitalPins) {
+          const count = parseInt(digitalPins[1]);
+          // Pas de limitation artificielle - utiliser le vrai nombre de broches
+          for (let i = 0; i < Math.min(count, 60); i++) { // Limite raisonnable pour éviter les erreurs
+            pins.push(`D${i}`);
+          }
+        }
+        
+        if (analogPins) {
+          const count = parseInt(analogPins[1]);
+          // Pas de limitation artificielle - utiliser le vrai nombre de broches
+          for (let i = 0; i < Math.min(count, 20); i++) { // Limite raisonnable pour éviter les erreurs
+            pins.push(`A${i}`);
+          }
+        }
+        
+        if (gpioPins) {
+          const count = parseInt(gpioPins[1]);
+          // Pas de limitation artificielle - utiliser le vrai nombre de broches
+          for (let i = 0; i < Math.min(count, 40); i++) { // Limite raisonnable pour éviter les erreurs
+            pins.push(`GPIO${i}`);
+          }
+        }
+      }
+      
+      // Interfaces de communication
+      if (keyLower.includes('interface') || keyLower.includes('communication')) {
+        if (valueStr.includes('i2c') || valueStr.includes('iic')) {
+          pins.push('SDA', 'SCL');
+        }
+        if (valueStr.includes('spi')) {
+          pins.push('MOSI', 'MISO', 'SCK', 'SS');
+        }
+        if (valueStr.includes('uart') || valueStr.includes('serial')) {
+          pins.push('TX', 'RX');
+        }
+      }
+      
+      // Voltage et alimentation
+      if (keyLower.includes('voltage') || keyLower.includes('power') || keyLower.includes('supply')) {
+        pins.push('VCC', 'GND');
+        if (valueStr.includes('3.3v') || valueStr.includes('3v3')) {
+          pins.push('3V3');
+        }
+        if (valueStr.includes('5v')) {
+          pins.push('5V');
+        }
+      }
+    });
+    
+    // 2. Détecter le type de composant et ajouter des broches spécifiques
+    const componentType = (specs.type || component.type || '').toLowerCase();
+    
+    if (componentType.includes('arduino') || componentType.includes('microcontroller')) {
+      // Arduino pinout - détecter le modèle pour ajuster les broches
+      pins.push('VCC', 'GND', '3V3', '5V', 'VIN', 'RESET');
+      
+      if (componentType.includes('mega') || technicalSpecs['Digital I/O Pins']?.toString().includes('54')) {
+        // Arduino Mega - 54 broches numériques, 16 analogiques
+        if (!pins.some(p => p.startsWith('D'))) {
+          for (let i = 0; i <= 53; i++) pins.push(`D${i}`);
+        }
+        if (!pins.some(p => p.startsWith('A'))) {
+          for (let i = 0; i <= 15; i++) pins.push(`A${i}`);
+        }
+      } else {
+        // Arduino Uno/Nano standard - 14 broches numériques, 6 analogiques
+        if (!pins.some(p => p.startsWith('D'))) {
+          for (let i = 0; i <= 13; i++) pins.push(`D${i}`);
+        }
+        if (!pins.some(p => p.startsWith('A'))) {
+          for (let i = 0; i <= 5; i++) pins.push(`A${i}`);
+        }
+      }
+    } else if (componentType.includes('esp32')) {
+      // ESP32 specific pins - Utiliser les vraies broches disponibles
+      pins.push('VCC', 'GND', '3V3', 'EN', 'VP', 'VN');
+      // ESP32 a 36 GPIO (0-39 mais certaines sont réservées)
+      const esp32Pins = [0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39];
+      esp32Pins.forEach(i => pins.push(`GPIO${i}`));
+      // Ajouter aussi les broches analogiques spécifiques
+      [36, 39, 34, 35, 32, 33, 25, 26, 27, 14, 12, 13, 4, 0, 2, 15].forEach(i => pins.push(`A${esp32Pins.indexOf(i) >= 0 ? esp32Pins.indexOf(i) : i}`));
+    } else if (componentType.includes('esp8266')) {
+      pins.push('VCC', 'GND', '3V3', 'RST', 'CH_PD', 'A0');
+      // ESP8266 broches utilisables
+      [0, 2, 4, 5, 12, 13, 14, 15, 16].forEach(i => pins.push(`GPIO${i}`));
+    } else if (componentType.includes('sensor')) {
+      // Capteurs génériques
+      pins.push('VCC', 'GND', 'DATA', 'SIGNAL', 'OUT');
+      if (componentType.includes('analog') || componentType.includes('analogue')) {
+        pins.push('AOUT', 'ANALOG');
+      }
+      if (componentType.includes('digital')) {
+        pins.push('DOUT', 'DIGITAL');
+      }
+    } else if (componentType.includes('display') || componentType.includes('lcd') || componentType.includes('oled')) {
+      pins.push('VCC', 'GND', 'SDA', 'SCL', 'CS', 'DC', 'RST', 'MOSI', 'SCK');
+    } else if (componentType.includes('relay')) {
+      pins.push('VCC', 'GND', 'IN', 'SIGNAL', 'COM', 'NO', 'NC');
+    } else if (componentType.includes('motor') || componentType.includes('servo')) {
+      pins.push('VCC', 'GND', 'SIGNAL', 'PWM', 'DIR1', 'DIR2');
+    } else if (componentType.includes('battery') || componentType.includes('power')) {
+      pins.push('POSITIVE', 'NEGATIVE', 'VCC', 'GND', 'OUT+', 'OUT-');
+    }
+    
+    // 3. Si aucune broche n'a été trouvée, utiliser des broches génériques
+    if (pins.length === 0) {
+      pins.push('VCC', 'GND', 'SIGNAL', 'DATA');
+    }
+    
+    // 4. Retourner les broches uniques, triées
+    const uniquePins = [...new Set(pins)];
+    console.log(`📌 Extracted pins for ${specs.type || component.type}:`, uniquePins);
+    return uniquePins.sort();
+  }
+
+  /**
+   * Retourne les broches valides pour un composant donné (basé sur ses spécifications techniques)
+   */
+  private getValidPinsForComponent(component: any): string[] {
+    // Utiliser les spécifications techniques réelles du composant
+    return this.extractPinsFromTechnicalSpecs(component);
+  }
+
+  /**
+   * DEPRECATED: Ancienne fonction gardée pour compatibilité
+   * Utiliser getValidPinsForComponent() à la place
    */
   private getValidPinsForComponentType(componentType: string): string[] {
+    console.warn('getValidPinsForComponentType() is deprecated. Use getValidPinsForComponent() instead.');
+    
     const type = componentType?.toLowerCase() || '';
     
     if (type.includes('microcontroller') || type.includes('arduino')) {
-      return ['vcc', 'gnd', 'gpio1', 'gpio2', 'gpio3', 'gpio4', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'a0', 'a1'];
-    } else if (type.includes('sensor') || type.includes('capteur')) {
-      return ['vcc', 'gnd', 'data', 'signal', 'out'];
-    } else if (type.includes('moisture') || type.includes('humidité') || type.includes('water')) {
-      return ['vcc', 'gnd', 'data', 'signal', 'analog'];
-    } else if (type.includes('temperature') || type.includes('temp')) {
-      return ['vcc', 'gnd', 'data', 'signal', 'analog'];
-    } else if (type.includes('light') || type.includes('photo') || type.includes('ldr')) {
-      return ['vcc', 'gnd', 'data', 'signal', 'analog'];
-    } else if (type.includes('speech') || type.includes('audio') || type.includes('speaker')) {
-      return ['vcc', 'gnd', 'data', 'signal', 'pin1', 'pin2'];
-    } else if (type.includes('display') || type.includes('écran') || type.includes('lcd') || type.includes('oled')) {
-      return ['vcc', 'gnd', 'sda', 'scl', 'cs', 'dc', 'rst'];
-    } else if (type.includes('battery') || type.includes('batterie')) {
-      return ['positive', 'negative'];
-    } else if (type.includes('power') || type.includes('supply') || type.includes('alimentation')) {
-      return ['positive', 'negative', 'vcc', 'gnd'];
-    } else if (type.includes('button') || type.includes('bouton')) {
-      return ['pin1', 'pin2', 'signal', 'gnd'];
-    } else if (type.includes('pump') || type.includes('pompe')) {
-      return ['vcc', 'gnd', 'signal', 'control'];
-    } else if (type.includes('valve')) {
-      return ['vcc', 'gnd', 'signal', 'control'];
+      return ['VCC', 'GND', 'D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'A0', 'A1'];
+    } else if (type.includes('sensor')) {
+      return ['VCC', 'GND', 'DATA', 'SIGNAL', 'OUT'];
+    } else if (type.includes('display')) {
+      return ['VCC', 'GND', 'SDA', 'SCL', 'CS', 'DC', 'RST'];
+    } else if (type.includes('relay')) {
+      return ['VCC', 'GND', 'IN', 'COM', 'NO', 'NC'];
     }
     
-    // Par défaut pour composants génériques
-    return ['pin1', 'pin2', 'vcc', 'gnd'];
+    return ['VCC', 'GND', 'SIGNAL', 'DATA'];
   }
 
   /**

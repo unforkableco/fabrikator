@@ -46,10 +46,43 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
   };
 
   const getPinName = (componentId: string, pinId: string): string => {
-    const component = components.find(c => c.id === componentId);
-    const pin = component?.pins.find(p => p.id === pinId);
-    console.log('Looking for pin:', pinId, 'in component:', component, 'found pin:', pin);
-    return pin?.name || 'Unknown Pin';
+    // D'abord essayer de trouver le composant par ID exact
+    let component = components.find(c => c.id === componentId);
+    
+    // Si pas trouvé, essayer de trouver par nom (cas où l'ID est un ID de matériau)
+    if (!component) {
+      component = components.find(c => c.name.toLowerCase().includes(componentId.toLowerCase()) || 
+                                      componentId.toLowerCase().includes(c.name.toLowerCase()));
+    }
+    
+    if (!component) {
+      console.log('Component not found for ID:', componentId, 'Available components:', components.map(c => ({ id: c.id, name: c.name })));
+      return 'Unknown Component Pin';
+    }
+    
+    // Chercher la broche par ID exact
+    let pin = component.pins.find(p => p.id === pinId);
+    
+    // Si pas trouvé, chercher par nom
+    if (!pin) {
+      pin = component.pins.find(p => p.name === pinId);
+    }
+    
+    // Si toujours pas trouvé, chercher par correspondance partielle
+    if (!pin) {
+      const pinIdLower = pinId.toLowerCase();
+      pin = component.pins.find(p => 
+        p.id.toLowerCase() === pinIdLower || 
+        p.name.toLowerCase() === pinIdLower ||
+        p.id.toLowerCase().includes(pinIdLower) ||
+        p.name.toLowerCase().includes(pinIdLower) ||
+        pinIdLower.includes(p.id.toLowerCase()) ||
+        pinIdLower.includes(p.name.toLowerCase())
+      );
+    }
+    
+    console.log('Looking for pin:', pinId, 'in component:', component.name, 'found pin:', pin);
+    return pin?.name || pin?.id || pinId; // Retourner le nom original si pas trouvé
   };
 
   const getWireTypeColor = (wireType: WiringConnection['wireType']): string => {

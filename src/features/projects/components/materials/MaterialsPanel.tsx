@@ -72,20 +72,27 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     loadChatMessages();
   }, [projectId, loadChatMessages]);
 
-  // Sauvegarder un message dans la BD
-  const saveChatMessage = async (message: ChatMessage) => {
-    if (!projectId) return;
+  // Sauvegarder un message dans la BD et retourner le message avec son vrai ID
+  const saveChatMessage = async (message: ChatMessage): Promise<ChatMessage | null> => {
+    if (!projectId) return null;
     
     try {
-      await api.projects.sendChatMessage(projectId, {
+      const savedMessage = await api.projects.sendChatMessage(projectId, {
         context: 'materials',
         content: message.content,
         sender: message.sender,
         mode: message.mode,
         suggestions: message.suggestions || null
       });
+      
+      // Retourner le message avec l'ID de la BD et les autres données originales
+      return {
+        ...message,
+        id: savedMessage.id // Utiliser l'ID de la BD
+      };
     } catch (error) {
       console.error('Error saving chat message:', error);
+      return null;
     }
   };
 
@@ -131,10 +138,16 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       mode,
     };
 
-          setMessages(prev => [...prev, userMessage]);
-      
-      // Sauvegarder le message utilisateur dans la BD
-      await saveChatMessage(userMessage);
+              setMessages(prev => [...prev, userMessage]);
+    
+    // Sauvegarder le message utilisateur dans la BD et récupérer l'ID réel
+    const savedUserMessage = await saveChatMessage(userMessage);
+    if (savedUserMessage) {
+      // Mettre à jour le message avec l'ID de la BD
+      setMessages(prev => prev.map(msg => 
+        msg.id === userMessage.id ? savedUserMessage : msg
+      ));
+    }
       
       setIsGenerating(true);
 
@@ -226,12 +239,14 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           code: suggestion.details?.code || '',
           action: suggestion.action === 'new' ? 'add' : 
                  suggestion.action === 'update' ? 'modify' : 'remove',
-          expanded: false
+          expanded: false,
+          // Stocker les données originales de la suggestion dans le champ code
+          originalData: JSON.stringify(suggestion)
         }));
         
         // Ne plus afficher le diff séparé car les suggestions sont dans le message
         setShowSuggestionDiff(false);
-        setPendingSuggestions([]);
+        // Ne pas vider pendingSuggestions ici pour pouvoir les réutiliser
       }
 
       // Ajouter la réponse de l'IA avec les suggestions intégrées
@@ -246,8 +261,14 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
 
       setMessages(prev => [...prev, aiMessage]);
       
-      // Sauvegarder le message IA dans la BD
-      await saveChatMessage(aiMessage);
+      // Sauvegarder le message IA dans la BD et récupérer l'ID réel
+      const savedAiMessage = await saveChatMessage(aiMessage);
+      if (savedAiMessage) {
+        // Mettre à jour le message avec l'ID de la BD
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessage.id ? savedAiMessage : msg
+        ));
+      }
     } catch (error) {
       console.error('Error sending chat message:', error);
       
@@ -263,7 +284,13 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       setMessages(prev => [...prev, errorMessage]);
       
       // Sauvegarder le message d'erreur dans la BD
-      await saveChatMessage(errorMessage);
+      const savedErrorMessage = await saveChatMessage(errorMessage);
+      if (savedErrorMessage) {
+        // Mettre à jour le message avec l'ID de la BD
+        setMessages(prev => prev.map(msg => 
+          msg.id === errorMessage.id ? savedErrorMessage : msg
+        ));
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -296,10 +323,15 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           mode: 'agent',
         };
         
-        setMessages(prev => [...prev, confirmMessage]);
-        
-        // Sauvegarder le message de confirmation dans la BD
-        await saveChatMessage(confirmMessage);
+              setMessages(prev => [...prev, confirmMessage]);
+      
+      // Sauvegarder le message de confirmation dans la BD
+      const savedConfirmMessage = await saveChatMessage(confirmMessage);
+      if (savedConfirmMessage) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === confirmMessage.id ? savedConfirmMessage : msg
+        ));
+      }
         
         // Rafraîchir la liste des matériaux
         if (onMaterialsUpdated) {
@@ -357,10 +389,15 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       mode: 'agent',
     };
     
-          setMessages(prev => [...prev, stopMessage]);
-      
-      // Sauvegarder le message d'arrêt dans la BD
-      await saveChatMessage(stopMessage);
+              setMessages(prev => [...prev, stopMessage]);
+    
+    // Sauvegarder le message d'arrêt dans la BD
+    const savedStopMessage = await saveChatMessage(stopMessage);
+    if (savedStopMessage) {
+      setMessages(prev => prev.map(msg => 
+        msg.id === stopMessage.id ? savedStopMessage : msg
+      ));
+    }
   };
 
   const handleAcceptSuggestion = async (messageId: string, suggestionId: string) => {
@@ -375,13 +412,32 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       
       if (!suggestion) return;
       
-      // Simuler l'application de la suggestion
-      // TODO: Implémenter l'application réelle selon votre logique métier
+      // Récupérer les données de la suggestion originale
+      let originalSuggestion;
+      
+      if (suggestion.originalData) {
+        // Utiliser les données stockées dans la suggestion
+        originalSuggestion = JSON.parse(suggestion.originalData);
+      } else {
+        // Fallback: chercher dans pendingSuggestions
+        originalSuggestion = pendingSuggestions.find(s => s.type === suggestion.title);
+      }
+      
+      if (!originalSuggestion) {
+        throw new Error('Données de suggestion originale non trouvées');
+      }
+      
+      console.log('Adding material from suggestion:', originalSuggestion);
+      
+      // Ajouter le matériau directement via l'API (sans appel IA)
+      const addedMaterial = await api.projects.addMaterialFromSuggestion(projectId, originalSuggestion);
+      
+      console.log('Material added successfully:', addedMaterial);
       
       // Ajouter un message de confirmation
       const confirmMessage: ChatMessage = {
         id: Date.now().toString(),
-        content: `✅ Suggestion accepted: "${suggestion.title}" has been applied to your project.`,
+        content: `✅ Suggestion acceptée : "${suggestion.title}" a été ajouté à votre projet sans nouvel appel IA.`,
         sender: 'ai',
         timestamp: new Date(),
         mode: 'agent',
@@ -389,7 +445,10 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       
       setMessages(prev => [...prev, confirmMessage]);
       
-      // Rafraîchir la liste des matériaux si nécessaire
+      // Sauvegarder le message de confirmation
+      await saveChatMessage(confirmMessage);
+      
+      // Rafraîchir la liste des matériaux
       if (onMaterialsUpdated) {
         onMaterialsUpdated();
       }
@@ -399,13 +458,19 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       
       const errorMessage: ChatMessage = {
         id: Date.now().toString(),
-        content: `❌ Erreur lors de l'application de la suggestion : ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
+        content: `❌ Erreur lors de l'ajout du matériau : ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
         sender: 'ai',
         timestamp: new Date(),
         mode: 'agent',
       };
       
       setMessages(prev => [...prev, errorMessage]);
+      const savedErrorMessage2 = await saveChatMessage(errorMessage);
+      if (savedErrorMessage2) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === errorMessage.id ? savedErrorMessage2 : msg
+        ));
+      }
     } finally {
       setIsGenerating(false);
     }

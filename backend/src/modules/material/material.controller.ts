@@ -32,6 +32,7 @@ export class MaterialController {
           description: specs.description,
           status: specs.status,
           requirements: specs.requirements || {}, // Maintenant contient seulement les spécifications techniques
+          productReference: specs.productReference || null,
           aiSuggested: specs.createdBy === 'AI'
         };
       });
@@ -94,6 +95,7 @@ export class MaterialController {
         description: specs.description,
         status: specs.status,
         requirements: specs.requirements || {},
+        productReference: specs.productReference || null,
         aiSuggested: specs.createdBy === 'AI'
       };
       
@@ -131,6 +133,7 @@ export class MaterialController {
             description: specs.description,
             status: specs.status,
             requirements: specs.requirements || {},
+            productReference: specs.productReference || null,
             aiSuggested: specs.createdBy === 'AI'
           };
           res.json({ ...result, component: transformedMaterial });
@@ -206,6 +209,7 @@ export class MaterialController {
             description: component.details?.notes || component.notes || '',
             quantity: component.details?.quantity || 1,
             requirements: component.details?.technicalSpecs || {},
+            productReference: component.details?.productReference || null,
             status: 'suggested',
             createdBy: 'AI'
           };
@@ -226,6 +230,7 @@ export class MaterialController {
               description: component.details?.notes || '',
               quantity: component.details?.quantity || 1,
               requirements: component.details?.technicalSpecs || {},
+              productReference: component.details?.productReference || null,
               status: 'suggested',
               createdBy: 'AI'
             };
@@ -310,6 +315,57 @@ export class MaterialController {
     } catch (error) {
       console.error('Error previewing material suggestions:', error);
       res.status(500).json({ error: 'Failed to preview material suggestions' });
+    }
+  }
+
+  /**
+   * Ajoute un matériau directement depuis une suggestion (sans appel IA)
+   */
+  async addMaterialFromSuggestion(req: Request, res: Response) {
+    try {
+      const { projectId } = req.params;
+      const { suggestion } = req.body;
+      
+      console.log('Adding material from suggestion:', { projectId, suggestion });
+      
+      if (!suggestion || !suggestion.details) {
+        return res.status(400).json({ error: 'Invalid suggestion data' });
+      }
+      
+      // Créer le matériau directement depuis la suggestion
+      const materialData = {
+        name: suggestion.type || suggestion.title,
+        type: suggestion.type || suggestion.title,
+        description: suggestion.details.notes || suggestion.description || '',
+        quantity: suggestion.details.quantity || 1,
+        requirements: suggestion.details.technicalSpecs || {},
+        productReference: suggestion.details.productReference || null,
+        status: 'suggested',
+        createdBy: 'AI'
+      };
+      
+      console.log('Creating material with data:', materialData);
+      
+      const result = await this.materialService.createMaterial(projectId, materialData);
+      
+      // Transformer le résultat pour le frontend
+      const specs = result.component?.currentVersion?.specs as any || {};
+      const transformedMaterial = {
+        ...result.component,
+        name: specs.name,
+        type: specs.type,
+        quantity: specs.quantity,
+        description: specs.description,
+        status: specs.status,
+        requirements: specs.requirements || {},
+        productReference: specs.productReference || null,
+        aiSuggested: specs.createdBy === 'AI'
+      };
+      
+      res.status(201).json(transformedMaterial);
+    } catch (error) {
+      console.error('Error adding material from suggestion:', error);
+      res.status(500).json({ error: 'Failed to add material from suggestion' });
     }
   }
 }

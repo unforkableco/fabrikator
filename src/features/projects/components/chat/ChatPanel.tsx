@@ -23,6 +23,7 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { TypingAnimation } from './';
+import api from '../../../../shared/services/api';
 
 interface ChatMessage {
   id: string;
@@ -42,6 +43,7 @@ interface BaseSuggestion {
   action: 'add' | 'modify' | 'remove';
   expanded: boolean;
   status?: 'pending' | 'accepted' | 'rejected';
+  originalData?: string; // Données JSON de la suggestion originale
 }
 
 interface ChatPanelProps {
@@ -71,36 +73,46 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [suggestionStates, setSuggestionStates] = useState<{[key: string]: 'accepted' | 'rejected'}>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Charger les états depuis localStorage au démarrage - VERSION CORRIGÉE
+  // Charger les états depuis les messages (base de données) au démarrage
   useEffect(() => {
     try {
+      // Extraire les états des suggestions depuis les messages de la BD
+      const statesFromDB: {[key: string]: 'accepted' | 'rejected'} = {};
+      
+      messages.forEach(message => {
+        if (message.suggestions) {
+          message.suggestions.forEach(suggestion => {
+            if (suggestion.status && ['accepted', 'rejected'].includes(suggestion.status)) {
+              statesFromDB[suggestion.id] = suggestion.status as 'accepted' | 'rejected';
+            }
+          });
+        }
+      });
+      
+      // Charger aussi depuis localStorage pour les états non persistés encore
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsedStates = JSON.parse(saved);
-        // CORRECTION: Nettoyer les états anciens et ne garder que ceux des messages actuels
-        const currentMessageIds = messages.map(m => m.id);
         const currentSuggestionIds = messages.flatMap(m => m.suggestions?.map(s => s.id) || []);
         
-        const filteredStates: {[key: string]: 'accepted' | 'rejected'} = {};
         Object.entries(parsedStates).forEach(([suggestionId, state]) => {
-          // Garder seulement les suggestions qui appartiennent aux messages actuels
-          if (currentSuggestionIds.includes(suggestionId)) {
-            filteredStates[suggestionId] = state as 'accepted' | 'rejected';
+          // Ajouter seulement si pas déjà dans la BD et si la suggestion existe encore
+          if (!statesFromDB[suggestionId] && currentSuggestionIds.includes(suggestionId)) {
+            statesFromDB[suggestionId] = state as 'accepted' | 'rejected';
           }
         });
-        
-        setSuggestionStates(filteredStates);
-        
-        // Sauvegarder la version nettoyée
-        localStorage.setItem(storageKey, JSON.stringify(filteredStates));
       }
+      
+      setSuggestionStates(statesFromDB);
+      
+      // Nettoyer le localStorage - les états sont maintenant en BD
+      localStorage.setItem(storageKey, JSON.stringify(statesFromDB));
+      
     } catch (error) {
       console.warn('Error loading suggestion states:', error);
-      // En cas d'erreur, nettoyer le localStorage
-      localStorage.removeItem(storageKey);
       setSuggestionStates({});
     }
-  }, [messages, storageKey]); // CORRECTION: Dépendre des messages pour nettoyer automatiquement
+  }, [messages, storageKey]);
 
   // Nettoyer le localStorage quand on change de projet
   useEffect(() => {
@@ -132,28 +144,48 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
-  const handleAcceptSuggestion = (messageId: string, suggestionId: string) => {
-    // Marquer la suggestion comme acceptée visuellement
-    const newStates = {
-      ...suggestionStates,
-      [suggestionId]: 'accepted' as const
-    };
-    setSuggestionStates(newStates);
-    localStorage.setItem(storageKey, JSON.stringify(newStates));
-    // Appeler la fonction parent
-    onAcceptSuggestion(messageId, suggestionId);
+  const handleAcceptSuggestion = async (messageId: string, suggestionId: string) => {
+    if (!projectId) return;
+    
+    try {
+      // Mettre à jour l'état dans la base de données
+      await api.projects.updateSuggestionStatus(projectId, messageId, suggestionId, 'accepted');
+      
+      // Marquer la suggestion comme acceptée visuellement
+      const newStates = {
+        ...suggestionStates,
+        [suggestionId]: 'accepted' as const
+      };
+      setSuggestionStates(newStates);
+      localStorage.setItem(storageKey, JSON.stringify(newStates));
+      
+      // Appeler la fonction parent
+      onAcceptSuggestion(messageId, suggestionId);
+    } catch (error) {
+      console.error('Error updating suggestion status:', error);
+    }
   };
 
-  const handleRejectSuggestion = (messageId: string, suggestionId: string) => {
-    // Marquer la suggestion comme refusée visuellement
-    const newStates = {
-      ...suggestionStates,
-      [suggestionId]: 'rejected' as const
-    };
-    setSuggestionStates(newStates);
-    localStorage.setItem(storageKey, JSON.stringify(newStates));
-    // Appeler la fonction parent
-    onRejectSuggestion(messageId, suggestionId);
+  const handleRejectSuggestion = async (messageId: string, suggestionId: string) => {
+    if (!projectId) return;
+    
+    try {
+      // Mettre à jour l'état dans la base de données
+      await api.projects.updateSuggestionStatus(projectId, messageId, suggestionId, 'rejected');
+      
+      // Marquer la suggestion comme refusée visuellement
+      const newStates = {
+        ...suggestionStates,
+        [suggestionId]: 'rejected' as const
+      };
+      setSuggestionStates(newStates);
+      localStorage.setItem(storageKey, JSON.stringify(newStates));
+      
+      // Appeler la fonction parent
+      onRejectSuggestion(messageId, suggestionId);
+    } catch (error) {
+      console.error('Error updating suggestion status:', error);
+    }
   };
 
   const renderSuggestion = (suggestion: BaseSuggestion, messageId: string) => {

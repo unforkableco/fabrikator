@@ -3,7 +3,7 @@ import { Box, Typography, Button, Card, Divider } from '@mui/material';
 import CableIcon from '@mui/icons-material/Cable';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
-import { WiringDiagram, WiringConnection, WiringComponent, WiringSuggestion } from '../../../../shared/types';
+import { WiringDiagram, WiringConnection, WiringComponent, WiringPin, WiringSuggestion } from '../../../../shared/types';
 import { api } from '../../../../shared/services/api';
 import { useWiring } from '../../hooks/useWiring';
 import { ChatPanel, ChatMessage } from '../chat';
@@ -289,11 +289,38 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
 
   // Fonction pour suggérer un circuit optimal automatiquement
   const handleSuggestOptimalCircuit = async () => {
-    if (!projectId) return;
+    try {
+      setIsGenerating(true);
     
-    // Envoyer automatiquement le prompt pour un circuit optimal
-    // IMPORTANT: Ne pas appliquer automatiquement, juste générer les suggestions
-    await handleSendChatMessage("Suggest me an optimal circuit", 'agent');
+      // Créer un diagramme avec TOUS les composants disponibles si pas de diagramme existant
+      if (!diagram) {
+        const allComponents: WiringComponent[] = [];
+        materials.forEach((material, index) => {
+          const component = createComponentFromMaterial(material, index);
+          allComponents.push(component);
+        });
+        
+        const newDiagram = {
+          id: `diagram-${Date.now()}`,
+          components: allComponents,
+          connections: [],
+          metadata: {
+            title: 'Circuit Optimal',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            version: 1
+          }
+        };
+        setDiagram(newDiagram);
+      }
+      
+      // Envoyer la demande de circuit optimal
+      await handleSendChatMessage('Suggest me an optimal circuit', 'agent');
+    } catch (error) {
+      console.error('Error suggesting optimal circuit:', error);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleAcceptSuggestion = async (messageId: string, suggestionId: string) => {
@@ -357,31 +384,18 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
 
     // CORRECTION: Créer un diagramme uniquement si nécessaire
     if (!currentDiagram && suggestion.connectionData) {
-      console.log('Creating initial diagram with required components only');
-      const requiredComponents: WiringComponent[] = [];
-      const requiredMaterialIds = new Set<string>();
+      console.log('Creating initial diagram with ALL available components');
+      const allComponents: WiringComponent[] = [];
       
-      // Identifier les matériaux nécessaires pour cette connexion
-      if (suggestion.connectionData.fromComponent) {
-        requiredMaterialIds.add(suggestion.connectionData.fromComponent);
-      }
-      if (suggestion.connectionData.toComponent) {
-        requiredMaterialIds.add(suggestion.connectionData.toComponent);
-      }
-      
-      // Créer seulement les composants nécessaires
-      let componentIndex = 0;
-      materials.forEach((material) => {
-        if (requiredMaterialIds.has(material.id)) {
-          const component = createComponentFromMaterial(material, componentIndex);
-          requiredComponents.push(component);
-          componentIndex++;
-        }
+      // Créer des composants pour TOUS les matériaux disponibles
+      materials.forEach((material, index) => {
+        const component = createComponentFromMaterial(material, index);
+        allComponents.push(component);
       });
       
       currentDiagram = {
         id: `diagram-${Date.now()}`,
-        components: requiredComponents,
+        components: allComponents,
         connections: [],
         metadata: {
           title: 'Circuit Optimal',
@@ -391,7 +405,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         }
       };
       
-      console.log('Initial diagram created with required components only:', requiredComponents.length);
+      console.log('Initial diagram created with ALL available components:', allComponents.length);
     }
 
     // Appliquer la suggestion selon son type
@@ -611,69 +625,234 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     onWiringUpdated?.();
   };
 
-  // Helper function to create component from material with better pin positioning
+  /**
+   * Extrait les broches depuis les spécifications techniques d'un matériau
+   */
+  const extractPinsFromTechnicalSpecs = (material: any): WiringPin[] => {
+    const specs = material.currentVersion?.specs || {};
+    const technicalSpecs = specs.requirements || {};
+    const productReference = specs.productReference || {};
+    
+    const pins: WiringPin[] = [];
+    const componentType = (specs.type || material.type || '').toLowerCase();
+    
+    console.log('🔧 WiringPanel - Extracting pins from technical specs:', {
+      materialName: specs.name || material.name,
+      componentType,
+      technicalSpecs,
+      productReference: productReference.name
+    });
+    
+    // 1. Analyser les spécifications techniques pour extraire les informations de broches
+    Object.entries(technicalSpecs).forEach(([key, value]) => {
+      const keyLower = key.toLowerCase();
+      const valueStr = String(value).toLowerCase();
+      
+      // Chercher des patterns de broches dans les spécifications
+      if (keyLower.includes('pin') || keyLower.includes('broche') || keyLower.includes('gpio')) {
+        const digitalPins = valueStr.match(/(\d+)\s*digital/i);
+        const analogPins = valueStr.match(/(\d+)\s*analog/i);
+        const gpioPins = valueStr.match(/(\d+)\s*gpio/i);
+        
+        if (digitalPins) {
+          const count = parseInt(digitalPins[1]);
+          for (let i = 0; i < Math.min(count, 14); i++) {
+            pins.push({
+              id: `d${i}`,
+              name: `D${i}`,
+              type: 'digital',
+              position: { x: i < 7 ? -60 : 60, y: -40 + (i % 7) * 12 },
+              connected: false
+            });
+          }
+        }
+        
+        if (analogPins) {
+          const count = parseInt(analogPins[1]);
+          for (let i = 0; i < Math.min(count, 8); i++) {
+            pins.push({
+              id: `a${i}`,
+              name: `A${i}`,
+              type: 'analog',
+              position: { x: 0, y: -40 + i * 10 },
+              connected: false
+            });
+          }
+        }
+        
+        if (gpioPins) {
+          const count = parseInt(gpioPins[1]);
+          for (let i = 0; i < Math.min(count, 10); i++) {
+            pins.push({
+              id: `gpio${i}`,
+              name: `GPIO${i}`,
+              type: 'digital',
+              position: { x: i < 5 ? -50 : 50, y: -30 + (i % 5) * 15 },
+              connected: false
+            });
+          }
+        }
+      }
+      
+      // Interfaces de communication
+      if (keyLower.includes('interface') || keyLower.includes('communication')) {
+        if (valueStr.includes('i2c') || valueStr.includes('iic')) {
+          pins.push(
+        { id: 'sda', name: 'SDA', type: 'digital', position: { x: 40, y: -20 }, connected: false },
+        { id: 'scl', name: 'SCL', type: 'digital', position: { x: 40, y: 20 }, connected: false }
+          );
+        }
+        if (valueStr.includes('spi')) {
+          pins.push(
+            { id: 'mosi', name: 'MOSI', type: 'digital', position: { x: 40, y: -30 }, connected: false },
+            { id: 'miso', name: 'MISO', type: 'digital', position: { x: 40, y: -10 }, connected: false },
+            { id: 'sck', name: 'SCK', type: 'digital', position: { x: 40, y: 10 }, connected: false },
+            { id: 'ss', name: 'SS', type: 'digital', position: { x: 40, y: 30 }, connected: false }
+          );
+        }
+        if (valueStr.includes('uart') || valueStr.includes('serial')) {
+          pins.push(
+            { id: 'tx', name: 'TX', type: 'digital', position: { x: 40, y: -15 }, connected: false },
+            { id: 'rx', name: 'RX', type: 'digital', position: { x: 40, y: 15 }, connected: false }
+          );
+        }
+      }
+      
+      // Voltage et alimentation
+      if (keyLower.includes('voltage') || keyLower.includes('power') || keyLower.includes('supply')) {
+        const voltage3v3 = valueStr.includes('3.3v') || valueStr.includes('3v3');
+        const voltage5v = valueStr.includes('5v');
+        
+        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -25 }, connected: false, voltage: voltage3v3 ? 3.3 : 5.0 });
+        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 25 }, connected: false });
+        
+        if (voltage3v3) {
+          pins.push({ id: '3v3', name: '3V3', type: 'power', position: { x: -40, y: -10 }, connected: false, voltage: 3.3 });
+        }
+        if (voltage5v) {
+          pins.push({ id: '5v', name: '5V', type: 'power', position: { x: -40, y: 5 }, connected: false, voltage: 5.0 });
+        }
+      }
+    });
+    
+    // 2. Générer des broches spécifiques basées sur le type de composant et références produit
+    if (componentType.includes('arduino') || productReference.name?.toLowerCase().includes('arduino')) {
+      // Arduino Uno R3 standard pinout
+      if (!pins.some(p => p.name.startsWith('D'))) {
+        for (let i = 0; i <= 13; i++) {
+          pins.push({
+            id: `d${i}`,
+            name: `D${i}`,
+            type: 'digital',
+            position: { x: i < 7 ? -60 : 60, y: -40 + (i % 7) * 12 },
+            connected: false
+          });
+        }
+      }
+      if (!pins.some(p => p.name.startsWith('A'))) {
+        for (let i = 0; i <= 5; i++) {
+          pins.push({
+            id: `a${i}`,
+            name: `A${i}`,
+            type: 'analog',
+            position: { x: 0, y: -30 + i * 10 },
+            connected: false
+          });
+        }
+      }
+      // Broches d'alimentation et contrôle
+      if (!pins.some(p => p.id === 'vcc')) {
+        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -25 }, connected: false, voltage: 5.0 });
+        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 25 }, connected: false });
+        pins.push({ id: '3v3', name: '3V3', type: 'power', position: { x: -40, y: -10 }, connected: false, voltage: 3.3 });
+        pins.push({ id: 'reset', name: 'RESET', type: 'digital', position: { x: -40, y: 5 }, connected: false });
+      }
+    } else if (componentType.includes('esp32') || productReference.name?.toLowerCase().includes('esp32')) {
+      // ESP32 specific pinout
+      if (!pins.some(p => p.name.startsWith('GPIO'))) {
+        const availableGPIOs = [0, 2, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33];
+        availableGPIOs.forEach((gpio, index) => {
+          pins.push({
+            id: `gpio${gpio}`,
+            name: `GPIO${gpio}`,
+            type: 'digital',
+            position: { x: index < 10 ? -60 : 60, y: -40 + (index % 10) * 8 },
+            connected: false
+          });
+        });
+      }
+      if (!pins.some(p => p.id === 'vcc')) {
+        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -30 }, connected: false, voltage: 3.3 });
+        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 30 }, connected: false });
+        pins.push({ id: '3v3', name: '3V3', type: 'power', position: { x: -40, y: -15 }, connected: false, voltage: 3.3 });
+        pins.push({ id: 'en', name: 'EN', type: 'digital', position: { x: -40, y: 0 }, connected: false });
+      }
+    } else if (componentType.includes('sensor')) {
+      // Capteurs génériques
+      if (!pins.some(p => p.id === 'vcc')) {
+        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -20 }, connected: false, voltage: 3.3 });
+        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 20 }, connected: false });
+        pins.push({ id: 'data', name: 'DATA', type: 'analog', position: { x: 30, y: 0 }, connected: false });
+        
+        if (componentType.includes('analog')) {
+          pins.push({ id: 'aout', name: 'AOUT', type: 'analog', position: { x: 30, y: -15 }, connected: false });
+        }
+        if (componentType.includes('digital')) {
+          pins.push({ id: 'dout', name: 'DOUT', type: 'digital', position: { x: 30, y: 15 }, connected: false });
+        }
+      }
+    } else if (componentType.includes('display') || componentType.includes('oled') || componentType.includes('lcd')) {
+      // Écrans
+      if (!pins.some(p => p.id === 'vcc')) {
+        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -30 }, connected: false, voltage: 3.3 });
+        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 30 }, connected: false });
+        
+        // Par défaut I2C
+        if (!pins.some(p => p.id === 'sda')) {
+          pins.push({ id: 'sda', name: 'SDA', type: 'digital', position: { x: 40, y: -20 }, connected: false });
+          pins.push({ id: 'scl', name: 'SCL', type: 'digital', position: { x: 40, y: 20 }, connected: false });
+        }
+      }
+    } else if (componentType.includes('relay')) {
+      // Relais
+      if (!pins.some(p => p.id === 'vcc')) {
+        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -20 }, connected: false, voltage: 5.0 });
+        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 20 }, connected: false });
+        pins.push({ id: 'in', name: 'IN', type: 'digital', position: { x: 30, y: -15 }, connected: false });
+        pins.push({ id: 'com', name: 'COM', type: 'power', position: { x: 30, y: 0 }, connected: false });
+        pins.push({ id: 'no', name: 'NO', type: 'power', position: { x: 30, y: 15 }, connected: false });
+      }
+    } else if (componentType.includes('battery') || componentType.includes('power')) {
+      // Batteries et alimentations
+      if (!pins.some(p => p.id === 'positive')) {
+        pins.push({ id: 'positive', name: '+', type: 'power', position: { x: 0, y: -25 }, connected: false, voltage: 12 });
+        pins.push({ id: 'negative', name: '-', type: 'ground', position: { x: 0, y: 25 }, connected: false });
+      }
+    }
+    
+    // 3. Broches génériques si aucune trouvée
+    if (pins.length === 0) {
+      pins.push(
+        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -25, y: -15 }, connected: false, voltage: 3.3 },
+        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -25, y: 15 }, connected: false },
+        { id: 'signal', name: 'SIGNAL', type: 'digital', position: { x: 25, y: 0 }, connected: false }
+      );
+    }
+    
+    console.log('🔧 WiringPanel - Generated pins from technical specs:', pins.map(p => ({ id: p.id, name: p.name, type: p.type })));
+    
+    return pins;
+  };
+
+  // Helper function to create component from material using technical specifications
   const createComponentFromMaterial = (material: any, index: number): WiringComponent => {
     const specs = material.currentVersion?.specs || {};
     const componentType = specs.type?.toLowerCase() || 'unknown';
     
-    // Créer les broches avec un positionnement esthétique autour du composant
-    let pins: any[] = [];
+    console.log('🔧 WiringPanel - Creating component from material with technical specs:', material);
     
-    if (componentType.includes('microcontroller') || componentType.includes('arduino') || componentType.includes('esp')) {
-      pins = [
-        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -60, y: -30 }, connected: false, voltage: 3.3 },
-        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -60, y: 30 }, connected: false },
-        { id: 'gpio1', name: 'GPIO1', type: 'digital', position: { x: 60, y: -30 }, connected: false },
-        { id: 'gpio2', name: 'GPIO2', type: 'digital', position: { x: 60, y: -10 }, connected: false },
-        { id: 'gpio3', name: 'GPIO3', type: 'digital', position: { x: 60, y: 10 }, connected: false },
-        { id: 'gpio4', name: 'GPIO4', type: 'digital', position: { x: 60, y: 30 }, connected: false },
-        { id: 'd0', name: 'D0', type: 'digital', position: { x: -60, y: 0 }, connected: false },
-        { id: 'a0', name: 'A0', type: 'analog', position: { x: 0, y: 40 }, connected: false },
-        { id: 'control', name: 'CTRL', type: 'digital', position: { x: 0, y: -40 }, connected: false }
-      ];
-    } else if (componentType.includes('sensor') || componentType.includes('capteur')) {
-      pins = [
-        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -20 }, connected: false, voltage: 3.3 },
-        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 20 }, connected: false },
-        { id: 'data', name: 'DATA', type: 'analog', position: { x: 30, y: 0 }, connected: false },
-        { id: 'signal', name: 'SIGNAL', type: 'analog', position: { x: 30, y: -15 }, connected: false },
-        { id: 'out', name: 'OUT', type: 'output', position: { x: 30, y: 15 }, connected: false }
-      ];
-    } else if (componentType.includes('display') || componentType.includes('écran') || componentType.includes('screen')) {
-      pins = [
-        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -30 }, connected: false, voltage: 3.3 },
-        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 30 }, connected: false },
-        { id: 'sda', name: 'SDA', type: 'digital', position: { x: 40, y: -20 }, connected: false },
-        { id: 'scl', name: 'SCL', type: 'digital', position: { x: 40, y: 20 }, connected: false }
-      ];
-    } else if (componentType.includes('valve') || componentType.includes('vanne') || componentType.includes('solenoid')) {
-      pins = [
-        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -15 }, connected: false, voltage: 12 },
-        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 15 }, connected: false },
-        { id: 'control', name: 'CTRL', type: 'digital', position: { x: 30, y: 0 }, connected: false },
-        { id: 'signal', name: 'SIGNAL', type: 'digital', position: { x: 30, y: -15 }, connected: false }
-      ];
-    } else if (componentType.includes('pump') || componentType.includes('pompe')) {
-      pins = [
-        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -15 }, connected: false, voltage: 12 },
-        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 15 }, connected: false },
-        { id: 'control', name: 'CTRL', type: 'digital', position: { x: 30, y: 0 }, connected: false },
-        { id: 'signal', name: 'SIGNAL', type: 'digital', position: { x: 30, y: 15 }, connected: false }
-      ];
-    } else if (componentType.includes('battery') || componentType.includes('batterie') || componentType.includes('power') || componentType.includes('supply') || componentType.includes('alimentation')) {
-      pins = [
-        { id: 'positive', name: '+', type: 'power', position: { x: 0, y: -25 }, connected: false, voltage: 12 },
-        { id: 'negative', name: '-', type: 'ground', position: { x: 0, y: 25 }, connected: false },
-        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -25, y: 0 }, connected: false, voltage: 12 },
-        { id: 'gnd', name: 'GND', type: 'ground', position: { x: 25, y: 0 }, connected: false }
-      ];
-    } else {
-      // Composant générique
-      pins = [
-        { id: 'pin1', name: 'Pin1', type: 'input', position: { x: -20, y: 0 }, connected: false },
-        { id: 'pin2', name: 'Pin2', type: 'output', position: { x: 20, y: 0 }, connected: false }
-      ];
-    }
+    // Utiliser les spécifications techniques réelles pour générer les broches
+    const pins = extractPinsFromTechnicalSpecs(material);
     
     // Disposition en grille compacte
     const componentsPerRow = 3;
@@ -827,7 +1006,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       // Créer un nouveau diagramme en utilisant TOUS les matériaux disponibles
       const allComponents: WiringComponent[] = [];
       
-      // Créer des composants pour tous les matériaux disponibles
+      // Créer des composants pour TOUS les matériaux disponibles
       materials.forEach((material, index) => {
         const component = createComponentFromMaterial(material, index);
         allComponents.push(component);
