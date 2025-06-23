@@ -310,6 +310,12 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
 
     console.log('Found suggestion:', suggestion);
 
+    // CORRECTION: Vérifier si la suggestion n'a pas déjà été appliquée
+    if ((suggestion as any).applied || (suggestion as any).validated) {
+      console.warn('⚠️ Suggestion already applied, skipping:', suggestion.id);
+      return;
+    }
+
     // Fonction pour afficher des informations de débogage détaillées
     const debugConnectionIssue = (connectionData: any) => {
       const fromComponent = diagram?.components.find(c => c.id === connectionData.fromComponent);
@@ -349,7 +355,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     // Déterminer le diagramme à utiliser
     let currentDiagram = diagram;
 
-    // Si c'est la première suggestion et qu'il n'y a pas de diagramme, créer seulement les composants nécessaires
+    // CORRECTION: Créer un diagramme uniquement si nécessaire
     if (!currentDiagram && suggestion.connectionData) {
       console.log('Creating initial diagram with required components only');
       const requiredComponents: WiringComponent[] = [];
@@ -397,6 +403,23 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         // Afficher les informations de débogage
         debugConnectionIssue(suggestion.connectionData);
         
+        // CORRECTION: Vérifier que la connexion n'existe pas déjà
+        const existingConnection = currentDiagram.connections.find(c => 
+          (c.fromComponent === suggestion.connectionData!.fromComponent && 
+           c.toComponent === suggestion.connectionData!.toComponent &&
+           c.fromPin === suggestion.connectionData!.fromPin &&
+           c.toPin === suggestion.connectionData!.toPin) ||
+          (c.fromComponent === suggestion.connectionData!.toComponent && 
+           c.toComponent === suggestion.connectionData!.fromComponent &&
+           c.fromPin === suggestion.connectionData!.toPin &&
+           c.toPin === suggestion.connectionData!.fromPin)
+        );
+        
+        if (existingConnection) {
+          console.warn('⚠️ Connexion déjà existante, ignorée:', suggestion.connectionData);
+          return;
+        }
+        
         // Vérifier que tous les composants nécessaires existent
         const requiredMaterialIds = new Set<string>();
         if (suggestion.connectionData.fromComponent) {
@@ -406,7 +429,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           requiredMaterialIds.add(suggestion.connectionData.toComponent);
         }
         
-        // Ajouter les composants manquants
+        // Ajouter les composants manquants seulement si confirmé
         const existingComponentIds = new Set(currentDiagram.components.map(c => c.id));
         const componentsToAdd: WiringComponent[] = [];
         let componentIndex = currentDiagram.components.length;
@@ -418,6 +441,10 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
             componentIndex++;
           }
         });
+        
+        if (componentsToAdd.length > 0) {
+          console.log('Adding missing components:', componentsToAdd.length);
+        }
         
         const updatedDiagram = {
           ...currentDiagram,
@@ -472,6 +499,22 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       setDiagram(currentDiagram);
     }
 
+    // Marquer la suggestion comme appliquée
+    setMessages(prevMessages => 
+      prevMessages.map(msg => 
+        msg.id === messageId 
+          ? {
+              ...msg,
+              suggestions: msg.suggestions?.map(s => 
+                s.id === suggestionId 
+                  ? { ...s, validated: true, applied: true } as any
+                  : s
+              )
+            }
+          : msg
+      )
+    );
+
     // Sauvegarder le diagramme mis à jour
     if (currentDiagram || diagram) {
       const diagramToSave = currentDiagram || diagram;
@@ -494,31 +537,10 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       }
     }
 
-    // Marquer la suggestion comme validée dans le message
-    setMessages(prev => prev.map(msg => {
-      if (msg.id === messageId && msg.suggestions) {
-        return {
-          ...msg,
-          suggestions: msg.suggestions.map(s => 
-            s.id === suggestionId 
-              ? { ...s, validated: true, expanded: false }
-              : s
-          )
-        };
-      }
-      return msg;
-    }));
-
-    // Sauvegarder l'état des suggestions mis à jour
-    const updatedMessage = messages.find(m => m.id === messageId);
-    if (updatedMessage?.suggestions) {
-      await updateMessageSuggestions(messageId, updatedMessage.suggestions as WiringSuggestion[]);
+    // Notifier de la mise à jour
+    if (onWiringUpdated) {
+      onWiringUpdated();
     }
-
-    // Déclencher la mise à jour des composants disponibles
-    onWiringUpdated?.();
-
-    console.log('Suggestion applied successfully');
   };
 
   const handleRejectSuggestion = (messageId: string, suggestionId: string) => {
@@ -1264,6 +1286,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           onRejectSuggestion={handleRejectSuggestion}
           isGenerating={isGenerating || isLoadingMessages}
           context="wiring"
+          projectId={projectId}
         />
       </Box>
     </Box>

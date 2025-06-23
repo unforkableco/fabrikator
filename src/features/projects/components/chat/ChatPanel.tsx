@@ -52,6 +52,7 @@ interface ChatPanelProps {
   onRejectSuggestion: (messageId: string, suggestionId: string) => void;
   isGenerating?: boolean;
   context?: 'materials' | 'wiring' | 'general';
+  projectId?: string;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
@@ -61,38 +62,53 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   onAcceptSuggestion,
   onRejectSuggestion,
   isGenerating = false,
-  context
+  context,
+  projectId
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [chatMode, setChatMode] = useState<'ask' | 'agent'>('ask');
-  const [suggestionStates, setSuggestionStates] = useState<Record<string, 'accepted' | 'rejected'>>({});
+  const storageKey = `suggestions-${projectId || 'default'}`;
+  const [suggestionStates, setSuggestionStates] = useState<{[key: string]: 'accepted' | 'rejected'}>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Clé pour le localStorage basée sur le contexte
-  const storageKey = `suggestions-state-${context || 'general'}`;
-
-  // Charger l'état des suggestions depuis le localStorage
+  // Charger les états depuis localStorage au démarrage - VERSION CORRIGÉE
   useEffect(() => {
     try {
-      const savedStates = localStorage.getItem(storageKey);
-      if (savedStates) {
-        const parsed = JSON.parse(savedStates);
-        console.log('📦 Loaded suggestion states from localStorage:', parsed);
-        setSuggestionStates(parsed);
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsedStates = JSON.parse(saved);
+        // CORRECTION: Nettoyer les états anciens et ne garder que ceux des messages actuels
+        const currentMessageIds = messages.map(m => m.id);
+        const currentSuggestionIds = messages.flatMap(m => m.suggestions?.map(s => s.id) || []);
+        
+        const filteredStates: {[key: string]: 'accepted' | 'rejected'} = {};
+        Object.entries(parsedStates).forEach(([suggestionId, state]) => {
+          // Garder seulement les suggestions qui appartiennent aux messages actuels
+          if (currentSuggestionIds.includes(suggestionId)) {
+            filteredStates[suggestionId] = state as 'accepted' | 'rejected';
+          }
+        });
+        
+        setSuggestionStates(filteredStates);
+        
+        // Sauvegarder la version nettoyée
+        localStorage.setItem(storageKey, JSON.stringify(filteredStates));
       }
     } catch (error) {
-      console.error('Error loading suggestion states:', error);
+      console.warn('Error loading suggestion states:', error);
+      // En cas d'erreur, nettoyer le localStorage
+      localStorage.removeItem(storageKey);
+      setSuggestionStates({});
     }
-  }, [storageKey]);
+  }, [messages, storageKey]); // CORRECTION: Dépendre des messages pour nettoyer automatiquement
 
-  // Sauvegarder l'état des suggestions dans le localStorage
-  const saveSuggestionStates = useCallback((newStates: Record<string, 'accepted' | 'rejected'>) => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(newStates));
-    } catch (error) {
-      console.error('Error saving suggestion states:', error);
-    }
-  }, [storageKey]);
+  // Nettoyer le localStorage quand on change de projet
+  useEffect(() => {
+    return () => {
+      // Optionnel: nettoyer quand le composant se démonte
+      // localStorage.removeItem(storageKey);
+    };
+  }, [projectId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -123,7 +139,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       [suggestionId]: 'accepted' as const
     };
     setSuggestionStates(newStates);
-    saveSuggestionStates(newStates);
+    localStorage.setItem(storageKey, JSON.stringify(newStates));
     // Appeler la fonction parent
     onAcceptSuggestion(messageId, suggestionId);
   };
@@ -135,7 +151,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       [suggestionId]: 'rejected' as const
     };
     setSuggestionStates(newStates);
-    saveSuggestionStates(newStates);
+    localStorage.setItem(storageKey, JSON.stringify(newStates));
     // Appeler la fonction parent
     onRejectSuggestion(messageId, suggestionId);
   };

@@ -493,6 +493,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           onAcceptSuggestion={handleAcceptSuggestion}
           onRejectSuggestion={handleRejectSuggestion}
           isGenerating={isGenerating || isLoadingMessages}
+          projectId={projectId}
         />
         
         {/* Material Suggestions Diff */}

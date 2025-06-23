@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Box, Typography, Toolbar, Chip, IconButton, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CableIcon from '@mui/icons-material/Cable';
@@ -62,6 +62,341 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
 
   // État pour suivre les quantités utilisées de chaque matériau
   const [usedQuantities, setUsedQuantities] = useState<Record<string, number>>({});
+
+  // Système de routage intelligent pour éviter les croisements
+  const routingGrid = useRef<Map<string, Set<string>>>(new Map());
+  const connectionPaths = useRef<Map<string, { x: number, y: number }[]>>(new Map());
+
+  // Fonction helper pour obtenir la taille d'un composant
+  const getComponentSize = (type: string) => {
+    const typeStr = type.toLowerCase();
+    if (typeStr.includes('microcontroller') || typeStr.includes('arduino')) {
+      return { width: 120, height: 80 };
+    } else if (typeStr.includes('display') || typeStr.includes('écran')) {
+      return { width: 100, height: 70 };
+    } else if (typeStr.includes('sensor') || typeStr.includes('capteur')) {
+      return { width: 90, height: 60 };
+    } else if (typeStr.includes('battery') || typeStr.includes('batterie')) {
+      return { width: 70, height: 80 };
+    }
+    return { width: 90, height: 60 };
+  };
+
+  // Fonction pour calculer une clé de grille
+  const getGridKey = (x: number, y: number, gridSize: number = 20): string => {
+    const gridX = Math.floor(x / gridSize);
+    const gridY = Math.floor(y / gridSize);
+    return `${gridX},${gridY}`;
+  };
+
+  // Fonction pour marquer/libérer des cellules de grille
+  const markGridCells = useCallback((path: { x: number, y: number }[], connectionId: string, mark: boolean = true) => {
+    const gridSize = 20;
+    path.forEach((point, index) => {
+      if (index === 0) return; // Skip start point
+      const prevPoint = path[index - 1];
+      
+      // Marquer tous les points entre prevPoint et point
+      const steps = Math.max(Math.abs(point.x - prevPoint.x), Math.abs(point.y - prevPoint.y)) / gridSize;
+      for (let step = 0; step <= steps; step++) {
+        const t = steps === 0 ? 0 : step / steps;
+        const x = prevPoint.x + (point.x - prevPoint.x) * t;
+        const y = prevPoint.y + (point.y - prevPoint.y) * t;
+        const key = getGridKey(x, y, gridSize);
+        
+        if (mark) {
+          if (!routingGrid.current.has(key)) {
+            routingGrid.current.set(key, new Set());
+          }
+          routingGrid.current.get(key)!.add(connectionId);
+        } else {
+          const cell = routingGrid.current.get(key);
+          if (cell) {
+            cell.delete(connectionId);
+            if (cell.size === 0) {
+              routingGrid.current.delete(key);
+            }
+          }
+        }
+      }
+    });
+  }, []);
+
+  // Nettoyer le cache de routage quand le diagramme change
+  useEffect(() => {
+    if (diagram) {
+      // Nettoyer les connexions supprimées du cache
+      const currentConnectionIds = new Set(diagram.connections.map(c => c.id));
+      
+      // Convertir les clés en array pour éviter les problèmes TypeScript
+      const cachedConnectionIds = Array.from(connectionPaths.current.keys());
+      
+      for (const connectionId of cachedConnectionIds) {
+        if (!currentConnectionIds.has(connectionId)) {
+          const path = connectionPaths.current.get(connectionId);
+          if (path) {
+            markGridCells(path, connectionId, false);
+          }
+          connectionPaths.current.delete(connectionId);
+        }
+      }
+    }
+  }, [diagram, markGridCells]);
+
+  // Fonction pour vérifier si un chemin est libre
+  const isPathClear = (path: { x: number, y: number }[], connectionId: string, gridSize: number = 20): boolean => {
+    for (let i = 1; i < path.length; i++) {
+      const prevPoint = path[i - 1];
+      const point = path[i];
+      
+      const steps = Math.max(Math.abs(point.x - prevPoint.x), Math.abs(point.y - prevPoint.y)) / gridSize;
+      for (let step = 0; step <= steps; step++) {
+        const t = steps === 0 ? 0 : step / steps;
+        const x = prevPoint.x + (point.x - prevPoint.x) * t;
+        const y = prevPoint.y + (point.y - prevPoint.y) * t;
+        const key = getGridKey(x, y, gridSize);
+        
+        const cell = routingGrid.current.get(key);
+        if (cell && cell.size > 0 && !cell.has(connectionId)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  // Fonction pour créer un path SVG orthogonal intelligent qui évite les croisements
+  const createSmartOrthogonalPath = (
+    fromX: number, 
+    fromY: number, 
+    toX: number, 
+    toY: number,
+    fromPin: WiringPin,
+    toPin: WiringPin,
+    fromComponent: WiringComponent,
+    toComponent: WiringComponent,
+    connectionId: string,
+    allConnections: WiringConnection[]
+  ): string => {
+    // Libérer l'ancien chemin s'il existe
+    const oldPath = connectionPaths.current.get(connectionId);
+    if (oldPath) {
+      markGridCells(oldPath, connectionId, false);
+    }
+
+    // Déterminer la direction de sortie de chaque pin
+    const getConnectionDirection = (pin: WiringPin, component: WiringComponent) => {
+      const componentSize = getComponentSize(component.type);
+      const pinPosX = pin.position.x;
+      const pinPosY = pin.position.y;
+      
+      const leftThreshold = -componentSize.width * 0.4;
+      const rightThreshold = componentSize.width * 0.4;
+      const topThreshold = -componentSize.height * 0.4;
+      const bottomThreshold = componentSize.height * 0.4;
+      
+      if (pinPosX <= leftThreshold) return 'left';
+      if (pinPosX >= rightThreshold) return 'right';
+      if (pinPosY <= topThreshold) return 'top';
+      if (pinPosY >= bottomThreshold) return 'bottom';
+      
+      const distances = {
+        left: Math.abs(pinPosX - leftThreshold),
+        right: Math.abs(pinPosX - rightThreshold),
+        top: Math.abs(pinPosY - topThreshold),
+        bottom: Math.abs(pinPosY - bottomThreshold)
+      };
+      
+      return Object.entries(distances).reduce((a, b) => distances[a[0] as keyof typeof distances] < distances[b[0] as keyof typeof distances] ? a : b)[0] as 'left' | 'right' | 'top' | 'bottom';
+    };
+    
+    const fromDirection = getConnectionDirection(fromPin, fromComponent);
+    const toDirection = getConnectionDirection(toPin, toComponent);
+    
+    // Distance de base pour éviter les composants
+    const baseDistance = 30;
+    
+    // Calculer plusieurs chemins possibles et choisir le meilleur
+    const generatePathOptions = (): { x: number, y: number }[][] => {
+      const options: { x: number, y: number }[][] = [];
+      
+      // Option 1: Chemin direct avec offset minimal
+      const directPath = generateDirectPath(fromX, fromY, toX, toY, fromDirection, toDirection, baseDistance);
+      options.push(directPath);
+      
+      // Option 2: Chemin avec détour horizontal
+      if (Math.abs(toX - fromX) > 60) {
+        const midX = fromX + (toX - fromX) * 0.3;
+        const horizontalPath = generateHorizontalDetourPath(fromX, fromY, toX, toY, midX, fromDirection, toDirection, baseDistance);
+        options.push(horizontalPath);
+      }
+      
+      // Option 3: Chemin avec détour vertical
+      if (Math.abs(toY - fromY) > 60) {
+        const midY = fromY + (toY - fromY) * 0.3;
+        const verticalPath = generateVerticalDetourPath(fromX, fromY, toX, toY, midY, fromDirection, toDirection, baseDistance);
+        options.push(verticalPath);
+      }
+      
+      // Option 4: Chemin externe (contourne largement)
+      const externalPath = generateExternalPath(fromX, fromY, toX, toY, fromDirection, toDirection, baseDistance * 2);
+      options.push(externalPath);
+      
+      return options;
+    };
+
+    const generateDirectPath = (fx: number, fy: number, tx: number, ty: number, fromDir: string, toDir: string, dist: number): { x: number, y: number }[] => {
+      const path = [{ x: fx, y: fy }];
+      
+      // Sortir du composant
+      switch (fromDir) {
+        case 'left': path.push({ x: fx - dist, y: fy }); break;
+        case 'right': path.push({ x: fx + dist, y: fy }); break;
+        case 'top': path.push({ x: fx, y: fy - dist }); break;
+        case 'bottom': path.push({ x: fx, y: fy + dist }); break;
+      }
+      
+      const lastPoint = path[path.length - 1];
+      
+      // Aller vers la destination
+      if (fromDir === 'left' || fromDir === 'right') {
+        if (toDir === 'left' || toDir === 'right') {
+          const midY = (lastPoint.y + ty) / 2;
+          path.push({ x: lastPoint.x, y: midY });
+          path.push({ x: tx + (toDir === 'left' ? -dist : dist), y: midY });
+          path.push({ x: tx + (toDir === 'left' ? -dist : dist), y: ty });
+        } else {
+          path.push({ x: lastPoint.x, y: ty });
+        }
+      } else {
+        if (toDir === 'top' || toDir === 'bottom') {
+          const midX = (lastPoint.x + tx) / 2;
+          path.push({ x: midX, y: lastPoint.y });
+          path.push({ x: midX, y: ty + (toDir === 'top' ? -dist : dist) });
+          path.push({ x: tx, y: ty + (toDir === 'top' ? -dist : dist) });
+        } else {
+          path.push({ x: tx, y: lastPoint.y });
+        }
+      }
+      
+      path.push({ x: tx, y: ty });
+      return path;
+    };
+
+    const generateHorizontalDetourPath = (fx: number, fy: number, tx: number, ty: number, midX: number, fromDir: string, toDir: string, dist: number): { x: number, y: number }[] => {
+      const path = [{ x: fx, y: fy }];
+      
+      // Sortir du composant source
+      switch (fromDir) {
+        case 'left': path.push({ x: fx - dist, y: fy }); break;
+        case 'right': path.push({ x: fx + dist, y: fy }); break;
+        case 'top': path.push({ x: fx, y: fy - dist }); break;
+        case 'bottom': path.push({ x: fx, y: fy + dist }); break;
+      }
+      
+      const startPoint = path[path.length - 1];
+      
+      // Aller au point de détour horizontal
+      path.push({ x: midX, y: startPoint.y });
+      path.push({ x: midX, y: ty });
+      path.push({ x: tx, y: ty });
+      
+      return path;
+    };
+
+    const generateVerticalDetourPath = (fx: number, fy: number, tx: number, ty: number, midY: number, fromDir: string, toDir: string, dist: number): { x: number, y: number }[] => {
+      const path = [{ x: fx, y: fy }];
+      
+      // Sortir du composant source
+      switch (fromDir) {
+        case 'left': path.push({ x: fx - dist, y: fy }); break;
+        case 'right': path.push({ x: fx + dist, y: fy }); break;
+        case 'top': path.push({ x: fx, y: fy - dist }); break;
+        case 'bottom': path.push({ x: fx, y: fy + dist }); break;
+      }
+      
+      const startPoint = path[path.length - 1];
+      
+      // Aller au point de détour vertical
+      path.push({ x: startPoint.x, y: midY });
+      path.push({ x: tx, y: midY });
+      path.push({ x: tx, y: ty });
+      
+      return path;
+    };
+
+    const generateExternalPath = (fx: number, fy: number, tx: number, ty: number, fromDir: string, toDir: string, dist: number): { x: number, y: number }[] => {
+      const path = [{ x: fx, y: fy }];
+      
+      // Sortir largement du composant
+      switch (fromDir) {
+        case 'left': path.push({ x: fx - dist, y: fy }); break;
+        case 'right': path.push({ x: fx + dist, y: fy }); break;
+        case 'top': path.push({ x: fx, y: fy - dist }); break;
+        case 'bottom': path.push({ x: fx, y: fy + dist }); break;
+      }
+      
+      const startPoint = path[path.length - 1];
+      
+      // Contourner largement
+      const margin = 50;
+      const minX = Math.min(fx, tx) - margin;
+      const maxX = Math.max(fx, tx) + margin;
+      const minY = Math.min(fy, ty) - margin;
+      const maxY = Math.max(fy, ty) + margin;
+      
+      if (fromDir === 'left' || fromDir === 'right') {
+        const detourY = fy < ty ? minY : maxY;
+        path.push({ x: startPoint.x, y: detourY });
+        path.push({ x: tx, y: detourY });
+      } else {
+        const detourX = fx < tx ? minX : maxX;
+        path.push({ x: detourX, y: startPoint.y });
+        path.push({ x: detourX, y: ty });
+      }
+      
+      path.push({ x: tx, y: ty });
+      return path;
+    };
+    
+    // Générer les options de chemin
+    const pathOptions = generatePathOptions();
+    
+    // Évaluer chaque option et choisir la meilleure
+    let bestPath = pathOptions[0];
+    let bestScore = Infinity;
+    
+    for (const pathOption of pathOptions) {
+      if (isPathClear(pathOption, connectionId)) {
+        // Calculer un score basé sur la longueur et la complexité
+        const length = pathOption.reduce((sum, point, i) => {
+          if (i === 0) return 0;
+          const prev = pathOption[i - 1];
+          return sum + Math.sqrt((point.x - prev.x) ** 2 + (point.y - prev.y) ** 2);
+        }, 0);
+        
+        const complexity = pathOption.length; // Plus de points = plus complexe
+        const score = length + complexity * 20;
+        
+        if (score < bestScore) {
+          bestScore = score;
+          bestPath = pathOption;
+        }
+      }
+    }
+    
+    // Marquer le chemin choisi dans la grille
+    markGridCells(bestPath, connectionId, true);
+    connectionPaths.current.set(connectionId, bestPath);
+    
+    // Construire le path SVG
+    let pathString = `M ${bestPath[0].x} ${bestPath[0].y}`;
+    for (let i = 1; i < bestPath.length; i++) {
+      pathString += ` L ${bestPath[i].x} ${bestPath[i].y}`;
+    }
+    
+    return pathString;
+  };
 
   // Fonction pour mapper intelligemment les noms de broches
   const mapPinName = (suggestedPin: string, availablePins: WiringPin[]): string => {
@@ -600,136 +935,6 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     }
   };
 
-  // Fonction pour créer un path SVG orthogonal (angles droits)
-  const createOrthogonalPath = (
-    fromX: number, 
-    fromY: number, 
-    toX: number, 
-    toY: number,
-    fromPin: WiringPin,
-    toPin: WiringPin,
-    fromComponent: WiringComponent,
-    toComponent: WiringComponent
-  ): string => {
-    // Déterminer la direction de sortie de chaque pin basée sur sa position relative au composant
-    const getConnectionDirection = (pin: WiringPin, component: WiringComponent) => {
-      const componentSize = getComponentSize(component.type);
-      const pinPosX = pin.position.x;
-      const pinPosY = pin.position.y;
-      
-      // Seuils pour déterminer les côtés (ajustés pour être plus précis)
-      const leftThreshold = -componentSize.width * 0.4;
-      const rightThreshold = componentSize.width * 0.4;
-      const topThreshold = -componentSize.height * 0.4;
-      const bottomThreshold = componentSize.height * 0.4;
-      
-      if (pinPosX <= leftThreshold) return 'left';
-      if (pinPosX >= rightThreshold) return 'right';
-      if (pinPosY <= topThreshold) return 'top';
-      if (pinPosY >= bottomThreshold) return 'bottom';
-      
-      // Par défaut, choisir la direction la plus proche du bord
-      const distances = {
-        left: Math.abs(pinPosX - leftThreshold),
-        right: Math.abs(pinPosX - rightThreshold),
-        top: Math.abs(pinPosY - topThreshold),
-        bottom: Math.abs(pinPosY - bottomThreshold)
-      };
-      
-             return Object.entries(distances).reduce((a, b) => distances[a[0] as keyof typeof distances] < distances[b[0] as keyof typeof distances] ? a : b)[0] as 'left' | 'right' | 'top' | 'bottom';
-    };
-    
-    const fromDirection = getConnectionDirection(fromPin, fromComponent);
-    const toDirection = getConnectionDirection(toPin, toComponent);
-    
-    // Distance minimale pour les segments orthogonaux
-    const minDistance = 30;
-    
-    // Calculer les points intermédiaires pour créer un chemin orthogonal
-    let waypoints: { x: number, y: number }[] = [];
-    
-    // Point de départ avec offset selon la direction
-    let startX = fromX;
-    let startY = fromY;
-    
-    // Point d'arrivée avec offset selon la direction
-    let endX = toX;
-    let endY = toY;
-    
-    // Ajouter des offsets pour sortir proprement des composants
-    switch (fromDirection) {
-      case 'left':
-        startX -= minDistance;
-        waypoints.push({ x: startX, y: fromY });
-        break;
-      case 'right':
-        startX += minDistance;
-        waypoints.push({ x: startX, y: fromY });
-        break;
-      case 'top':
-        startY -= minDistance;
-        waypoints.push({ x: fromX, y: startY });
-        break;
-      case 'bottom':
-        startY += minDistance;
-        waypoints.push({ x: fromX, y: startY });
-        break;
-    }
-    
-    // Calculer le chemin optimal
-    if (fromDirection === 'left' || fromDirection === 'right') {
-      if (toDirection === 'left' || toDirection === 'right') {
-        // Connexion horizontale -> horizontale
-        const midY = (startY + toY) / 2;
-        waypoints.push({ x: startX, y: midY });
-        waypoints.push({ x: toX + (toDirection === 'left' ? -minDistance : minDistance), y: midY });
-        waypoints.push({ x: toX + (toDirection === 'left' ? -minDistance : minDistance), y: toY });
-      } else {
-        // Connexion horizontale -> verticale
-        waypoints.push({ x: startX, y: toY });
-      }
-    } else {
-      if (toDirection === 'top' || toDirection === 'bottom') {
-        // Connexion verticale -> verticale
-        const midX = (startX + toX) / 2;
-        waypoints.push({ x: midX, y: startY });
-        waypoints.push({ x: midX, y: toY + (toDirection === 'top' ? -minDistance : minDistance) });
-        waypoints.push({ x: toX, y: toY + (toDirection === 'top' ? -minDistance : minDistance) });
-      } else {
-        // Connexion verticale -> horizontale
-        waypoints.push({ x: toX, y: startY });
-      }
-    }
-    
-    // Construire le path SVG
-    let path = `M ${fromX} ${fromY}`;
-    
-    // Ajouter tous les waypoints
-    waypoints.forEach(point => {
-      path += ` L ${point.x} ${point.y}`;
-    });
-    
-    // Terminer au point final
-    path += ` L ${toX} ${toY}`;
-    
-    return path;
-  };
-
-  // Fonction helper pour obtenir la taille d'un composant (dupliquée pour éviter les conflits)
-  const getComponentSize = (type: string) => {
-    const typeStr = type.toLowerCase();
-    if (typeStr.includes('microcontroller') || typeStr.includes('arduino')) {
-      return { width: 120, height: 80 };
-    } else if (typeStr.includes('display') || typeStr.includes('écran')) {
-      return { width: 100, height: 70 };
-    } else if (typeStr.includes('sensor') || typeStr.includes('capteur')) {
-      return { width: 90, height: 60 };
-    } else if (typeStr.includes('battery') || typeStr.includes('batterie')) {
-      return { width: 70, height: 80 };
-    }
-    return { width: 90, height: 60 };
-  };
-
   const renderComponent = (component: WiringComponent) => {
     const isSelected = selectedComponent === component.id;
     const isDragging = draggedComponent?.id === component.id;
@@ -986,12 +1191,20 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const wireColor = connection.wireColor || '#666';
     const hasError = connection.error;
     
-    // Créer le path orthogonal
-    const pathData = createOrthogonalPath(
-      fromX, fromY, toX, toY, 
-      fromPin, toPin, 
-      fromComponent, toComponent
-    );
+          // Créer le path orthogonal intelligent
+      let pathData: string;
+      try {
+        pathData = createSmartOrthogonalPath(
+          fromX, fromY, toX, toY, 
+          fromPin, toPin, 
+          fromComponent, toComponent,
+          connection.id, diagram.connections
+        );
+      } catch (error) {
+        console.warn('Erreur lors de la création du chemin intelligent, utilisation du chemin simple:', error);
+        // Fallback vers un chemin simple
+        pathData = `M ${fromX} ${fromY} L ${toX} ${toY}`;
+      }
     
     return (
       <g key={connection.id}>
