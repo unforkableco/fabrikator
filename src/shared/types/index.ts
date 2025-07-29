@@ -207,6 +207,7 @@ export interface WiringSuggestion {
   expanded: boolean;
   validated?: boolean;
   confidence?: number;
+  status?: 'pending' | 'accepted' | 'rejected'; // ✅ Ajouter le statut comme dans BaseSuggestion
 }
 
 export interface WiringValidationResult {

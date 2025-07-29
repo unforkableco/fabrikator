@@ -220,14 +220,12 @@ export const prompts = {
           "type": "Connection [SOURCE_TYPE] to [DESTINATION_TYPE]",
           "description": "Connect/Remove/Update [SOURCE_NAME].[SOURCE_PIN] to [DESTINATION_NAME].[DESTINATION_PIN] for [REASON]",
           "connectionData": {
-            "id": "conn-1234567890-[index]",
             "fromComponent": "[EXACT_SOURCE_MATERIAL_ID]",
             "fromPin": "[standard_pin_according_to_type]",
             "toComponent": "[EXACT_DESTINATION_MATERIAL_ID]",
             "toPin": "[standard_pin_according_to_type]",
             "wireType": "power|ground|data|analog|digital",
-            "wireColor": "#[color_according_to_type]",
-            "validated": false
+            "wireColor": "#[color_according_to_type]"
           },
           "existingConnectionId": "[ONLY_FOR_REMOVE_OR_UPDATE_ACTIONS]",
           "confidence": 0.9
@@ -252,8 +250,7 @@ export const prompts = {
     }
     
     **CRITICAL: JSON FORMATTING RULES**
-    - Use ONLY static strings for IDs like "conn-1234567890-1", "conn-1234567890-2", etc.
-    - NEVER use JavaScript expressions like "conn-"+Date.now()+"-0"
+    - The backend will automatically generate unique UUIDs for all IDs - DO NOT include "id" fields
     - ALL values must be valid JSON strings, numbers, or booleans
     - NO concatenation operators (+) in the JSON
     - For "remove" actions, set connectionData to null and provide existingConnectionId

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -44,6 +44,12 @@ interface BaseSuggestion {
   expanded: boolean;
   status?: 'pending' | 'accepted' | 'rejected';
   originalData?: string; // Données JSON de la suggestion originale
+  
+  // Extensions pour le wiring (optionnelles)
+  connectionData?: any; // WiringConnection
+  componentData?: any;  // WiringComponent  
+  confidence?: number;
+  validated?: boolean;
 }
 
 interface ChatPanelProps {
@@ -76,12 +82,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   // Charger les états depuis les messages (base de données) au démarrage
   useEffect(() => {
     try {
-      // Extraire les états des suggestions depuis les messages de la BD
+      // ✅ SOLUTION: Extraire seulement les états des suggestions qui ont un status explicite
+      // Ne pas mélanger avec les nouvelles suggestions sans status
       const statesFromDB: {[key: string]: 'accepted' | 'rejected'} = {};
       
       messages.forEach(message => {
         if (message.suggestions) {
           message.suggestions.forEach(suggestion => {
+            // ✅ Charger seulement les suggestions qui ont un status explicite en BD
             if (suggestion.status && ['accepted', 'rejected'].includes(suggestion.status)) {
               statesFromDB[suggestion.id] = suggestion.status as 'accepted' | 'rejected';
             }
@@ -89,15 +97,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         }
       });
       
-      // Charger aussi depuis localStorage pour les états non persistés encore
+      // ✅ Pour les nouvelles suggestions sans status, charger seulement depuis localStorage
+      // mais seulement pour les suggestions qui existent dans les messages actuels
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsedStates = JSON.parse(saved);
-        const currentSuggestionIds = messages.flatMap(m => m.suggestions?.map(s => s.id) || []);
         
         Object.entries(parsedStates).forEach(([suggestionId, state]) => {
-          // Ajouter seulement si pas déjà dans la BD et si la suggestion existe encore
-          if (!statesFromDB[suggestionId] && currentSuggestionIds.includes(suggestionId)) {
+          // ✅ Ajouter seulement si:
+          // 1. Pas déjà dans la BD avec un status
+          // 2. La suggestion existe dans les messages actuels
+          // 3. La suggestion n'a pas de status défini (nouvelles suggestions)
+          const suggestionExists = messages.some(m => 
+            m.suggestions?.some(s => s.id === suggestionId && !s.status)
+          );
+          
+          if (!statesFromDB[suggestionId] && suggestionExists) {
             statesFromDB[suggestionId] = state as 'accepted' | 'rejected';
           }
         });
@@ -105,14 +120,61 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       
       setSuggestionStates(statesFromDB);
       
-      // Nettoyer le localStorage - les états sont maintenant en BD
-      localStorage.setItem(storageKey, JSON.stringify(statesFromDB));
+      // ✅ Nettoyer localStorage des anciennes suggestions qui ne sont plus pertinentes
+      const validStates: {[key: string]: 'accepted' | 'rejected'} = {};
+      const currentSuggestionIds = messages.flatMap(m => m.suggestions?.map(s => s.id) || []);
+      
+      Object.entries(statesFromDB).forEach(([suggestionId, state]) => {
+        if (currentSuggestionIds.includes(suggestionId)) {
+          validStates[suggestionId] = state;
+        }
+      });
+      
+      localStorage.setItem(storageKey, JSON.stringify(validStates));
       
     } catch (error) {
       console.warn('Error loading suggestion states:', error);
       setSuggestionStates({});
     }
   }, [messages, storageKey]);
+
+  // 🧹 Écouter l'événement de nettoyage forcé des suggestions
+  useEffect(() => {
+    const handleClearSuggestionStates = (event: CustomEvent) => {
+      const { projectId: eventProjectId, context: eventContext } = event.detail;
+      
+      // Nettoyer seulement si c'est le bon projet et contexte
+      if (eventProjectId === projectId && eventContext === context) {
+        console.log('🧹 Force clearing all suggestion states for new generation');
+        
+        // ✅ Nettoyage complet et agressif
+        setSuggestionStates({}); // Vider complètement l'état
+        localStorage.removeItem(storageKey); // Supprimer le localStorage
+        
+        // ✅ Aussi nettoyer toutes les variations possibles de clés
+        const possibleKeys = [
+          `suggestions-${projectId}`,
+          `suggestions-${projectId}-${context}`,
+          `suggestions-${eventProjectId}`,
+          storageKey
+        ];
+        
+        possibleKeys.forEach(key => {
+          localStorage.removeItem(key);
+          console.log(`🧹 Cleared localStorage key: ${key}`);
+        });
+        
+        // ✅ Forcer le re-render pour éviter la contamination
+        console.log('🧹 All suggestion states cleared successfully');
+      }
+    };
+
+    window.addEventListener('clearSuggestionStates', handleClearSuggestionStates as EventListener);
+    
+    return () => {
+      window.removeEventListener('clearSuggestionStates', handleClearSuggestionStates as EventListener);
+    };
+  }, [projectId, context, storageKey]);
 
   // Nettoyer le localStorage quand on change de projet
   useEffect(() => {
@@ -197,7 +259,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     console.log('🔍 Rendering suggestion:', {
       id: suggestion.id,
       title: suggestion.title,
-      validated: (suggestion as any).validated,
+      status: suggestion.status, // ✅ Utiliser status au lieu de validated
       suggestionState,
       isAccepted,
       isRejected,

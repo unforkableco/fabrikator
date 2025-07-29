@@ -317,7 +317,7 @@ export class WiringService {
           }
           
           return {
-            id: `remove-suggestion-${Date.now()}-${index}`,
+            id: `remove-suggestion-${crypto.randomUUID()}`, // ✅ TOUJOURS générer un UUID unique
             title: suggestion.type || `Remove connection`,
             description: suggestion.description || `Remove connection ${connectionToRemove.fromComponent} → ${connectionToRemove.toComponent}`,
             action: 'remove',
@@ -427,16 +427,20 @@ export class WiringService {
         const toSpecs = toComponentExists.currentVersion?.specs as any || {};
 
         return {
-          id: connectionData.id || `wiring-suggestion-${Date.now()}-${index}`,
+          id: `wiring-suggestion-${crypto.randomUUID()}`, // ✅ TOUJOURS générer un UUID unique au backend
           title: suggestion.type || `${suggestion.action || 'add'} ${fromSpecs.name || 'Unknown'} → ${toSpecs.name || 'Unknown'}`,
           description: suggestion.description || this.getActionDescription(suggestion.action, fromSpecs.name || 'Unknown', toSpecs.name || 'Unknown', connectionData.fromPin, connectionData.toPin),
           action: suggestion.action || 'add',
           connectionData: {
-            ...connectionData,
-            wireType: this.normalizeWireType(connectionData.wireType),
-            // S'assurer que les IDs sont corrects
+            // ✅ TOUJOURS générer un UUID unique pour connectionData
+            id: `conn-${crypto.randomUUID()}`,
             fromComponent: connectionData.fromComponent,
-            toComponent: connectionData.toComponent
+            toComponent: connectionData.toComponent,
+            fromPin: connectionData.fromPin,
+            toPin: connectionData.toPin,
+            wireType: this.normalizeWireType(connectionData.wireType),
+            wireColor: connectionData.wireColor || '#0000ff'
+            // ✅ NE PAS inclure 'validated' ici - c'est au niveau de la suggestion
           },
           existingConnectionId: suggestion.existingConnectionId,
           componentData: suggestion.componentData,

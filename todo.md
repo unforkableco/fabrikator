@@ -1,3 +1,0 @@
-- lorsque il y a arret alors la reponse en cours ne doit pas etre parvenu est il possible de faire un arret de lappel api ou alors ignorer la reponse de l'api
-- Attente avec generation du cablage en attente
-- tableau liste des connexion en dessous de l'éditeur visuel
