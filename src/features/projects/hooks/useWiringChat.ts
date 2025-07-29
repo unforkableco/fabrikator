@@ -1,14 +1,15 @@
 import { useState, useCallback, useEffect } from 'react';
 import { api } from '../../../shared/services/api';
 import { ChatMessage } from '../components/chat/ChatPanel';
-import { WiringSuggestion } from '../../../shared/types';
+import { WiringSuggestion, WiringDiagram } from '../../../shared/types';
 import { generateTempId } from '../../../shared/utils/uuid';
 
 interface UseWiringChatProps {
-  projectId?: string;
+  projectId: string;
+  diagram?: WiringDiagram | null; // ✅ Ajouter le diagramme actuel
 }
 
-export const useWiringChat = ({ projectId }: UseWiringChatProps) => {
+export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -119,7 +120,8 @@ export const useWiringChat = ({ projectId }: UseWiringChatProps) => {
         
         try {
           // Use wiring-specific API endpoint for suggestions
-          const response = await api.wiring.generateWiringSuggestions(projectId, message, null);
+          // ✅ Transmettre le diagramme actuel à l'IA pour analyse des connexions existantes
+          const response = await api.wiring.generateWiringSuggestions(projectId, message, diagram);
           console.log('Wiring agent response:', response);
           
           if (response && response.suggestions && Array.isArray(response.suggestions)) {

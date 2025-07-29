@@ -48,7 +48,10 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     handleSendChatMessage,
     handleStopGeneration,
     updateMessageSuggestions
-  } = useWiringChat({ projectId });
+  } = useWiringChat({ 
+    projectId: projectId || '', // ✅ Assurer que projectId n'est pas undefined
+    diagram 
+  });
 
   // Validation hook
   const { 
