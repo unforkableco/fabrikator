@@ -60,10 +60,10 @@ export interface Message {
   content: string;
   sender: string; // 'user' or 'ai'
   mode: string; // 'ask' or 'agent'
-  suggestions?: any; // Suggestions attachées au message
+  suggestions?: any; // Suggestions attached to the message
   createdAt: string;
-  role?: string; // Pour compatibilité
-  timestamp?: string; // Pour compatibilité
+  role?: string; // For compatibility
+  timestamp?: string; // For compatibility
   relatedChanges?: ProjectChange[];
 }
 
@@ -207,7 +207,7 @@ export interface WiringSuggestion {
   expanded: boolean;
   validated?: boolean;
   confidence?: number;
-  status?: 'pending' | 'accepted' | 'rejected'; // ✅ Ajouter le statut comme dans BaseSuggestion
+  status?: 'pending' | 'accepted' | 'rejected'; // ✅ Add status like in BaseSuggestion
 }
 
 export interface WiringValidationResult {

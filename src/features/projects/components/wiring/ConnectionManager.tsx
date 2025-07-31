@@ -26,7 +26,7 @@ const ConnectionManager: React.FC<ConnectionManagerProps> = ({
       display: 'flex', 
       flexDirection: 'column',
       minHeight: 400, // Hauteur minimale garantie
-      maxHeight: 600, // Hauteur maximale augmentée
+      maxHeight: 600, // Increased maximum height
       flex: 1, // Prend tout l'espace disponible
       overflow: 'hidden' // Évite les débordements
     }}>

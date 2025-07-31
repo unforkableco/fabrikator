@@ -84,7 +84,7 @@ export const usePinMapping = () => {
       }
     }
 
-    // Données/Signaux
+    // Data/Signals
     if (suggestedLower.includes('data') || suggestedLower.includes('signal') || 
         suggestedLower.includes('analog') || suggestedLower.includes('sensor') ||
         suggestedLower.includes('out') || suggestedLower.includes('output')) {

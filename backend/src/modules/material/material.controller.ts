@@ -14,14 +14,14 @@ export class MaterialController {
   }
 
   /**
-   * Liste tous les matériaux d'un projet
+   * List all materials for a project
    */
   async listMaterials(req: Request, res: Response) {
     try {
       const { projectId } = req.params;
       const components = await this.materialService.listMaterials(projectId);
       
-      // Transformer les composants en matériaux 
+      // Transform components to materials 
       const materials = components.map(component => {
         const specs = component.currentVersion?.specs as any || {};
         return {
@@ -31,7 +31,7 @@ export class MaterialController {
           quantity: specs.quantity,
           description: specs.description,
           status: specs.status,
-          requirements: specs.requirements || {}, // Maintenant contient seulement les spécifications techniques
+          requirements: specs.requirements || {}, // Now contains only technical specifications
           productReference: specs.productReference || null,
           aiSuggested: specs.createdBy === 'AI'
         };
@@ -161,7 +161,7 @@ export class MaterialController {
   }
 
   /**
-   * Genère des suggestions de matériaux via l'IA
+   * Generate material suggestions via AI
    */
   async generateSuggestions(req: Request, res: Response) {
     try {

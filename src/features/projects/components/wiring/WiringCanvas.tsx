@@ -32,7 +32,7 @@ const WiringCanvas: React.FC<WiringCanvasProps> = ({
   onComponentUpdate,
   onSelectionChange
 }) => {
-  // Ajouter des quantités par défaut aux matériaux s'ils n'en ont pas
+  // Add default quantities to materials if they don't have any
   const materialsWithQuantities = materials.map(material => ({
     ...material,
     quantity: material.quantity || 2 // Default 2 of each component
@@ -41,8 +41,8 @@ const WiringCanvas: React.FC<WiringCanvasProps> = ({
   return (
     <Card sx={{ 
       flex: 1, 
-      p: 1, // Padding réduit pour plus d'espace
-      minHeight: 500, // Hauteur minimale augmentée
+      p: 1, // Reduced padding for more space
+      minHeight: 500, // Increased minimum height
       overflow: 'hidden' // Évite les débordements
     }}>
       <WiringEditor

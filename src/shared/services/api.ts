@@ -129,7 +129,7 @@ export const api = {
       return response.data;
     },
 
-    // Ancienne méthode pour compatibilité
+    // Legacy method for compatibility
     getMessages: async (projectId: string): Promise<Message[]> => {
       const response = await apiClient.get(`/projects/${projectId}/messages`);
       return response.data;
@@ -170,7 +170,7 @@ export const api = {
       return response.data;
     },
 
-    // Chat IA - Mode Agent (avec modifications de matériaux)
+    // AI Chat - Agent Mode (with material modifications)
     sendAgentMessage: async (projectId: string, message: string): Promise<any> => {
       const response = await apiClient.post(`/materials/project/${projectId}/suggestions`, {
         prompt: message

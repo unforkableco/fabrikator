@@ -29,7 +29,7 @@ interface MaterialSuggestion {
   action: 'keep' | 'update' | 'new' | 'remove';
   type: string;
   details: any;
-  currentMaterial?: Material; // Matériau existant pour les updates/removes
+  currentMaterial?: Material; // Existing material for updates/removes
 }
 
 interface MaterialSuggestionDiffProps {

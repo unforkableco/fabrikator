@@ -125,7 +125,7 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
           console.log('Wiring agent response:', response);
           
           if (response && response.suggestions && Array.isArray(response.suggestions)) {
-            // Adapter les suggestions pour gérer l'ancien et le nouveau format
+            // Adapt suggestions to handle old and new formats
             const suggestions = response.suggestions.map((suggestion: any, index: number) => {
               // ✅ Le backend génère maintenant toujours des connectionData propres avec des UUIDs uniques
               // Plus besoin de nettoyage manuel
@@ -140,13 +140,13 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
                   connectionData: suggestion.connectionData,
                   componentData: suggestion.componentData,
                   expanded: false,
-                  validated: false, // ✅ Force false pour nouvelles suggestions
+                  validated: false, // ✅ Force false for new suggestions
                   confidence: suggestion.confidence || 0.8,
                   // ✅ S'assurer qu'aucun status résiduel n'est gardé
                   status: undefined
                 };
               }
-              // Si c'est déjà le nouveau format, utiliser tel quel
+              // If it's already the new format, use as is
               else {
                 return {
                   id: suggestion.id, // ✅ Backend génère toujours un UUID unique

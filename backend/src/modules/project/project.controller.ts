@@ -109,11 +109,11 @@ export class ProjectController {
         return res.status(400).json({ error: 'Le prompt est requis' });
       }
       
-      // Analyser le prompt avec l'IA
+      // Analyze the prompt with AI
       const analysisResult = await this.aiService.analyzeProjectPrompt(prompt);
       
-      // Extraire les données pour créer le projet
-      let projectName = 'Nouveau projet';
+      // Extract data to create the project
+      let projectName = 'New project';
       let projectDescription = prompt;
       
       try {
@@ -128,10 +128,10 @@ export class ProjectController {
         }
       } catch (parseError) {
         console.warn('Error parsing AI response:', parseError);
-        // Continuer avec les valeurs par défaut
+        // Continue with default values
       }
       
-      // Créer le projet
+      // Create the project
       const projectData = {
         name: projectName,
         description: projectDescription,
@@ -140,7 +140,7 @@ export class ProjectController {
       
       const project = await this.projectService.createProject(projectData);
       
-      // Retourner le projet créé
+      // Return the created project
       res.status(201).json(project);
     } catch (error) {
       console.error('Error creating project from prompt:', error);
@@ -204,17 +204,17 @@ export class ProjectController {
       const { question } = req.body;
       
       if (!question) {
-        return res.status(400).json({ error: 'La question est requise' });
+        return res.status(400).json({ error: 'Question is required' });
       }
       
-      // Récupérer les informations complètes du projet
+      // Retrieve complete project information
       const project = await this.projectService.getProjectById(id);
       
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
       }
 
-      // Récupérer les matériaux du projet
+      // Retrieve project materials
       let materials: any[] = [];
       try {
         materials = await this.materialService.listMaterials(id);
@@ -222,7 +222,7 @@ export class ProjectController {
         console.warn('No materials found for project:', id);
       }
 
-      // Récupérer le câblage du projet
+      // Retrieve project wiring
       let wiring = null;
       try {
         wiring = await this.wiringService.getWiringForProject(id);
@@ -230,7 +230,7 @@ export class ProjectController {
         console.warn('No wiring found for project:', id);
       }
       
-      // Demander à l'IA de répondre à la question avec le contexte complet
+      // Ask AI to answer the question with complete context
       const answer = await this.aiService.answerProjectQuestion({
         project: project,
         materials: materials,

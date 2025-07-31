@@ -1,10 +1,10 @@
 /**
- * Configuration de la connexion à la base de données
+ * Database connection configuration
  */
 
 import { PrismaClient } from '@prisma/client';
 
-// Initialiser le client Prisma
+// Initialize Prisma client
 export const prisma = new PrismaClient();
 
 // Database configuration

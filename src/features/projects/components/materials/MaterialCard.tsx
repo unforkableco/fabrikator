@@ -52,12 +52,12 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
   onReject,
 }) => {
   const getStatusIcon = (material: Material) => {
-    // Logique plus flexible pour détecter les matériaux IA
+    // More flexible logic to detect AI materials
     const isAIGenerated = material.aiSuggested || 
       (material.currentVersion?.specs as any)?.createdBy === 'AI' ||
       material.status === MaterialStatus.SUGGESTED;
     
-    // AI Suggested: si c'est généré par l'IA et pas encore approuvé
+    // AI Suggested: if it's AI-generated and not yet approved
     if (isAIGenerated && material.status === MaterialStatus.SUGGESTED) {
       return (
         <Box 
@@ -99,7 +99,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
       );
     }
     
-    // User Added par défaut (si pas AI et pas approuvé)
+    // User Added by default (if not AI and not approved)
     if (material.status !== MaterialStatus.REJECTED && 
         material.status !== MaterialStatus.ORDERED && 
         material.status !== MaterialStatus.RECEIVED) {
@@ -122,7 +122,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
       );
     }
     
-    return null; // Pas d'icône pour les autres statuts
+    return null; // No icon for other statuses
   };
 
   const getTypeIcon = (type?: string, name?: string) => {

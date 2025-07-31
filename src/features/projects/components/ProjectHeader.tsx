@@ -49,7 +49,7 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({ project, onProject
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
 
-  // Créer des composants wrapper pour les icônes
+  // Create wrapper components for icons
   const XTwitterIcon = () => React.createElement(FaIcons.FaXTwitter as any, { style: { color: '#000000', fontSize: '20px' } });
   const FacebookIcon = () => React.createElement(FaIcons.FaFacebook as any, { style: { color: '#1877F2', fontSize: '20px' } });
   const LinkedInIcon = () => React.createElement(FaIcons.FaLinkedin as any, { style: { color: '#0A66C2', fontSize: '20px' } });

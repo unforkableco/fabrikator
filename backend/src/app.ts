@@ -5,7 +5,7 @@ import { projectRouter } from './modules/project/project.router';
 import { materialRouter } from './modules/material/material.router';
 import wiringRouter from './modules/wiring/wiring.router';
 
-// Créer l'application Express
+// Create Express application
 const app = express();
 
 // Middlewares globaux
@@ -17,7 +17,7 @@ app.use('/api/projects', projectRouter);
 app.use('/api/materials', materialRouter);
 app.use('/api/wiring', wiringRouter);
 
-// Route par défaut
+// Default route
 app.get('/', (req, res) => {
   res.json({ message: 'Fabrikator API' });
 });

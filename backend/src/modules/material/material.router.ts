@@ -4,7 +4,7 @@ import { MaterialController } from './material.controller';
 const router = Router();
 const materialController = new MaterialController();
 
-// Routes pour les matériaux
+// Routes for materials
 router.get('/project/:projectId', materialController.listMaterials.bind(materialController));
 router.post('/project/:projectId', materialController.createMaterial.bind(materialController));
 router.post('/project/:projectId/suggestions', materialController.generateSuggestions.bind(materialController));

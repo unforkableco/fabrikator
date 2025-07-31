@@ -68,7 +68,7 @@ export const useWiring = (projectId?: string) => {
         const result = await api.wiring.addVersion(wiringDiagram.id, wiringData);
         console.log('Version added successfully:', result);
         
-        // Mettre à jour le diagramme local avec les nouvelles données
+        // Update local diagram with new data
         if (result?.wiringSchema?.currentVersion) {
           const updatedDiagram: WiringDiagram = {
             id: result.wiringSchema.id,
@@ -89,7 +89,7 @@ export const useWiring = (projectId?: string) => {
         const result = await api.wiring.createWiring(projectId, wiringData);
         console.log('Wiring created successfully:', result);
         
-        // Rafraîchir seulement lors de la création
+        // Refresh only during creation
         await fetchWiringDiagram();
       }
       

@@ -43,7 +43,7 @@ interface BaseSuggestion {
   action: 'add' | 'modify' | 'remove';
   expanded: boolean;
   status?: 'pending' | 'accepted' | 'rejected';
-  originalData?: string; // Données JSON de la suggestion originale
+  originalData?: string; // Original suggestion JSON data
   
   // Extensions pour le wiring (optionnelles)
   connectionData?: any; // WiringConnection
@@ -79,11 +79,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [suggestionStates, setSuggestionStates] = useState<{[key: string]: 'accepted' | 'rejected'}>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Charger les états depuis les messages (base de données) au démarrage
+  // Load states from messages (database) on startup
   useEffect(() => {
     try {
       // ✅ SOLUTION: Extraire seulement les états des suggestions qui ont un status explicite
-      // Ne pas mélanger avec les nouvelles suggestions sans status
+      // Don't mix with new suggestions without status
       const statesFromDB: {[key: string]: 'accepted' | 'rejected'} = {};
       
       messages.forEach(message => {
@@ -148,7 +148,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         console.log('🧹 Force clearing all suggestion states for new generation');
         
         // ✅ Nettoyage complet et agressif
-        setSuggestionStates({}); // Vider complètement l'état
+        setSuggestionStates({}); // Completely clear the state
         localStorage.removeItem(storageKey); // Supprimer le localStorage
         
         // ✅ Aussi nettoyer toutes les variations possibles de clés
@@ -179,7 +179,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   // Nettoyer le localStorage quand on change de projet
   useEffect(() => {
     return () => {
-      // Optionnel: nettoyer quand le composant se démonte
+      // Optional: cleanup when component unmounts
       // localStorage.removeItem(storageKey);
     };
   }, [projectId]);
@@ -209,11 +209,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const handleAcceptSuggestion = async (messageId: string, suggestionId: string) => {
     if (!projectId) return;
     
-    try {
-      // Mettre à jour l'état dans la base de données
-      await api.projects.updateSuggestionStatus(projectId, messageId, suggestionId, 'accepted');
+          try {
+        // Update status in database
+        await api.projects.updateSuggestionStatus(projectId, messageId, suggestionId, 'accepted');
       
-      // Marquer la suggestion comme acceptée visuellement
+      // Mark suggestion as accepted visually
       const newStates = {
         ...suggestionStates,
         [suggestionId]: 'accepted' as const
@@ -231,11 +231,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const handleRejectSuggestion = async (messageId: string, suggestionId: string) => {
     if (!projectId) return;
     
-    try {
-      // Mettre à jour l'état dans la base de données
-      await api.projects.updateSuggestionStatus(projectId, messageId, suggestionId, 'rejected');
+          try {
+        // Update status in database
+        await api.projects.updateSuggestionStatus(projectId, messageId, suggestionId, 'rejected');
       
-      // Marquer la suggestion comme refusée visuellement
+      // Mark suggestion as rejected visually
       const newStates = {
         ...suggestionStates,
         [suggestionId]: 'rejected' as const
@@ -255,7 +255,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     const isAccepted = suggestionState === 'accepted';
     const isRejected = suggestionState === 'rejected';
     
-    // Debug - vérifier l'état des suggestions
+    // Debug - check suggestions state
     console.log('🔍 Rendering suggestion:', {
       id: suggestion.id,
       title: suggestion.title,
@@ -266,7 +266,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       shouldShowButtons: !isAccepted && !isRejected
     });
     
-    // DEBUG TEMPORAIRE - Nettoyer localStorage si nécessaire
+    // DEBUG TEMPORARY - Clean localStorage if necessary
     if (suggestion.id.includes('debug-clear')) {
       localStorage.removeItem(storageKey);
       console.log('🧹 Cleared localStorage for:', storageKey);

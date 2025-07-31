@@ -70,7 +70,7 @@ export class ProjectService {
    */
   async deleteProject(id: string) {
     try {
-      // Suppression en cascade des relations liées
+      // Cascade deletion of related relationships
       // 1. Supprimer les changeLogs liés aux versions des composants
       await prisma.changeLog.deleteMany({
         where: {
@@ -150,11 +150,11 @@ export class ProjectService {
   }
 
   /**
-   * Mettre à jour l'état d'une suggestion dans un message
+   * Update the status of a suggestion in a message
    */
   async updateSuggestionStatus(projectId: string, messageId: string, suggestionId: string, status: 'accepted' | 'rejected') {
     try {
-      // Récupérer le message avec ses suggestions
+      // Retrieve the message with its suggestions
       const message = await prisma.message.findFirst({
         where: { 
           id: messageId,
@@ -166,10 +166,10 @@ export class ProjectService {
         return null;
       }
 
-      // Parser les suggestions
+      // Parse the suggestions
       const suggestions = Array.isArray(message.suggestions) ? message.suggestions : [];
       
-      // Trouver et mettre à jour la suggestion
+      // Find and update the suggestion
       const updatedSuggestions = suggestions.map((suggestion: any) => {
         if (suggestion.id === suggestionId) {
           return {
@@ -180,7 +180,7 @@ export class ProjectService {
         return suggestion;
       });
 
-      // Mettre à jour le message avec les nouvelles suggestions
+      // Update the message with the new suggestions
       const updatedMessage = await prisma.message.update({
         where: { id: messageId },
         data: {

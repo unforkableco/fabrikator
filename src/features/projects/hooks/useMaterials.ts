@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Material, MaterialStatus } from '../../../shared/types';
 import { api } from '../../../shared/services/api';
 
-// Fonction pour transformer les données du backend vers le format Material
+// Function to transform backend data to Material format
 const transformBackendToMaterial = (backendComponent: any): Material => {
   const specs = backendComponent.currentVersion?.specs || {};
   
@@ -35,7 +35,7 @@ export const useMaterials = (projectId?: string) => {
     try {
       const backendComponents = await api.projects.getMaterials(projectId);
       
-      // Transformer les données du backend vers le format Material
+      // Transform backend data to Material format
       const transformedMaterials = backendComponents.map(transformBackendToMaterial);
       
       setMaterials(transformedMaterials);
@@ -61,7 +61,7 @@ export const useMaterials = (projectId?: string) => {
     try {
       const suggestions = await api.projects.generateMaterialSuggestions(projectId, description);
       
-      // Transformer les suggestions si nécessaire
+      // Transform suggestions if necessary
       const transformedSuggestions = Array.isArray(suggestions) 
         ? suggestions.map((s: any) => s.component ? transformBackendToMaterial(s.component) : transformBackendToMaterial(s))
         : [];

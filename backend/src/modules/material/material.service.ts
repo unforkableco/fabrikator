@@ -16,7 +16,7 @@ export class MaterialService {
         }
       });
       
-      // Filtrer les matériaux rejetés
+      // Filter rejected materials
       const activeComponents = components.filter(component => {
         const specs = component.currentVersion?.specs as any;
         return specs?.status !== MaterialStatus.REJECTED;
@@ -61,14 +61,14 @@ export class MaterialService {
       } = materialData;
 
       return await prisma.$transaction(async (tx) => {
-        // Créer le composant
+        // Create the component
         const component = await tx.component.create({
           data: { 
             projectId 
           }
         });
         
-        // Créer la première version
+        // Create the first version
         const version = await tx.compVersion.create({
           data: {
             componentId: component.id,
@@ -86,13 +86,13 @@ export class MaterialService {
           }
         });
         
-        // Mettre à jour le composant pour pointer vers cette version
+        // Update the component to point to this version
         await tx.component.update({
           where: { id: component.id },
           data: { currentVersionId: version.id }
         });
         
-        // Créer une entrée de changelog
+        // Create a changelog entry
         await tx.changeLog.create({
           data: {
             entity: 'CompVersion',
@@ -152,17 +152,17 @@ export class MaterialService {
         throw new Error('Component or current version not found');
       }
       
-      // Si c'est une mise à jour, créer une nouvelle version
+      // If it's an update, create a new version
       if (action === 'update' && updateData) {
         return await this.addVersion(componentId, updateData);
       }
       
-      // Pour approve/reject, on met à jour le statut dans la version actuelle
+      // For approve/reject, update the status in the current version
       const currentSpecs = component.currentVersion?.specs as any || {};
       const newStatus = action === 'approve' ? MaterialStatus.APPROVED : MaterialStatus.REJECTED;
       
       return await prisma.$transaction(async (tx) => {
-        // Créer une nouvelle version avec le statut mis à jour
+        // Create a new version with updated status
         const nextVersionNumber = (component.currentVersion?.versionNumber || 0) + 1;
         const newSpecs = { ...currentSpecs, status: newStatus };
         
@@ -236,14 +236,14 @@ export class MaterialService {
       }
       
       return await prisma.$transaction(async (tx) => {
-        // Obtenir le numéro de la prochaine version
+        // Get the next version number
         const lastVersion = await tx.compVersion.findFirst({
           where: { componentId },
           orderBy: { versionNumber: 'desc' }
         });
         const nextVersionNumber = lastVersion ? lastVersion.versionNumber + 1 : 1;
         
-        // Obtenir les spécifications actuelles pour ne mettre à jour que les champs fournis
+        // Get current specifications to update only provided fields
         const currentSpecs = component.currentVersion?.specs as any || {};
         const newSpecs = {
           ...currentSpecs,
@@ -256,7 +256,7 @@ export class MaterialService {
           status: status ?? currentSpecs.status
         };
         
-        // Créer une nouvelle version
+        // Create a new version
         const version = await tx.compVersion.create({
           data: {
             componentId,
@@ -309,19 +309,19 @@ export class MaterialService {
   async deleteMaterial(componentId: string) {
     try {
       return await prisma.$transaction(async (tx) => {
-        // D'abord, récupérer toutes les versions du composant
+        // First, retrieve all component versions
         const versions = await tx.compVersion.findMany({
           where: { componentId }
         });
 
-        // Supprimer tous les ChangeLogs associés aux versions
+        // Delete all ChangeLogs associated with versions
         for (const version of versions) {
           await tx.changeLog.deleteMany({
             where: { compVersionId: version.id }
           });
         }
 
-        // Maintenant on peut supprimer le composant (et ses versions grâce à onDelete: Cascade)
+        // Now we can delete the component (and its versions thanks to onDelete: Cascade)
         return await tx.component.delete({
           where: { id: componentId }
         });

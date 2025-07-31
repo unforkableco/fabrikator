@@ -20,7 +20,7 @@ const ProjectPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [tabValue, setTabValue] = useState(0);
 
-  // Hooks personnalisés pour la logique métier
+  // Custom hooks for business logic
   const { project, isLoading, error: projectError, updateProject } = useProject(id);
   const { 
     materials, 
@@ -88,7 +88,7 @@ const ProjectPage: React.FC = () => {
           py: 3,
           ...(tabValue === 2 && {
             maxWidth: '95%', // Utilise presque toute la largeur pour le wiring
-            px: 1 // Padding réduit pour plus d'espace
+            px: 1 // Reduced padding for more space
           })
         }}
       >

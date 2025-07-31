@@ -1,4 +1,4 @@
-// Export des hooks spécifiques aux projets
+// Export of project-specific hooks
 export { useProject } from './useProject';
 export { useMaterials } from './useMaterials';
 export { useWiring } from './useWiring';

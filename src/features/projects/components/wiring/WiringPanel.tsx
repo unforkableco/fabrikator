@@ -223,7 +223,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       console.log('🧹 Cleared suggestion states for new optimal circuit generation');
       
       // 🧹 Force le nettoyage des états de suggestions dans ChatPanel
-      // On va envoyer un message spécial pour déclencher le nettoyage
+      // We will send a special message to trigger cleanup
       window.dispatchEvent(new CustomEvent('clearSuggestionStates', { 
         detail: { projectId, context: 'wiring' } 
       }));

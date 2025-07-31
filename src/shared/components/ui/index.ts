@@ -1,3 +1,3 @@
-// Export des composants UI réutilisables
-// TODO: Ajouter les composants UI au fur et à mesure
+// Export of reusable UI components
+// TODO: Add UI components as needed
 export { TabPanel } from './TabPanel'; 
