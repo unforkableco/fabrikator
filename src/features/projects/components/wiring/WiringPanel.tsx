@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import CableIcon from '@mui/icons-material/Cable';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import StopIcon from '@mui/icons-material/Stop';
 import { WiringDiagram, WiringSuggestion } from '../../../../shared/types';
 import { useWiring } from '../../hooks/useWiring';
 import { useWiringChat } from '../../hooks/useWiringChat';
@@ -25,7 +23,6 @@ interface WiringPanelProps {
 
 const WiringPanel: React.FC<WiringPanelProps> = ({
   wiringDiagram,
-  isLoading,
   projectId,
   materials = [],
   onWiringUpdated,
@@ -57,7 +54,6 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
   const { 
     isValidating, 
     validationResults, 
-    validateWiring,
     addValidationError 
   } = useWiringValidation();
 
@@ -302,15 +298,6 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={isValidating ? <StopIcon /> : <PlayArrowIcon />}
-              onClick={() => diagram && validateWiring(diagram)}
-              disabled={!diagram || isValidating}
-            >
-              {isValidating ? 'Validating...' : 'Validate'}
-            </Button>
             <Button
               variant="contained"
               color="secondary"

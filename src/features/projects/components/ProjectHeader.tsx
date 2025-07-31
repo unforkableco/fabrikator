@@ -23,8 +23,6 @@ import {
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
-  Notifications as NotificationIcon,
-  Settings as SettingsIcon,
   Share as ShareIcon,
   Edit as EditIcon,
   ContentCopy as CopyIcon,
@@ -235,12 +233,6 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({ project, onProject
             </IconButton>
             <IconButton onClick={handleShareClick} title="Share project">
               <ShareIcon />
-            </IconButton>
-            <IconButton title="Notifications (coming soon)">
-              <NotificationIcon />
-            </IconButton>
-            <IconButton title="Settings (coming soon)">
-              <SettingsIcon />
             </IconButton>
           </Box>
         </Toolbar>
