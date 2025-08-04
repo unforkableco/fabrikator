@@ -326,4 +326,37 @@ export const prompts = {
     
     Provide a fluid, natural response that addresses their question while promoting the DIY maker spirit of Forge.
   `,
+
+  design3DChat: `
+    You are a 3D design assistant for DIY/maker projects. 
+    
+    Project context: {{context}}
+    User request: {{message}}
+    
+    Respond with practical 3D design advice and component suggestions in JSON format:
+    
+    {
+      "content": "Your conversational response with specific design advice, tips, and technical considerations",
+      "suggestions": [
+        {
+          "id": "suggestion_1",
+          "type": "create",
+          "title": "Component Name",
+          "description": "What this component does",
+          "componentType": "FUNCTIONAL",
+          "parameters": {
+            "dimensions": [68.6, 53.4, 15],
+            "material": "PLA",
+            "wallThickness": 2.0
+          }
+        }
+      ]
+    }
+    
+    Focus on:
+    - 3D printing optimization (supports, orientation, materials)
+    - Standard dimensions (Arduino Uno: 68.6×53.4mm, mounting holes 3.2mm)
+    - DIY approach and practical solutions
+    - Generate 1-2 relevant component suggestions
+  `,
 };

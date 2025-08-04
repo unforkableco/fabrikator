@@ -1,10 +1,10 @@
 import React from 'react';
 import { Box, Typography, CircularProgress } from '@mui/material';
-import { SmartToy as SmartToyIcon, Cable as CableIcon, Memory as MemoryIcon } from '@mui/icons-material';
+import { SmartToy as SmartToyIcon, Cable as CableIcon, Memory as MemoryIcon, ViewInAr as ViewInArIcon } from '@mui/icons-material';
 
 interface TypingAnimationProps {
   mode: 'ask' | 'agent';
-  context?: 'materials' | 'wiring' | 'general';
+  context?: 'materials' | 'wiring' | 'general' | '3d';
 }
 
 const TypingAnimation: React.FC<TypingAnimationProps> = ({ mode, context = 'general' }) => {
@@ -20,6 +20,12 @@ const TypingAnimation: React.FC<TypingAnimationProps> = ({ mode, context = 'gene
         icon: <MemoryIcon sx={{ fontSize: 16, color: 'secondary.main' }} />,
         text: 'Analyzing materials...',
         subtext: 'Searching for components'
+      };
+    } else if (context === '3d') {
+      return {
+        icon: <ViewInArIcon sx={{ fontSize: 16, color: 'success.main' }} />,
+        text: 'Designing 3D components...',
+        subtext: 'Creating custom parts for your project'
       };
     } else {
       return {

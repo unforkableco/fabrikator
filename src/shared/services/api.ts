@@ -230,4 +230,30 @@ export const api = {
   },
 };
 
+// Generic API call function for custom endpoints
+export const apiCall = async (endpoint: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', data?: any, headers?: any) => {
+  // Remove leading /api if present since apiClient baseURL already includes it
+  const cleanEndpoint = endpoint.startsWith('/api/') ? endpoint.substring(4) : endpoint;
+  
+  const config: any = {
+    method,
+    url: cleanEndpoint,
+    ...headers && { headers }
+  };
+
+  if (data && method !== 'GET') {
+    if (data instanceof FormData) {
+      config.data = data;
+      // Remove content-type to let browser set it for FormData
+      config.headers = { ...config.headers };
+      delete config.headers['Content-Type'];
+    } else {
+      config.data = data;
+    }
+  }
+
+  const response = await apiClient(config);
+  return response.data;
+};
+
 export default api; 

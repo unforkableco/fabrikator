@@ -251,7 +251,7 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({ project, onProject
             fullWidth
             label="Project Name"
             value={editName}
-            onChange={(e) => setEditName(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditName(e.target.value)}
             margin="normal"
             required
           />
@@ -259,7 +259,7 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({ project, onProject
             fullWidth
             label="Description"
             value={editDescription}
-            onChange={(e) => setEditDescription(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditDescription(e.target.value)}
             margin="normal"
             multiline
             rows={4}

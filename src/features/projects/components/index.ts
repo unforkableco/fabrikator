@@ -4,6 +4,9 @@ export * from './materials';
 // Wiring components
 export * from './wiring';
 
+// Design components
+export * from './design';
+
 // Chat components  
 export * from './chat';
 

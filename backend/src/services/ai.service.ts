@@ -8,12 +8,15 @@ export class AIService {
   constructor() {
     this.apiKey = process.env.OPENAI_API_KEY || '';
     this.apiUrl = 'https://api.openai.com/v1/chat/completions';
+    
+    // Debug: Log API key status
+    console.log('AIService initialized with API key:', this.apiKey ? `${this.apiKey.substring(0, 10)}...` : 'NOT_SET');
   }
 
   /**
    * Utility function to clean and extract JSON from AI response
    */
-  private cleanJsonResponse(response: string): string {
+  public cleanJsonResponse(response: string): string {
     let cleanedResponse = response.trim();
     
     // Remove markdown code blocks if present
@@ -51,7 +54,13 @@ export class AIService {
   /**
    * Generic call to OpenAI API with retry logic
    */
-  private async callOpenAI(messages: any[], temperature = 0.7, model = 'gpt-4', retries = 2) {
+  public async callOpenAI(messages: any[], temperature = 0.7, model = 'gpt-4', retries = 2) {
+    console.log(`Calling OpenAI API with model: ${model}, messages: ${messages.length}, temperature: ${temperature}`);
+    
+    if (!this.apiKey) {
+      throw new Error('OpenAI API key is not configured');
+    }
+    
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const response = await axios.post(
@@ -69,9 +78,15 @@ export class AIService {
           }
         );
 
+        console.log(`OpenAI API call successful. Response length: ${response.data.choices[0].message.content.length}`);
         return response.data.choices[0].message.content;
       } catch (error: any) {
-        console.error(`Error calling OpenAI (attempt ${attempt + 1}):`, error?.response?.status, error?.message);
+        console.error(`Error calling OpenAI (attempt ${attempt + 1}):`, {
+          status: error?.response?.status,
+          statusText: error?.response?.statusText,
+          message: error?.message,
+          data: error?.response?.data
+        });
         
         // If it's a 429 error (rate limiting) and there are remaining attempts
         if (error?.response?.status === 429 && attempt < retries) {

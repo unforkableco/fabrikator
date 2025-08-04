@@ -10,6 +10,7 @@ const tabs = [
   { label: 'Overview', id: 'overview' },
   { label: 'Materials', id: 'materials' },
   { label: 'Wiring', id: 'wiring' },
+  { label: 'Design', id: 'design' },
 ];
 
 export const ProjectTabs: React.FC<ProjectTabsProps> = ({ value, onChange }) => {

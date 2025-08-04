@@ -133,7 +133,7 @@ const NewProjectPage: React.FC = () => {
                 fullWidth
                 label="Project Name"
                 value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProjectName(e.target.value)}
                 required
                 sx={{ mb: 2 }}
                 placeholder="Enter a name for your project"
@@ -142,7 +142,7 @@ const NewProjectPage: React.FC = () => {
                 fullWidth
                 label="Description (Optional)"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDescription(e.target.value)}
                 multiline
                 rows={4}
                 placeholder="Describe your project in detail. What is its purpose? What functionality do you need?"
@@ -185,7 +185,7 @@ const NewProjectPage: React.FC = () => {
                 fullWidth
                 label="Project Description"
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPrompt(e.target.value)}
                 required
                 multiline
                 rows={6}
