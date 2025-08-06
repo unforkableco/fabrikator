@@ -27,7 +27,7 @@ export class ChatService {
   private sceneService: SceneService;
 
   constructor() {
-    this.aiService = new AIService();
+    this.aiService = AIService.getInstance();
     this.design3dService = new Design3DService();
     this.sceneService = new SceneService();
   }

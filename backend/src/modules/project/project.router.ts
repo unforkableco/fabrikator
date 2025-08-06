@@ -4,7 +4,7 @@ import { ProjectController } from './project.controller';
 const router = Router();
 const projectController = new ProjectController();
 
-// Routes pour les projets
+// Routes for projects
 router.get('/', projectController.getAllProjects.bind(projectController));
 router.post('/create-from-prompt', projectController.createFromPrompt.bind(projectController));
 router.get('/:id', projectController.getProjectById.bind(projectController));

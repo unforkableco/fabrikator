@@ -1,16 +1,73 @@
 import axios from 'axios';
 import { prompts } from '../config/prompts';
 
-export class AIService {
-  private apiKey: string;
-  private apiUrl: string;
+export interface AIProvider {
+  name: string;
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+}
 
-  constructor() {
-    this.apiKey = process.env.OPENAI_API_KEY || '';
-    this.apiUrl = 'https://api.openai.com/v1/chat/completions';
-    
-    // Debug: Log API key status
-    console.log('AIService initialized with API key:', this.apiKey ? `${this.apiKey.substring(0, 10)}...` : 'NOT_SET');
+export class AIService {
+  private static instance: AIService;
+  private currentProvider: AIProvider;
+  private providers: { [key: string]: AIProvider };
+
+  private constructor() {
+    // Initialize supported providers
+    this.providers = {
+      openai: {
+        name: 'openai',
+        apiKey: process.env.OPENAI_API_KEY || '',
+        model: process.env.OPENAI_MODEL || 'gpt-4',
+        baseUrl: 'https://api.openai.com/v1/chat/completions'
+      },
+      claude: {
+        name: 'claude',
+        apiKey: process.env.CLAUDE_API_KEY || '',
+        model: process.env.CLAUDE_MODEL || 'claude-3-sonnet-20240229',
+        baseUrl: 'https://api.anthropic.com/v1/messages'
+      },
+      gemini: {
+        name: 'gemini',
+        apiKey: process.env.GEMINI_API_KEY || '',
+        model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models'
+      }
+    };
+
+    // Set current provider based on environment variable
+    const selectedProvider = process.env.AI_PROVIDER || 'openai';
+    this.currentProvider = this.providers[selectedProvider];
+
+    if (!this.currentProvider) {
+      throw new Error(`Unsupported AI provider: ${selectedProvider}`);
+    }
+
+    // Validate API key
+    if (!this.currentProvider.apiKey) {
+      throw new Error(`API key not configured for provider: ${selectedProvider}`);
+    }
+
+    console.log(`AIService initialized with provider: ${this.currentProvider.name}, model: ${this.currentProvider.model}`);
+  }
+
+  /**
+   * Get the singleton instance of AIService
+   */
+  public static getInstance(): AIService {
+    if (!AIService.instance) {
+      AIService.instance = new AIService();
+    }
+    return AIService.instance;
+  }
+
+  /**
+   * For backward compatibility - allows new AIService() to still work
+   * @deprecated Use AIService.getInstance() instead
+   */
+  public static create(): AIService {
+    return AIService.getInstance();
   }
 
   /**
@@ -52,36 +109,33 @@ export class AIService {
   }
 
   /**
-   * Generic call to OpenAI API with retry logic
+   * Generic call to AI API with provider-specific implementation
    */
-  public async callOpenAI(messages: any[], temperature = 0.7, model = 'gpt-4', retries = 2) {
-    console.log(`Calling OpenAI API with model: ${model}, messages: ${messages.length}, temperature: ${temperature}`);
-    
-    if (!this.apiKey) {
-      throw new Error('OpenAI API key is not configured');
-    }
+  public async callAI(messages: any[], temperature = 0.7, retries = 2): Promise<string> {
+    console.log(`Calling ${this.currentProvider.name} API with model: ${this.currentProvider.model}, messages: ${messages.length}, temperature: ${temperature}`);
     
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const response = await axios.post(
-          this.apiUrl,
-          {
-            model,
-            messages,
-            temperature
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${this.apiKey}`
-            }
-          }
-        );
+        let response;
+        
+        switch (this.currentProvider.name) {
+          case 'openai':
+            response = await this.callOpenAIProvider(messages, temperature);
+            break;
+          case 'claude':
+            response = await this.callClaude(messages, temperature);
+            break;
+          case 'gemini':
+            response = await this.callGemini(messages, temperature);
+            break;
+          default:
+            throw new Error(`Unsupported provider: ${this.currentProvider.name}`);
+        }
 
-        console.log(`OpenAI API call successful. Response length: ${response.data.choices[0].message.content.length}`);
-        return response.data.choices[0].message.content;
+        console.log(`${this.currentProvider.name} API call successful. Response length: ${response.length}`);
+        return response;
       } catch (error: any) {
-        console.error(`Error calling OpenAI (attempt ${attempt + 1}):`, {
+        console.error(`Error calling ${this.currentProvider.name} (attempt ${attempt + 1}):`, {
           status: error?.response?.status,
           statusText: error?.response?.statusText,
           message: error?.message,
@@ -99,13 +153,154 @@ export class AIService {
         throw error;
       }
     }
+    
+    throw new Error('Max retries exceeded');
+  }
+
+  /**
+   * OpenAI-specific API call
+   */
+  private async callOpenAIProvider(messages: any[], temperature: number): Promise<string> {
+    const response = await axios.post(
+      this.currentProvider.baseUrl,
+      {
+        model: this.currentProvider.model,
+        messages,
+        temperature
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.currentProvider.apiKey}`
+        }
+      }
+    );
+
+    return response.data.choices[0].message.content;
+  }
+
+  /**
+   * Claude-specific API call
+   */
+  private async callClaude(messages: any[], temperature: number): Promise<string> {
+    // Convert OpenAI format to Claude format
+    const systemMessage = messages.find(m => m.role === 'system');
+    const userMessages = messages.filter(m => m.role !== 'system');
+
+    const claudePayload: any = {
+      model: this.currentProvider.model,
+      max_tokens: 4096,
+      temperature,
+      messages: userMessages.map(msg => ({
+        role: msg.role === 'assistant' ? 'assistant' : 'user',
+        content: msg.content
+      }))
+    };
+
+    // Add system message if present
+    if (systemMessage) {
+      claudePayload.system = systemMessage.content;
+    }
+
+    const response = await axios.post(
+      this.currentProvider.baseUrl,
+      claudePayload,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.currentProvider.apiKey,
+          'anthropic-version': '2023-06-01'
+        }
+      }
+    );
+
+    return response.data.content[0].text;
+  }
+
+  /**
+   * Gemini-specific API call
+   */
+  private async callGemini(messages: any[], temperature: number): Promise<string> {
+    // Convert messages to Gemini format
+    const contents = messages.filter(m => m.role !== 'system').map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
+    // Add system instruction if present
+    const systemMessage = messages.find(m => m.role === 'system');
+    const geminiPayload: any = {
+      contents,
+      generationConfig: {
+        temperature,
+        maxOutputTokens: 4096,
+      }
+    };
+
+    if (systemMessage) {
+      geminiPayload.systemInstruction = {
+        parts: [{ text: systemMessage.content }]
+      };
+    }
+
+    const url = `${this.currentProvider.baseUrl}/${this.currentProvider.model}:generateContent?key=${this.currentProvider.apiKey}`;
+    
+    const response = await axios.post(url, geminiPayload, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    return response.data.candidates[0].content.parts[0].text;
+  }
+
+  /**
+   * Backward compatibility method
+   */
+  public async callOpenAI(messages: any[], temperature = 0.7, model?: string, retries = 2): Promise<string> {
+    // Override model if provided for backward compatibility
+    if (model && this.currentProvider.name === 'openai') {
+      const originalModel = this.currentProvider.model;
+      this.currentProvider.model = model;
+      try {
+        return await this.callAI(messages, temperature, retries);
+      } finally {
+        this.currentProvider.model = originalModel;
+      }
+    }
+    
+    return await this.callAI(messages, temperature, retries);
+  }
+
+  /**
+   * Get current provider information
+   */
+  public getCurrentProvider(): AIProvider {
+    return { ...this.currentProvider };
+  }
+
+  /**
+   * Switch provider dynamically (useful for testing or fallback)
+   */
+  public switchProvider(providerName: string): void {
+    if (!this.providers[providerName]) {
+      throw new Error(`Provider ${providerName} not configured`);
+    }
+    
+    this.currentProvider = this.providers[providerName];
+    
+    if (!this.currentProvider.apiKey) {
+      throw new Error(`API key not configured for provider: ${providerName}`);
+    }
+    
+    console.log(`Switched to provider: ${this.currentProvider.name}, model: ${this.currentProvider.model}`);
   }
 
   /**
    * Analyzes a project prompt to create its entities
    */
   async analyzeProjectPrompt(prompt: string) {
-    // Utiliser le prompt de configuration en remplaçant les variables
+    // Use the configuration prompt by replacing variables
     const systemPrompt = prompts.projectAnalysis.replace('{{description}}', prompt);
     
     const messages = [
@@ -115,36 +310,164 @@ export class AIService {
       }
     ];
 
-    const response = await this.callOpenAI(messages, 0.5);
-    let parsedResponse = {};
-    
     try {
-      // Clean the response using the utility function
+      const response = await this.callAI(messages, 0.7);
       const cleanedResponse = this.cleanJsonResponse(response);
-      
-      parsedResponse = JSON.parse(cleanedResponse);
+      return JSON.parse(cleanedResponse);
     } catch (error) {
-      console.error('Error parsing AI response:', error);
-      console.error('Raw response:', response);
-      
-      // Fallback: return a default structure
-      parsedResponse = {
-        name: "New Project",
-                  description: "Automatically generated description",
-        analysis: {
-                      summary: "Analysis in progress...",
-                      technicalRequirements: ["To be defined"],
-            challenges: ["To be analyzed"],
-            recommendations: ["To be determined"]
-        }
-      };
+      console.error('Error in analyzeProjectPrompt:', error);
+      throw error;
     }
-
-    return parsedResponse;
   }
 
   /**
-   * Suggests hardware components for a project
+   * Generate component suggestions for a project
+   */
+  async generateComponentSuggestions(projectId: string, description: string) {
+    const systemPrompt = prompts.componentSuggestions
+      .replace('{{projectId}}', projectId)
+      .replace('{{description}}', description);
+    
+    const messages = [
+      {
+        role: 'system',
+        content: systemPrompt
+      }
+    ];
+
+    try {
+      const response = await this.callAI(messages, 0.7);
+      const cleanedResponse = this.cleanJsonResponse(response);
+      return JSON.parse(cleanedResponse);
+    } catch (error) {
+      console.error('Error in generateComponentSuggestions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate wiring suggestions
+   */
+  async generateWiringSuggestions(prompt: string, context?: any): Promise<any>;
+  async generateWiringSuggestions(params: { prompt: string; materials: any[]; currentDiagram?: any }): Promise<any>;
+  async generateWiringSuggestions(promptOrParams: string | { prompt: string; materials: any[]; currentDiagram?: any }, context?: any): Promise<any> {
+    let prompt: string;
+    let contextData: any;
+
+    // Handle both old and new signature
+    if (typeof promptOrParams === 'string') {
+      prompt = promptOrParams;
+      contextData = context;
+    } else {
+      prompt = promptOrParams.prompt;
+      contextData = {
+        materials: promptOrParams.materials,
+        currentDiagram: promptOrParams.currentDiagram
+      };
+    }
+
+    // Use wiringOptimalCircuit for complex wiring analysis (legacy support)
+    if (contextData?.materials && contextData?.currentDiagram) {
+      let systemPrompt = prompts.wiringOptimalCircuit
+        .replace('{{materials}}', JSON.stringify(contextData.materials, null, 2))
+        .replace('{{currentDiagram}}', JSON.stringify(contextData.currentDiagram, null, 2))
+        .replace('{{prompt}}', prompt);
+      
+      const messages = [
+        {
+          role: 'system',
+          content: systemPrompt
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ];
+
+      try {
+        const response = await this.callAI(messages, 0.7);
+        console.log('AI Service - Raw wiring response:', response);
+        
+        let cleanedResponse = response.trim();
+        
+        // Extract JSON if the response contains additional text
+        const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          cleanedResponse = jsonMatch[0];
+        }
+        
+        // Fix common JavaScript expressions in JSON
+        cleanedResponse = cleanedResponse.replace(/"conn-"\+Date\.now\(\)\+"-(\d+)"/g, '"conn-$1"');
+        cleanedResponse = cleanedResponse.replace(/Date\.now\(\)/g, '1234567890');
+        
+        console.log('AI Service - Cleaned response for parsing:', cleanedResponse.substring(0, 500) + '...');
+        
+        const parsedResponse = JSON.parse(cleanedResponse);
+        return parsedResponse;
+      } catch (error) {
+        console.error('Error parsing AI wiring response:', error);
+        
+        // Fallback: return a default structure
+        return {
+          explanation: "I couldn't analyze your materials correctly at the moment.",
+          suggestions: []
+        };
+      }
+    } else {
+      // Use simple wiring suggestions for new API
+      const systemPrompt = prompts.wiringSuggestions
+        .replace('{{prompt}}', prompt)
+        .replace('{{context}}', contextData ? JSON.stringify(contextData) : '');
+      
+      const messages = [
+        {
+          role: 'system',
+          content: systemPrompt
+        }
+      ];
+
+      try {
+        const response = await this.callAI(messages, 0.7);
+        const cleanedResponse = this.cleanJsonResponse(response);
+        return JSON.parse(cleanedResponse);
+      } catch (error) {
+        console.error('Error in generateWiringSuggestions:', error);
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Generate chat response
+   */
+  async generateChatResponse(message: string, context?: string) {
+    let systemPrompt = prompts.chatResponse || 'You are a helpful assistant for electronics and 3D printing projects.';
+    
+    if (context) {
+      systemPrompt = systemPrompt.replace('{{context}}', context);
+    }
+    
+    const messages = [
+      {
+        role: 'system',
+        content: systemPrompt
+      },
+      {
+        role: 'user',
+        content: message
+      }
+    ];
+
+    try {
+      return await this.callAI(messages, 0.7);
+    } catch (error) {
+      console.error('Error in generateChatResponse:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Legacy method: Suggests hardware components for a project (backward compatibility)
    */
   async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[] }) {
     const { name, description, userPrompt = '', previousComponents = [], currentMaterials = [] } = params;
@@ -189,89 +512,48 @@ export class AIService {
     console.log('System prompt length:', systemPrompt.length);
     console.log('Simplified materials count:', simplifiedMaterials.length);
     
-    const response = await this.callOpenAI(messages, 0.7);
-    console.log('AI Service - Raw response received:', response);
-    
-    let parsedResponse;
-    
     try {
+      const response = await this.callAI(messages, 0.7);
+      console.log('AI Service - Raw response received:', response);
+      
       // Clean the response using the utility function
       const cleanedResponse = this.cleanJsonResponse(response);
       
       console.log('AI Service - Cleaned response for parsing:', cleanedResponse.substring(0, 500) + '...');
       
-      parsedResponse = JSON.parse(cleanedResponse);
+      const parsedResponse = JSON.parse(cleanedResponse);
       
       // Validate that we have components
       if (!parsedResponse.components || !Array.isArray(parsedResponse.components) || parsedResponse.components.length === 0) {
         throw new Error('No components found in AI response');
       }
       
+      return parsedResponse;
     } catch (error) {
       console.error('Error parsing AI response:', error);
-      console.error('Raw response:', response);
-      console.error('Cleaned response length:', this.cleanJsonResponse(response).length);
       
-      // Try to extract components manually from the raw response as a last resort
-      try {
-        const componentMatches = response.match(/"type":\s*"[^"]+"/g);
-        if (componentMatches && componentMatches.length > 1) {
-          console.log('Found multiple components in raw response, trying manual extraction...');
-          
-          // Try to re-request with simpler format
-          parsedResponse = {
-            explanation: {
-              summary: "Composants générés pour le projet",
-              reasoning: "Réponse partiellement récupérée après erreur de parsing"
-            },
-            components: [
-              {
-                type: "microcontroller",
-                details: {
-                  action: "new",
-                  quantity: 1,
-                  notes: "Contrôleur principal - Veuillez regénérer pour obtenir tous les composants"
-                }
-              }
-            ]
-          };
-        } else {
-          // Single component fallback
-          parsedResponse = {
-            components: [
-              {
-                type: "microcontroller",
-                details: {
-                  action: "new",
-                  quantity: 1,
-                  notes: "Contrôleur principal pour le projet"
-                }
-              }
-            ]
-          };
-        }
-      } catch (fallbackError) {
-        console.error('Fallback parsing also failed:', fallbackError);
-        parsedResponse = {
-          components: [
-            {
-              type: "microcontroller",
-              details: {
-                action: "new",
-                quantity: 1,
-                notes: "Contrôleur principal pour le projet"
-              }
+      // Fallback: return a default structure
+      return {
+        explanation: {
+          summary: "Error generating components - using fallback",
+          reasoning: "AI response could not be parsed correctly"
+        },
+        components: [
+          {
+            type: "microcontroller",
+            details: {
+              action: "new",
+              quantity: 1,
+              notes: "Main controller for the project - Please regenerate"
             }
-          ]
-        };
-      }
+          }
+        ]
+      };
     }
-
-    return parsedResponse;
   }
 
   /**
-   * Answers a user question about a project
+   * Legacy method: Answers a user question about a project (backward compatibility)
    */
   async answerProjectQuestion(params: { project: any; materials?: any[]; wiring?: any; userQuestion: string }) {
     const { project, materials = [], wiring = null, userQuestion } = params;
@@ -279,9 +561,9 @@ export class AIService {
     // Build complete project context
     let projectContext = `Name: ${project.name || 'Unnamed project'}\nDescription: ${project.description || 'No description available'}\nStatus: ${project.status || 'In progress'}`;
     
-          // Add materials if available
-      if (materials.length > 0) {
-        projectContext += '\n\nProject Materials/Components:';
+    // Add materials if available
+    if (materials.length > 0) {
+      projectContext += '\n\nProject Materials/Components:';
       materials.forEach((material: any, index: number) => {
         const specs = material.currentVersion?.specs || {};
         projectContext += `\n${index + 1}. ${specs.type || specs.name || 'Component'} - `;
@@ -296,7 +578,7 @@ export class AIService {
       const wiringData = wiring.currentVersion.wiringData || {};
       projectContext += '\n\nProject Wiring:';
       if (wiringData.connections && wiringData.connections.length > 0) {
-                  projectContext += `\n- ${wiringData.connections.length} connection(s) defined`;
+        projectContext += `\n- ${wiringData.connections.length} connection(s) defined`;
         wiringData.connections.forEach((conn: any, index: number) => {
           if (conn.from && conn.to) {
             projectContext += `\n  ${index + 1}. ${conn.from} → ${conn.to}`;
@@ -322,110 +604,15 @@ export class AIService {
     console.log('AI Service - Answering project question...');
     console.log('Question:', userQuestion);
     
-    const response = await this.callOpenAI(messages, 0.7);
-    console.log('AI Service - Question response received');
-    
-    // For questions, we return the response directly (no JSON parsing needed)
-    return response.trim();
-  }
-
-  /**
-   * Generates wiring suggestions with AI
-   */
-  async generateWiringSuggestions(params: { prompt: string; materials: any[]; currentDiagram?: any }) {
-    const { prompt, materials, currentDiagram } = params;
-    
-    // Simplify materials to reduce prompt size
-    const simplifiedMaterials = materials.map(material => ({
-      id: material.id,
-      name: material.name,
-      type: material.type,
-      quantity: material.quantity || 1,
-      description: material.description || ''
-    }));
-    
-    // Simplify current diagram to reduce prompt size
-    let simplifiedDiagram = {};
-    if (currentDiagram && currentDiagram.components) {
-      simplifiedDiagram = {
-        components: currentDiagram.components.map((comp: any) => ({
-          id: comp.id,
-          name: comp.name,
-          type: comp.type,
-          pins: comp.pins?.map((pin: any) => ({
-            id: pin.id,
-            name: pin.name,
-            type: pin.type,
-            voltage: pin.voltage
-          })) || []
-        })),
-        connections: (currentDiagram.connections || []).map((conn: any) => ({
-          id: conn.id,
-          fromComponent: conn.fromComponent,
-          fromPin: conn.fromPin,
-          toComponent: conn.toComponent,
-          toPin: conn.toPin,
-          wireType: conn.wireType
-        }))
-      };
-    }
-    
-    // Build the system prompt by replacing variables
-    let systemPrompt = prompts.wiringOptimalCircuit
-      .replace('{{materials}}', JSON.stringify(simplifiedMaterials, null, 2))
-      .replace('{{currentDiagram}}', JSON.stringify(simplifiedDiagram, null, 2))
-      .replace('{{prompt}}', prompt);
-    
-    const messages = [
-      {
-        role: 'system',
-        content: systemPrompt
-      },
-      {
-        role: 'user',
-        content: prompt
-      }
-    ];
-
-    console.log('AI Service - Generating wiring suggestions...');
-    console.log('Materials count:', materials.length);
-    console.log('System prompt length:', systemPrompt.length);
-    
-    const response = await this.callOpenAI(messages, 0.7);
-    console.log('AI Service - Raw wiring response:', response);
-    
-    let parsedResponse;
-    let cleanedResponse = '';
-    
     try {
-      // Clean the response in case of additional content
-      cleanedResponse = response.trim();
+      const response = await this.callAI(messages, 0.7);
+      console.log('AI Service - Question response received');
       
-      // Extract JSON if the response contains additional text
-      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        cleanedResponse = jsonMatch[0];
-      }
-      
-      // Fix common JavaScript expressions in JSON
-      cleanedResponse = cleanedResponse.replace(/"conn-"\+Date\.now\(\)\+"-(\d+)"/g, '"conn-$1"');
-      cleanedResponse = cleanedResponse.replace(/Date\.now\(\)/g, '1234567890');
-      
-      console.log('AI Service - Cleaned response for parsing:', cleanedResponse.substring(0, 500) + '...');
-      
-      parsedResponse = JSON.parse(cleanedResponse);
+      // For questions, we return the response directly (no JSON parsing needed)
+      return response.trim();
     } catch (error) {
-      console.error('Error parsing AI wiring response:', error);
-      console.error('Raw response:', response);
-      console.error('Cleaned response:', cleanedResponse);
-      
-      // Fallback: return a default structure
-      parsedResponse = {
-        explanation: "I couldn't analyze your materials correctly at the moment.",
-        suggestions: []
-      };
+      console.error('Error in answerProjectQuestion:', error);
+      throw error;
     }
-
-    return parsedResponse;
   }
 }

@@ -55,7 +55,7 @@ npm install
 Create a `.env` file in the backend directory:
 
 ```bash
-cp .env.example .env
+cp env.example .env
 ```
 
 Edit the `.env` file with your configuration:
@@ -64,9 +64,46 @@ Edit the `.env` file with your configuration:
 # Database connection string
 DATABASE_URL="postgresql://username:password@localhost:5432/fabrikator_db"
 
-# OpenAI API key for AI features
+# AI Configuration
+# Supported providers: openai, claude, gemini
+AI_PROVIDER="openai"
+
+# OpenAI Configuration (default)
 OPENAI_API_KEY="your-openai-api-key-here"
+OPENAI_MODEL="gpt-4"
+
+# Claude (Anthropic) Configuration
+CLAUDE_API_KEY="your-claude-api-key-here"
+CLAUDE_MODEL="claude-3-sonnet-20240229"
+
+# Gemini (Google) Configuration
+GEMINI_API_KEY="your-gemini-api-key-here"
+GEMINI_MODEL="gemini-1.5-flash"
+
+# Server Configuration
+PORT=3001
 ```
+
+#### AI Provider Configuration
+
+Fabrikator supports multiple AI providers. Choose one by setting the `AI_PROVIDER` environment variable:
+
+**OpenAI (Default)**
+- Set `AI_PROVIDER="openai"`
+- Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+- Available models: `gpt-4`, `gpt-4-turbo-preview`, `gpt-3.5-turbo`, `gpt-4o`, `gpt-4o-mini`
+
+**Claude (Anthropic)**
+- Set `AI_PROVIDER="claude"`
+- Get your API key from [Anthropic Console](https://console.anthropic.com/)
+- Available models: `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, `claude-3-haiku-20240307`, `claude-3-5-sonnet-20241022`
+
+**Gemini (Google)**
+- Set `AI_PROVIDER="gemini"`
+- Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+- Available models: `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-pro`
+
+You only need to configure the API key for the provider you want to use.
 
 ### 5. Database Migration
 

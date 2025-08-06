@@ -12,13 +12,13 @@ export class ProjectController {
 
   constructor() {
     this.projectService = new ProjectService();
-    this.aiService = new AIService();
+    this.aiService = AIService.getInstance();
     this.materialService = new MaterialService();
     this.wiringService = new WiringService();
   }
 
   /**
-   * Récupérer tous les projets
+   * Get all projects
    */
   async getAllProjects(req: Request, res: Response) {
     try {
@@ -31,7 +31,7 @@ export class ProjectController {
   }
 
   /**
-   * Récupérer un projet par son ID
+   * Get a project by its ID
    */
   async getProjectById(req: Request, res: Response) {
     try {
@@ -50,7 +50,7 @@ export class ProjectController {
   }
 
   /**
-   * Mettre à jour un projet
+   * Update a project
    */
   async updateProject(req: Request, res: Response) {
     try {
@@ -71,7 +71,7 @@ export class ProjectController {
   }
 
   /**
-   * Supprimer un projet
+   * Delete a project
    */
   async deleteProject(req: Request, res: Response) {
     try {
@@ -85,14 +85,14 @@ export class ProjectController {
   }
 
   /**
-   * Créer un projet à partir d'un prompt utilisateur
+   * Create a project from a user prompt
    */
   async createFromPrompt(req: Request, res: Response) {
     try {
       const { prompt } = req.body;
       
       if (!prompt) {
-        return res.status(400).json({ error: 'Le prompt est requis' });
+        return res.status(400).json({ error: 'Prompt is required' });
       }
       
       // Analyze the prompt with AI
@@ -135,7 +135,7 @@ export class ProjectController {
   }
 
   /**
-   * Ajouter un message à un projet
+   * Add a message to a project
    */
   async addMessageToProject(req: Request, res: Response) {
     try {
@@ -162,7 +162,7 @@ export class ProjectController {
   }
 
   /**
-   * Récupérer les messages d'un projet (chat)
+   * Get project messages (chat)
    */
   async getProjectMessages(req: Request, res: Response) {
     try {
@@ -182,7 +182,7 @@ export class ProjectController {
   }
 
   /**
-   * Répondre à une question sur un projet (mode Ask)
+   * Answer a question about a project (Ask mode)
    */
   async askProjectQuestion(req: Request, res: Response) {
     try {
@@ -232,7 +232,7 @@ export class ProjectController {
   }
 
   /**
-   * Mettre à jour l'état d'une suggestion dans un message
+   * Update the status of a suggestion in a message
    */
   async updateSuggestionStatus(req: Request, res: Response) {
     try {

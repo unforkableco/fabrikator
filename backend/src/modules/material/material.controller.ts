@@ -10,7 +10,7 @@ export class MaterialController {
 
   constructor() {
     this.materialService = new MaterialService();
-    this.aiService = new AIService();
+    this.aiService = AIService.getInstance();
   }
 
   /**
