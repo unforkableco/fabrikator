@@ -31,20 +31,6 @@ export class ProjectController {
   }
 
   /**
-   * Créer un nouveau projet
-   */
-  async createProject(req: Request, res: Response) {
-    try {
-      const projectData = req.body;
-      const project = await this.projectService.createProject(projectData);
-      res.status(201).json(project);
-    } catch (error) {
-      console.error('Error creating project:', error);
-      res.status(500).json({ error: 'Failed to create project' });
-    }
-  }
-
-  /**
    * Récupérer un projet par son ID
    */
   async getProjectById(req: Request, res: Response) {

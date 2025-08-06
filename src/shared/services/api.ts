@@ -48,11 +48,6 @@ export const api = {
       return response.data;
     },
 
-    create: async (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> => {
-      const response = await apiClient.post('/projects', project);
-      return response.data;
-    },
-
     update: async (id: string, project: Partial<Project>): Promise<Project> => {
       const response = await apiClient.put(`/projects/${id}`, project);
       return response.data;

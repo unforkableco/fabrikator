@@ -6,7 +6,6 @@ const projectController = new ProjectController();
 
 // Routes pour les projets
 router.get('/', projectController.getAllProjects.bind(projectController));
-router.post('/', projectController.createProject.bind(projectController));
 router.post('/create-from-prompt', projectController.createFromPrompt.bind(projectController));
 router.get('/:id', projectController.getProjectById.bind(projectController));
 router.put('/:id', projectController.updateProject.bind(projectController));
