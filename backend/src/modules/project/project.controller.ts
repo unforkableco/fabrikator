@@ -20,7 +20,7 @@ export class ProjectController {
   /**
    * Get all projects
    */
-  async getAllProjects(req: Request, res: Response) {
+  async getAllProjects(_: Request, res: Response) {
     try {
       const projects = await this.projectService.getAllProjects();
       res.json(projects);
@@ -143,7 +143,7 @@ export class ProjectController {
       const { context, content, sender, mode, suggestions } = req.body;
       
       if (!content || !sender || !mode) {
-        return res.status(400).json({ error: 'Le contenu, sender et mode du message sont requis' });
+        return res.status(400).json({ error: 'Message content, sender and mode are required' });
       }
       
       const message = await this.projectService.addMessageToProject(id, {
@@ -158,6 +158,27 @@ export class ProjectController {
     } catch (error) {
       console.error('Error adding message to project:', error);
       res.status(500).json({ error: 'Failed to add message to project' });
+    }
+  }
+
+  /**
+   * Update a message
+   */
+  async updateMessage(req: Request, res: Response) {
+    try {
+      const { messageId } = req.params;
+      const updates = req.body;
+      
+      const updatedMessage = await this.projectService.updateMessage(messageId, updates);
+      
+      if (!updatedMessage) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+      
+      res.json(updatedMessage);
+    } catch (error) {
+      console.error('Error updating message:', error);
+      res.status(500).json({ error: 'Failed to update message' });
     }
   }
 

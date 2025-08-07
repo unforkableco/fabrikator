@@ -7,13 +7,17 @@ import wiringRouter from './modules/wiring/wiring.router';
 import sceneRouter from './modules/scene/scene.router';
 import design3dRouter from './modules/design3d/design3d.router';
 import chatRouter from './modules/chat/chat.router';
+import { ProjectController } from './modules/project/project.controller';
 
 // Create Express application
 const app = express();
 
-// Middlewares globaux
+// Global middlewares
 app.use(cors());
 app.use(bodyParser.json());
+
+// Initialize controllers
+const projectController = new ProjectController();
 
 // Routes
 app.use('/api/projects', projectRouter);
@@ -23,8 +27,11 @@ app.use('/api/scenes', sceneRouter);
 app.use('/api/components3d', design3dRouter);
 app.use('/api/chat', chatRouter);
 
+// Direct message routes
+app.put('/api/messages/:messageId', projectController.updateMessage.bind(projectController));
+
 // Default route
-app.get('/', (req, res) => {
+app.get('/', (_, res) => {
   res.json({ message: 'Fabrikator API' });
 });
 

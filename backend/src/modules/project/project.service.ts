@@ -131,6 +131,21 @@ export class ProjectService {
   }
 
   /**
+   * Update a message
+   */
+  async updateMessage(messageId: string, updates: { suggestions?: any }) {
+    try {
+      return await prisma.message.update({
+        where: { id: messageId },
+        data: updates
+      });
+    } catch (error) {
+      console.error('Error in updateMessage:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get project messages (chat)
    */
   async getProjectMessages(projectId: string, context: string, limit: number) {

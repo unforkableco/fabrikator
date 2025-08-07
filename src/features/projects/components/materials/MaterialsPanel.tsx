@@ -3,7 +3,7 @@ import { Box, Typography, Button, Card } from '@mui/material';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import { Material } from '../../../../shared/types';
 import { api } from '../../../../shared/services/api';
-import { ChatPanel, ChatMessage, BaseSuggestion, MaterialSuggestionDiff } from '../chat';
+import { ChatPanel, ChatMessage, BaseSuggestion } from '../chat';
 import { AddMaterialDialog, MaterialCard, StatusLegend, EditMaterialDialog } from './';
 
 interface MaterialsPanelProps {
@@ -35,31 +35,109 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [pendingSuggestions, setPendingSuggestions] = useState<any[]>([]);
-  const [showSuggestionDiff, setShowSuggestionDiff] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
-  // Les matériaux rejetés sont maintenant filtrés automatiquement côté backend
+  // Rejected materials are now automatically filtered on the backend
   const activeMaterials = materials;
 
-  // Charger les messages au démarrage
+  // Load messages on startup
   const loadChatMessages = useCallback(async () => {
     if (!projectId) return;
     
     try {
       setIsLoadingMessages(true);
+      console.log('Loading chat messages for project:', projectId);
       const dbMessages = await api.projects.getChatMessages(projectId, 'materials', 10);
       
-      // Convertir les messages de la BD vers le format ChatMessage
-      const chatMessages: ChatMessage[] = dbMessages.map(msg => ({
-        id: msg.id,
-        content: msg.content,
-        sender: msg.sender as 'user' | 'ai',
-        timestamp: new Date(msg.createdAt),
-        mode: msg.mode as 'ask' | 'agent',
-        suggestions: msg.suggestions ? msg.suggestions as BaseSuggestion[] : undefined
-      }));
+      console.log('Raw DB messages:', dbMessages);
+      
+      // Convert database messages to ChatMessage format
+      const chatMessages: ChatMessage[] = dbMessages.map(msg => {
+        console.log('Processing message:', {
+          id: msg.id,
+          sender: msg.sender,
+          content: msg.content.substring(0, 50) + '...',
+          suggestions: msg.suggestions,
+          suggestionsType: typeof msg.suggestions
+        });
+        
+        return {
+          id: msg.id,
+          content: msg.content,
+          sender: msg.sender as 'user' | 'ai',
+          timestamp: new Date(msg.createdAt),
+          mode: msg.mode as 'ask' | 'agent',
+          suggestions: msg.suggestions ? msg.suggestions as BaseSuggestion[] : undefined
+        };
+      });
       
       setMessages(chatMessages);
+      
+      console.log('Loaded chat messages:', chatMessages.length);
+      
+      // Find the latest message with unapplied suggestions
+      const messagesWithSuggestions = chatMessages
+        .filter(msg => msg.sender === 'ai' && msg.suggestions && msg.suggestions.length > 0);
+      
+      console.log('Messages with suggestions:', messagesWithSuggestions.length);
+      messagesWithSuggestions.forEach(msg => {
+        console.log('Message with suggestions:', {
+          id: msg.id,
+          content: msg.content.substring(0, 50) + '...',
+          suggestionsCount: msg.suggestions?.length,
+          timestamp: msg.timestamp
+        });
+      });
+      
+      const lastAiMessageWithSuggestions = messagesWithSuggestions
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+      
+      if (lastAiMessageWithSuggestions && lastAiMessageWithSuggestions.suggestions) {
+        console.log('Restoring suggestions from message:', lastAiMessageWithSuggestions.id);
+        // Restaurer les suggestions depuis le message
+        const suggestions = lastAiMessageWithSuggestions.suggestions.map(suggestion => {
+          try {
+            console.log('Processing suggestion:', {
+              id: suggestion.id,
+              title: suggestion.title,
+              hasOriginalData: !!suggestion.originalData
+            });
+            
+            // Retrieve original data stored in the originalData field
+            const originalData = suggestion.originalData ? JSON.parse(suggestion.originalData) : null;
+            if (originalData) {
+              console.log('Using originalData:', originalData);
+              return originalData;
+            } else {
+              // Fallback: build from suggestion data
+              const fallbackData = {
+                action: suggestion.action === 'add' ? 'new' : 
+                       suggestion.action === 'modify' ? 'update' : 
+                       suggestion.action === 'remove' ? 'remove' : 'new',
+                type: suggestion.title,
+                details: {
+                  notes: suggestion.description,
+                  code: suggestion.code
+                }
+              };
+              console.log('Using fallback data:', fallbackData);
+              return fallbackData;
+            }
+          } catch (error) {
+            console.error('Error parsing suggestion originalData:', error);
+            return null;
+          }
+        }).filter(Boolean);
+        
+        console.log('Restored suggestions:', suggestions);
+        
+        if (suggestions.length > 0) {
+          console.log('Setting pending suggestions - RESTORED FROM DB');
+          setPendingSuggestions(suggestions);
+        } else {
+          console.log('No suggestions to restore');
+        }
+      }
     } catch (error) {
       console.error('Error loading chat messages:', error);
     } finally {
@@ -67,16 +145,25 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     }
   }, [projectId]);
 
-  // Charger les messages au démarrage du composant
+  // Load messages when component starts
   React.useEffect(() => {
     loadChatMessages();
   }, [projectId, loadChatMessages]);
 
-  // Sauvegarder un message dans la BD et retourner le message avec son vrai ID
+  // Save a message to the database and return the message with its real ID
   const saveChatMessage = async (message: ChatMessage): Promise<ChatMessage | null> => {
     if (!projectId) return null;
     
     try {
+      console.log('Saving message to DB:', {
+        content: message.content.substring(0, 50) + '...',
+        sender: message.sender,
+        mode: message.mode,
+        hasSuggestions: !!message.suggestions,
+        suggestionsCount: message.suggestions?.length || 0,
+        suggestions: message.suggestions
+      });
+      
       const savedMessage = await api.projects.sendChatMessage(projectId, {
         context: 'materials',
         content: message.content,
@@ -85,16 +172,23 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         suggestions: message.suggestions || null
       });
       
-      // Retourner le message avec l'ID de la BD et les autres données originales
+      console.log('Message saved to DB:', {
+        id: savedMessage.id,
+        hasSuggestions: !!savedMessage.suggestions,
+        suggestionsCount: Array.isArray(savedMessage.suggestions) ? savedMessage.suggestions.length : 'not array'
+      });
+      
+      // Return the message with the database ID and other original data
       return {
         ...message,
-        id: savedMessage.id // Utiliser l'ID de la BD
+        id: savedMessage.id // Use the database ID
       };
     } catch (error) {
       console.error('Error saving chat message:', error);
       return null;
     }
   };
+
 
   const handleAddMaterial = async (material: Omit<Material, 'id'>) => {
     try {
@@ -113,7 +207,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
 
   const handleSaveEditedMaterial = async (materialId: string, updatedMaterial: Partial<Material>) => {
     try {
-      // Utiliser l'API directement pour mettre à jour le matériau
+      // Use the API directly to update the material
       await api.projects.updateMaterial(materialId, updatedMaterial);
       setShowEditDialog(false);
       setEditingMaterial(null);
@@ -140,10 +234,10 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
 
               setMessages(prev => [...prev, userMessage]);
     
-    // Sauvegarder le message utilisateur dans la BD et récupérer l'ID réel
+    // Save user message to database and get the real ID
     const savedUserMessage = await saveChatMessage(userMessage);
     if (savedUserMessage) {
-      // Mettre à jour le message avec l'ID de la BD
+      // Update the message with the database ID
       setMessages(prev => prev.map(msg => 
         msg.id === userMessage.id ? savedUserMessage : msg
       ));
@@ -155,7 +249,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       let aiResponse: string;
       
       if (mode === 'ask') {
-        // Mode Ask - Utiliser l'IA pour répondre aux questions sur le projet
+        // Ask Mode - Use AI to answer questions about the project
         console.log('Sending ask question:', message);
         
         try {
@@ -166,16 +260,16 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           aiResponse = `Sorry, I encountered an error trying to answer your question. Could you rephrase or try again?`;
         }
       } else {
-        // Mode Agent - Génération de suggestions de matériaux
+        // Agent Mode - Generate material suggestions
         console.log('Sending agent message:', message);
         
-        // Récupérer d'abord les suggestions sans les appliquer
+        // First retrieve suggestions without applying them
         const response = await api.projects.previewMaterialSuggestions(projectId, message);
         console.log('Agent response:', response);
         
         if (response && response.components && Array.isArray(response.components)) {
           const responseWithExplanation = response as any; // Type assertion pour accéder à explanation
-          // Transformer les suggestions pour le diff
+          // Transform suggestions for the diff
           const suggestions = response.components.map((component: any) => ({
             action: component.details?.action || 'new',
             type: component.type,
@@ -186,11 +280,55 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
             })
           }));
           
-          // Stocker les suggestions et afficher le diff
+          // Store the suggestions 
+          console.log('Setting NEW suggestions from AI response');
           setPendingSuggestions(suggestions);
-          setShowSuggestionDiff(true);
           
-          // Utiliser l'explication détaillée de l'IA si disponible
+          // Immediately create chatSuggestions to save them with the message
+          // Filter 'keep' suggestions that are not useful for the user
+          const filteredSuggestions = suggestions.filter(s => s.action !== 'keep');
+          
+          const newChatSuggestions = filteredSuggestions.map((suggestion, index) => {
+            // Create an informative title with action and details
+            let title = suggestion.type;
+            let description = '';
+            
+            if (suggestion.action === 'new') {
+              title = `➕ Add ${suggestion.type}`;
+              description = suggestion.details?.notes || `New component: ${suggestion.type}`;
+              if (suggestion.details?.quantity) {
+                description += ` (Qty: ${suggestion.details.quantity})`;
+              }
+            } else if (suggestion.action === 'update') {
+              title = `🔄 Update ${suggestion.type}`;
+              description = suggestion.details?.notes || `Modify existing: ${suggestion.type}`;
+              if (suggestion.currentMaterial?.name) {
+                description += ` (Current: ${suggestion.currentMaterial.name})`;
+              }
+            } else if (suggestion.action === 'remove') {
+              title = `❌ Remove ${suggestion.type}`;
+              description = suggestion.details?.notes || `Remove component: ${suggestion.type}`;
+              if (suggestion.currentMaterial?.name) {
+                description += ` (${suggestion.currentMaterial.name})`;
+              }
+            }
+            
+            return {
+              id: `suggestion-${Date.now()}-${index}`,
+              title,
+              description,
+              code: suggestion.details?.code || JSON.stringify(suggestion.details || {}, null, 2),
+              action: suggestion.action === 'new' ? 'add' : 
+                     suggestion.action === 'update' ? 'modify' : 'remove',
+              expanded: false,
+              originalData: JSON.stringify(suggestion)
+            };
+          });
+          
+          // Store chatSuggestions for later use
+          (window as any).tempChatSuggestions = newChatSuggestions;
+          
+          // Use detailed AI explanation if available
           if (responseWithExplanation.explanation) {
             let explanationText = `${responseWithExplanation.explanation.summary}\n\n`;
             
@@ -214,42 +352,74 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
             }
             
             if (responseWithExplanation.explanation.nextSteps) {
-              explanationText += `Recommandations : ${responseWithExplanation.explanation.nextSteps}`;
+              explanationText += `Recommendations: ${responseWithExplanation.explanation.nextSteps}`;
             }
             
             aiResponse = explanationText;
           } else {
-            // Fallback au message générique si pas d'explication détaillée
+            // Fallback to generic message if no detailed explanation
           const materialCount = suggestions.length;
-          aiResponse = `J'ai analysé votre demande et préparé ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} de modifications. Veuillez examiner les changements proposés ci-dessous et choisir d'accepter ou de rejeter les modifications.`;
+          aiResponse = `I have analyzed your request and prepared ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} for modifications. Please review the proposed changes below and choose to accept or reject the modifications.`;
           }
         } else {
                       aiResponse = 'I understand your component modification request. I am working on analyzing your needs and will suggest appropriate components.';
         }
       }
 
-      // Préparer les suggestions pour le nouveau format de ChatPanel
+      // Prepare suggestions for the new ChatPanel format
       let chatSuggestions: BaseSuggestion[] | undefined;
       
-      if (mode === 'agent' && pendingSuggestions.length > 0) {
-        chatSuggestions = pendingSuggestions.map((suggestion, index) => ({
-          id: `suggestion-${Date.now()}-${index}`,
-          title: suggestion.type,
-          description: suggestion.details?.notes || `${suggestion.action} ${suggestion.type}`,
-          code: suggestion.details?.code || '',
-          action: suggestion.action === 'new' ? 'add' : 
-                 suggestion.action === 'update' ? 'modify' : 'remove',
-          expanded: false,
-          // Stocker les données originales de la suggestion dans le champ code
-          originalData: JSON.stringify(suggestion)
-        }));
+      // Retrieve chatSuggestions created earlier if available
+      if (mode === 'agent' && (window as any).tempChatSuggestions) {
+        chatSuggestions = (window as any).tempChatSuggestions;
+        console.log('Using stored chatSuggestions:', chatSuggestions?.length || 0);
+        // Clean up temporary variable
+        delete (window as any).tempChatSuggestions;
+      } else if (mode === 'agent' && pendingSuggestions.length > 0) {
+        // Fallback if temporary suggestions are not available
+        // Filtrer les suggestions 'keep' qui ne sont pas utiles pour l'utilisateur
+        const filteredPendingSuggestions = pendingSuggestions.filter(s => s.action !== 'keep');
         
-        // Ne plus afficher le diff séparé car les suggestions sont dans le message
-        setShowSuggestionDiff(false);
-        // Ne pas vider pendingSuggestions ici pour pouvoir les réutiliser
+        chatSuggestions = filteredPendingSuggestions.map((suggestion, index) => {
+          // Create an informative title with action and details (same logic as above)
+          let title = suggestion.type;
+          let description = '';
+          
+          if (suggestion.action === 'new') {
+            title = `➕ Add ${suggestion.type}`;
+            description = suggestion.details?.notes || `New component: ${suggestion.type}`;
+            if (suggestion.details?.quantity) {
+              description += ` (Qty: ${suggestion.details.quantity})`;
+            }
+          } else if (suggestion.action === 'update') {
+            title = `🔄 Update ${suggestion.type}`;
+            description = suggestion.details?.notes || `Modify existing: ${suggestion.type}`;
+            if (suggestion.currentMaterial?.name) {
+              description += ` (Current: ${suggestion.currentMaterial.name})`;
+            }
+          } else if (suggestion.action === 'remove') {
+            title = `❌ Remove ${suggestion.type}`;
+            description = suggestion.details?.notes || `Remove component: ${suggestion.type}`;
+            if (suggestion.currentMaterial?.name) {
+              description += ` (${suggestion.currentMaterial.name})`;
+            }
+          }
+          
+          return {
+            id: `suggestion-${Date.now()}-${index}`,
+            title,
+            description,
+            code: suggestion.details?.code || JSON.stringify(suggestion.details || {}, null, 2),
+            action: suggestion.action === 'new' ? 'add' : 
+                   suggestion.action === 'update' ? 'modify' : 'remove',
+            expanded: false,
+            originalData: JSON.stringify(suggestion)
+          };
+        });
+        console.log('Using fallback chatSuggestions:', chatSuggestions?.length || 0);
       }
 
-      // Ajouter la réponse de l'IA avec les suggestions intégrées
+      // Add AI response with integrated suggestions
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         content: aiResponse,
@@ -261,10 +431,10 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
 
       setMessages(prev => [...prev, aiMessage]);
       
-      // Sauvegarder le message IA dans la BD et récupérer l'ID réel
+      // Save AI message to database and get the real ID
       const savedAiMessage = await saveChatMessage(aiMessage);
       if (savedAiMessage) {
-        // Mettre à jour le message avec l'ID de la BD
+        // Update the message with the database ID
         setMessages(prev => prev.map(msg => 
           msg.id === aiMessage.id ? savedAiMessage : msg
         ));
@@ -272,7 +442,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     } catch (error) {
       console.error('Error sending chat message:', error);
       
-      // Message d'erreur pour l'utilisateur
+      // Error message for the user
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
@@ -283,10 +453,10 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
 
       setMessages(prev => [...prev, errorMessage]);
       
-      // Sauvegarder le message d'erreur dans la BD
+      // Save error message to database
       const savedErrorMessage = await saveChatMessage(errorMessage);
       if (savedErrorMessage) {
-        // Mettre à jour le message avec l'ID de la BD
+        // Update the message with the database ID
         setMessages(prev => prev.map(msg => 
           msg.id === errorMessage.id ? savedErrorMessage : msg
         ));
@@ -296,94 +466,14 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     }
   };
 
-  const handleAcceptSuggestions = async () => {
-    if (!projectId || pendingSuggestions.length === 0) return;
-    
-    try {
-      setIsGenerating(true);
-      
-      // Créer une structure compatible avec l'API suggestions
-      const componentsData = {
-        components: pendingSuggestions.map(suggestion => ({
-          type: suggestion.type,
-          details: suggestion.details
-        }))
-      };
-      
-      // Simuler un prompt qui va déclencher l'application des suggestions
-      const response = await api.projects.generateMaterialSuggestions(projectId, JSON.stringify(componentsData));
-      
-      if (Array.isArray(response) && response.length > 0) {
-        // Ajouter un message de confirmation
-        const confirmMessage: ChatMessage = {
-          id: Date.now().toString(),
-          content: `✅ Suggestions accepted! ${response.length} component(s) have been updated in your project.`,
-          sender: 'ai',
-          timestamp: new Date(),
-          mode: 'agent',
-        };
-        
-              setMessages(prev => [...prev, confirmMessage]);
-      
-      // Sauvegarder le message de confirmation dans la BD
-      const savedConfirmMessage = await saveChatMessage(confirmMessage);
-      if (savedConfirmMessage) {
-        setMessages(prev => prev.map(msg => 
-          msg.id === confirmMessage.id ? savedConfirmMessage : msg
-        ));
-      }
-        
-        // Rafraîchir la liste des matériaux
-        if (onMaterialsUpdated) {
-          onMaterialsUpdated();
-        }
-      }
-      
-      // Réinitialiser l'état des suggestions
-      setPendingSuggestions([]);
-      setShowSuggestionDiff(false);
-      
-    } catch (error) {
-      console.error('Error accepting suggestions:', error);
-      
-      const errorMessage: ChatMessage = {
-        id: Date.now().toString(),
-        content: `❌ Erreur lors de l'application des suggestions: ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
-        sender: 'ai',
-        timestamp: new Date(),
-        mode: 'agent',
-      };
-      
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleRejectSuggestions = () => {
-    // Ajouter un message de rejet
-    const rejectMessage: ChatMessage = {
-      id: Date.now().toString(),
-              content: `❌ Suggestions rejected. No changes have been made to your components.`,
-      sender: 'ai',
-      timestamp: new Date(),
-      mode: 'agent',
-    };
-    
-    setMessages(prev => [...prev, rejectMessage]);
-    
-    // Réinitialiser l'état des suggestions
-    setPendingSuggestions([]);
-    setShowSuggestionDiff(false);
-  };
 
   const handleStopGeneration = async () => {
     setIsGenerating(false);
     
-    // Ajouter un message indiquant l'arrêt
+    // Add a message indicating the stop
     const stopMessage: ChatMessage = {
       id: Date.now().toString(),
-      content: '⏹️ Génération arrêtée par l\'utilisateur.',
+      content: '⏹️ Generation stopped by user.',
       sender: 'ai',
       timestamp: new Date(),
       mode: 'agent',
@@ -391,7 +481,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     
               setMessages(prev => [...prev, stopMessage]);
     
-    // Sauvegarder le message d'arrêt dans la BD
+    // Save stop message to database
     const savedStopMessage = await saveChatMessage(stopMessage);
     if (savedStopMessage) {
       setMessages(prev => prev.map(msg => 
@@ -406,49 +496,37 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     try {
       setIsGenerating(true);
       
-      // Trouver la suggestion dans les messages
+      // Find the suggestion in messages
       const message = messages.find(m => m.id === messageId);
       const suggestion = message?.suggestions?.find(s => s.id === suggestionId);
       
       if (!suggestion) return;
       
-      // Récupérer les données de la suggestion originale
+      // Retrieve original suggestion data
       let originalSuggestion;
       
       if (suggestion.originalData) {
-        // Utiliser les données stockées dans la suggestion
+        // Use data stored in the suggestion
         originalSuggestion = JSON.parse(suggestion.originalData);
       } else {
-        // Fallback: chercher dans pendingSuggestions
+        // Fallback: search in pendingSuggestions
         originalSuggestion = pendingSuggestions.find(s => s.type === suggestion.title);
       }
       
       if (!originalSuggestion) {
-        throw new Error('Données de suggestion originale non trouvées');
+        throw new Error('Original suggestion data not found');
       }
       
-      console.log('Adding material from suggestion:', originalSuggestion);
+      console.log('Processing material suggestion:', originalSuggestion);
       
-      // Ajouter le matériau directement via l'API (sans appel IA)
-      const addedMaterial = await api.projects.addMaterialFromSuggestion(projectId, originalSuggestion);
+      // Process the material suggestion directly via API (without AI call)
+      const result = await api.projects.addMaterialFromSuggestion(projectId, originalSuggestion);
       
-      console.log('Material added successfully:', addedMaterial);
+      console.log('Material suggestion processed successfully:', result);
       
-      // Ajouter un message de confirmation
-      const confirmMessage: ChatMessage = {
-        id: Date.now().toString(),
-        content: `✅ Suggestion acceptée : "${suggestion.title}" a été ajouté à votre projet sans nouvel appel IA.`,
-        sender: 'ai',
-        timestamp: new Date(),
-        mode: 'agent',
-      };
+      // No automatic message - visual action is sufficient
       
-      setMessages(prev => [...prev, confirmMessage]);
-      
-      // Sauvegarder le message de confirmation
-      await saveChatMessage(confirmMessage);
-      
-      // Rafraîchir la liste des matériaux
+      // Refresh the materials list
       if (onMaterialsUpdated) {
         onMaterialsUpdated();
       }
@@ -458,7 +536,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
       
       const errorMessage: ChatMessage = {
         id: Date.now().toString(),
-        content: `❌ Erreur lors de l'ajout du matériau : ${error instanceof Error ? error.message : 'Erreur inconnue'}`,
+        content: `❌ Error processing suggestion: ${error instanceof Error ? error.message : 'Unknown error'}`,
         sender: 'ai',
         timestamp: new Date(),
         mode: 'agent',
@@ -477,22 +555,8 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   };
 
   const handleRejectSuggestion = (messageId: string, suggestionId: string) => {
-    // Trouver la suggestion dans les messages
-    const message = messages.find(m => m.id === messageId);
-    const suggestion = message?.suggestions?.find(s => s.id === suggestionId);
-    
-    if (!suggestion) return;
-    
-    // Ajouter un message de rejet
-    const rejectMessage: ChatMessage = {
-      id: Date.now().toString(),
-      content: `❌ Suggestion rejetée : "${suggestion.title}" n'a pas été appliquée.`,
-      sender: 'ai',
-      timestamp: new Date(),
-      mode: 'agent',
-    };
-    
-    setMessages(prev => [...prev, rejectMessage]);
+    // No automatic message - visual state of suggestion is sufficient
+    console.log(`Suggestion ${suggestionId} rejected for message ${messageId}`);
   };
 
   return (
@@ -561,17 +625,6 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           projectId={projectId}
         />
         
-        {/* Material Suggestions Diff */}
-        {showSuggestionDiff && pendingSuggestions.length > 0 && (
-          <Box sx={{ mt: 2 }}>
-            <MaterialSuggestionDiff
-              suggestions={pendingSuggestions}
-              onAccept={handleAcceptSuggestions}
-              onReject={handleRejectSuggestions}
-              isProcessing={isGenerating}
-            />
-          </Box>
-        )}
       </Box>
 
       {/* Add Material Dialog */}

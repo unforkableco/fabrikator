@@ -124,6 +124,13 @@ export const api = {
       return response.data;
     },
 
+    updateChatMessage: async (messageId: string, updates: {
+      suggestions?: any;
+    }): Promise<Message> => {
+      const response = await apiClient.put(`/messages/${messageId}`, updates);
+      return response.data;
+    },
+
     // Legacy method for compatibility
     getMessages: async (projectId: string): Promise<Message[]> => {
       const response = await apiClient.get(`/projects/${projectId}/messages`);
