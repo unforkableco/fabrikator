@@ -22,45 +22,6 @@ export const prompts = {
   }
   `,
 
-  componentSuggestions: `
-    Project ID: {{projectId}}
-    Description: {{description}}
-
-    **FORGE DIY PHILOSOPHY: Prioritize homemade, DIY, and self-built solutions. Favor components that can be assembled, modified, or built from scratch rather than pre-made commercial solutions.**
-
-    Generate component suggestions for this project. Always prioritize:
-    - Components that can be built from basic parts
-    - Open-source hardware alternatives
-    - Breadboard/prototype-friendly solutions
-    - Parts that encourage learning and customization
-    - DIY sensors and modules over pre-built ones
-
-    **OUTPUT JSON:**
-    {
-      "explanation": {
-        "summary": "brief summary of suggested components",
-        "reasoning": "detailed rationale behind component selection"
-      },
-      "components": [
-        {
-          "type": "component category",
-          "details": {
-            "quantity": number,
-            "notes": "specific role and function in this project",
-            "action": "new",
-            "technicalSpecs": {
-              // COMPREHENSIVE technical specifications
-            },
-            "productReference": {
-              "name": "exact product name and model",
-              "manufacturer": "brand/manufacturer name",
-              "estimatedPrice": "price with currency"
-            }
-          }
-        }
-      ]
-    }
-  `,
 
   wiringSuggestions: `
     **CONTEXT:** Generate wiring suggestions for a DIY project
@@ -124,28 +85,17 @@ export const prompts = {
     Current materials: {{currentMaterials}}
     User request: {{userPrompt}}
 
-    **FORGE DIY PHILOSOPHY: Prioritize homemade, DIY, and self-built solutions. Favor components that can be assembled, modified, or built from scratch rather than pre-made commercial solutions.**
-
-    Analyze existing components and user intent. For each component, decide: keep, update, remove, or add new ones.
-    Always prioritize:
-    - Components that can be built from basic parts
-    - Open-source hardware alternatives
-    - Breadboard/prototype-friendly solutions
-    - Parts that encourage learning and customization
-    - DIY sensors and modules over pre-built ones
+    Analyze and suggest the most elegant, minimal solution.
+    Consider what's truly needed vs what's over-engineered.
 
     **PRODUCT REFERENCES: For each component, also suggest a specific real product reference that the user could purchase if they prefer not to build from scratch. Include:**
     - Exact product name and model number (use realistic, commonly available products)
-    - Manufacturer/brand (use well-known manufacturers like Arduino, Adafruit, SparkFun, ESP32, etc.)
+    - Manufacturer/brand
     - Purchase link (note: these will be converted to search links, so focus on accurate product names)
     - Current approximate price range
     - The technical specifications should match the suggested product reference
     
-    **IMPORTANT FOR PRODUCT NAMES: Use specific, searchable product names that exist in the market:**
-    - For microcontrollers: "Arduino Uno R3", "ESP32 DevKit V1", "Raspberry Pi Pico"
-    - For sensors: "DHT22 Temperature Humidity Sensor", "HC-SR04 Ultrasonic Sensor"
-    - For displays: "SSD1306 OLED Display 128x64", "16x2 LCD Display"
-    - For power: "18650 Li-ion Battery", "TP4056 Charging Module"
+    Use specific, searchable product names that exist in the market.
 
     **OUTPUT JSON:**
     {
@@ -192,17 +142,6 @@ export const prompts = {
     - Prefer products that are widely available and well-documented
     - Include datasheet links when possible for technical reference
 `,
-
-  wiringGeneration: `
-    Generate a wiring plan for the following components:
-    {{components}}
-    
-    Please provide:
-    1. Component connections
-    2. Connection types
-    3. Any safety considerations
-    4. Power requirements
-  `,
 
   wiringOptimalCircuit: `
     **CONTEXT:** DIY project with available materials

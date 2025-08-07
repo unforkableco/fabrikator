@@ -324,7 +324,7 @@ export class AIService {
    * Generate component suggestions for a project
    */
   async generateComponentSuggestions(projectId: string, description: string) {
-    const systemPrompt = prompts.componentSuggestions
+    const systemPrompt = prompts.materialsSearch
       .replace('{{projectId}}', projectId)
       .replace('{{description}}', description);
     
