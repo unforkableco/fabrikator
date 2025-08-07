@@ -122,24 +122,41 @@ export class MaterialController {
       
       const result = await this.materialService.updateMaterialStatus(id, action, updateData);
       
-              // Transformer le résultat pour filtrer les spécifications techniques
-        if (result.component) {
-          const specs = result.component.currentVersion?.specs as any || {};
-          const transformedMaterial = {
-            ...result.component,
-            name: specs.name,
-            type: specs.type,
-            quantity: specs.quantity,
-            description: specs.description,
-            status: specs.status,
-            requirements: specs.requirements || {},
-            productReference: specs.productReference || null,
-            aiSuggested: specs.createdBy === 'AI'
-          };
-          res.json({ ...result, component: transformedMaterial });
-        } else {
-          res.json(result);
-        }
+      // Transformer le résultat pour filtrer les spécifications techniques
+      if (result.component) {
+        const specs = result.component.currentVersion?.specs as any || {};
+        const transformedMaterial = {
+          ...result.component,
+          name: specs.name,
+          type: specs.type,
+          quantity: specs.quantity,
+          description: specs.description,
+          status: specs.status,
+          requirements: specs.requirements || {},
+          productReference: specs.productReference || null,
+          aiSuggested: specs.createdBy === 'AI'
+        };
+        
+        // Ajouter l'information d'action
+        const responseWithAction = {
+          ...result,
+          component: transformedMaterial,
+          action: action === 'update' ? 'modified' : action === 'reject' ? 'remove' : action,
+          actionDetails: {
+            type: action === 'update' ? 'modified' : action === 'reject' ? 'remove' : action,
+            description: action === 'update' ? `Composant modifié: ${specs.type}` :
+                        action === 'reject' ? `Composant supprimé: ${specs.type}` :
+                        action === 'approve' ? `Composant approuvé: ${specs.type}` : 
+                        `Action ${action} sur: ${specs.type}`,
+            component: specs.type,
+            previousVersion: action === 'update' ? (result.version?.versionNumber || 1) - 1 : undefined
+          }
+        };
+        
+        res.json(responseWithAction);
+      } else {
+        res.json(result);
+      }
     } catch (error) {
       console.error('Error updating material status:', error);
       res.status(500).json({ error: 'Failed to update material status' });
@@ -215,7 +232,15 @@ export class MaterialController {
           };
           
           const result = await this.materialService.createMaterial(projectId, materialData);
-          processedMaterials.push(result);
+          processedMaterials.push({
+            ...result,
+            action: 'add',
+            actionDetails: {
+              type: 'add',
+              description: `Nouveau composant ajouté: ${component.type}`,
+              component: component.type
+            }
+          });
         } else if (action === 'update' || action === 'keep') {
           // Mettre à jour un composant existant (nouvelle version +1)
           const existingComponent = currentMaterials.find(m => {
@@ -240,7 +265,16 @@ export class MaterialController {
               'update', 
               updateData
             );
-            processedMaterials.push(result);
+            processedMaterials.push({
+              ...result,
+              action: 'modified',
+              actionDetails: {
+                type: 'modified',
+                description: `Composant modifié: ${component.type}`,
+                component: component.type,
+                previousVersion: existingComponent.currentVersion?.versionNumber || 1
+              }
+            });
           }
         } else if (action === 'remove') {
           // Supprimer un composant existant (changer son statut à "rejected")
@@ -259,7 +293,16 @@ export class MaterialController {
                 removedBy: 'AI'
               }
             );
-            processedMaterials.push(result);
+            processedMaterials.push({
+              ...result,
+              action: 'remove',
+              actionDetails: {
+                type: 'remove',
+                description: `Composant supprimé: ${component.type}`,
+                component: component.type,
+                reason: component.details?.notes || 'Composant non nécessaire'
+              }
+            });
           }
         }
       }
@@ -359,7 +402,13 @@ export class MaterialController {
         status: specs.status,
         requirements: specs.requirements || {},
         productReference: specs.productReference || null,
-        aiSuggested: specs.createdBy === 'AI'
+        aiSuggested: specs.createdBy === 'AI',
+        action: 'add',
+        actionDetails: {
+          type: 'add',
+          description: `Nouveau composant ajouté: ${materialData.type}`,
+          component: materialData.type
+        }
       };
       
       res.status(201).json(transformedMaterial);
