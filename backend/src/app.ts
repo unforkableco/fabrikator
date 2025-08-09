@@ -17,6 +17,15 @@ app.use('/api/projects', projectRouter);
 app.use('/api/materials', materialRouter);
 app.use('/api/wiring', wiringRouter);
 
+// Health check endpoint for Docker
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    service: 'fabrikator-backend' 
+  });
+});
+
 // Default route
 app.get('/', (req, res) => {
   res.json({ message: 'Fabrikator API' });
