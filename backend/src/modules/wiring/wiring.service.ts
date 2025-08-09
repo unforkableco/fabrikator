@@ -8,7 +8,7 @@ export class WiringService {
   private aiService: AIService;
 
   constructor() {
-    this.aiService = new AIService();
+    this.aiService = AIService.getInstance();
   }
 
   /**
@@ -459,16 +459,16 @@ export class WiringService {
 
       return {
         suggestions,
-        explanation: aiResponse.explanation || `J'ai généré ${suggestions.length} suggestions de connexions valides pour votre circuit.`
+        explanation: aiResponse.explanation || `I generated ${suggestions.length} valid connection suggestions for your circuit.`
       };
 
     } catch (error) {
       console.error('Error in generateWiringSuggestions:', error);
       
-      // Fallback en cas d'erreur IA
+      // Fallback in case of AI error
       return {
         suggestions: [],
-        explanation: 'Désolé, je n\'ai pas pu générer de suggestions de câblage pour le moment. Veuillez réessayer.'
+        explanation: 'Sorry, I could not generate wiring suggestions at the moment. Please try again.'
       };
     }
   }
@@ -502,7 +502,7 @@ export class WiringService {
         if (digitalPins) {
           const count = parseInt(digitalPins[1]);
           // Pas de limitation artificielle - utiliser le vrai nombre de broches
-          for (let i = 0; i < Math.min(count, 60); i++) { // Limite raisonnable pour éviter les erreurs
+          for (let i = 0; i < Math.min(count, 60); i++) { // Reasonable limit to avoid errors
             pins.push(`D${i}`);
           }
         }
@@ -510,7 +510,7 @@ export class WiringService {
         if (analogPins) {
           const count = parseInt(analogPins[1]);
           // Pas de limitation artificielle - utiliser le vrai nombre de broches
-          for (let i = 0; i < Math.min(count, 20); i++) { // Limite raisonnable pour éviter les erreurs
+          for (let i = 0; i < Math.min(count, 20); i++) { // Reasonable limit to avoid errors
             pins.push(`A${i}`);
           }
         }
@@ -518,7 +518,7 @@ export class WiringService {
         if (gpioPins) {
           const count = parseInt(gpioPins[1]);
           // Pas de limitation artificielle - utiliser le vrai nombre de broches
-          for (let i = 0; i < Math.min(count, 40); i++) { // Limite raisonnable pour éviter les erreurs
+          for (let i = 0; i < Math.min(count, 40); i++) { // Reasonable limit to avoid errors
             pins.push(`GPIO${i}`);
           }
         }

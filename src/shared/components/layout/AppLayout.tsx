@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Box,
   AppBar,
   Toolbar,
   Typography,
@@ -64,7 +63,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {/* Navigation principale */}
       <AppBar 
         position="static" 
@@ -78,12 +77,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       >
         <Toolbar>
           {/* Logo */}
-          <Box 
-            sx={{ 
+          <div 
+            style={{ 
               display: 'flex', 
               alignItems: 'center', 
               cursor: 'pointer',
-              mr: 4 
+              marginRight: '32px' 
             }}
             onClick={() => navigate('/')}
           >
@@ -98,10 +97,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             >
               !Forge
             </Typography>
-          </Box>
+          </div>
 
           {/* Navigation */}
-          <Box sx={{ display: 'flex', gap: 1, flexGrow: 1 }}>
+          <div style={{ display: 'flex', gap: '8px', flexGrow: 1 }}>
             {navigationItems.map((item) => (
               <Button
                 key={item.path}
@@ -126,10 +125,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 {item.label}
               </Button>
             ))}
-          </Box>
+          </div>
 
           {/* Actions droite */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -146,7 +145,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             >
               <HelpIcon />
             </IconButton>
-          </Box>
+          </div>
         </Toolbar>
       </AppBar>
 
@@ -172,7 +171,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             variant="outlined"
             placeholder="Describe your problem or question..."
             value={helpMessage}
-            onChange={(e) => setHelpMessage(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHelpMessage(e.target.value)}
           />
         </DialogContent>
         <DialogActions>
@@ -190,9 +189,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       </Dialog>
 
       {/* Contenu principal */}
-      <Box sx={{ flexGrow: 1, bgcolor: 'background.default' }}>
+      <div style={{ flexGrow: 1, backgroundColor: '#fafafa' }}>
         {children}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }; 

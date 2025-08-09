@@ -14,7 +14,8 @@ import { TabPanel } from '../../../shared/components/ui/TabPanel';
 import { useProject } from '../hooks/useProject';
 import { useMaterials } from '../hooks/useMaterials';
 import { useWiring } from '../hooks/useWiring';
-import { MaterialsPanel, WiringPanel } from '../components';
+import { MaterialsPanel, WiringPanel, DesignPanel } from '../components';
+import { ProjectOverview } from '../components/overview';
 
 const ProjectPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -94,14 +95,12 @@ const ProjectPage: React.FC = () => {
       >
         {/* Overview Tab */}
         <TabPanel value={tabValue} index={0} id="project">
-          <Typography variant="h6" gutterBottom>
-            Project Overview
-          </Typography>
-          <Typography variant="body1" color="text.secondary" paragraph>
-            {project.description || 'No description available.'}
-          </Typography>
-          
-          {/* TODO: Add project stats, recent activity, etc. */}
+          <ProjectOverview
+            project={project}
+            materials={materials}
+            onGoToMaterials={() => setTabValue(1)}
+            onRefreshMaterials={refreshMaterials}
+          />
         </TabPanel>
 
         {/* Materials Tab */}
@@ -132,6 +131,19 @@ const ProjectPage: React.FC = () => {
               materials={materials}
               onWiringUpdated={refreshWiring}
             />
+          </Box>
+        </TabPanel>
+
+        {/* Design Tab */}
+        <TabPanel value={tabValue} index={3} id="project">
+          <Box sx={{ height: '90vh' }}>
+            {id ? (
+              <DesignPanel
+                projectId={id}
+              />
+            ) : (
+              <Typography color="error">Project ID not found</Typography>
+            )}
           </Box>
         </TabPanel>
       </Container>

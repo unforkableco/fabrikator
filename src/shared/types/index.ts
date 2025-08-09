@@ -8,6 +8,7 @@ export interface Project {
   components?: Component[];
   wiringSchemas?: WiringSchema[];
   messages?: Message[];
+  scenes3d?: Scene3D[];
 }
 
 export interface ProjectRequirements {
@@ -244,4 +245,65 @@ export interface WiringDiagram {
     version: number;
   };
   validation?: WiringValidationResult;
+}
+
+// 3D Scene related types
+export interface Scene3D {
+  id: string;
+  projectId: string;
+  name: string;
+  currentVersionId?: string;
+  createdAt: string;
+  updatedAt: string;
+  versions: SceneVersion[];
+  currentVersion?: SceneVersion;
+  project?: Project;
+}
+
+export interface SceneVersion {
+  id: string;
+  scene3dId: string;
+  versionNumber: number;
+  sceneGraph: {
+    root: SceneGraphNode;
+  };
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface SceneGraphNode {
+  id: string;
+  name: string;
+  type: Component3DType;
+  transform: {
+    position: [number, number, number];
+    rotation: [number, number, number];
+    scale: [number, number, number];
+  };
+  componentId?: string;
+  children: SceneGraphNode[];
+  metadata?: any;
+}
+
+export interface Component3D {
+  id: string;
+  name: string;
+  type: Component3DType;
+  category: string;
+  filePath?: string;
+  fileSize?: number;
+  metadata: any;
+  isGenerated: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type Component3DType = 'DESIGN' | 'FUNCTIONAL' | 'ELECTRONIC' | 'MECHANICAL';
+
+// API Response types
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  details?: string;
 } 

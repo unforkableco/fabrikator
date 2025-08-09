@@ -3,7 +3,7 @@ import { ProjectStatus } from '../../types';
 
 export class ProjectService {
   /**
-   * Récupérer tous les projets
+   * Get all projects
    */
   async getAllProjects() {
     try {
@@ -15,7 +15,7 @@ export class ProjectService {
   }
 
   /**
-   * Créer un nouveau projet
+   * Create a new project
    */
   async createProject(projectData: { name: string; description?: string; status?: string }) {
     try {
@@ -33,7 +33,7 @@ export class ProjectService {
   }
 
   /**
-   * Récupérer un projet par son ID
+   * Get a project by its ID
    */
   async getProjectById(id: string) {
     try {
@@ -47,7 +47,7 @@ export class ProjectService {
   }
 
   /**
-   * Mettre à jour un projet
+   * Update a project
    */
   async updateProject(id: string, projectData: { name?: string; description?: string; status?: string }) {
     try {
@@ -66,12 +66,12 @@ export class ProjectService {
   }
 
   /**
-   * Supprimer un projet
+   * Delete a project
    */
   async deleteProject(id: string) {
     try {
       // Cascade deletion of related relationships
-      // 1. Supprimer les changeLogs liés aux versions des composants
+      // 1. Delete changeLogs related to component versions
       await prisma.changeLog.deleteMany({
         where: {
           compVersion: {
@@ -93,7 +93,7 @@ export class ProjectService {
         }
       });
 
-      // 3. Supprimer le projet (les autres relations en cascade se feront automatiquement)
+      // 3. Delete the project (other cascade relations will be handled automatically)
       return await prisma.project.delete({
         where: { id }
       });
@@ -104,7 +104,7 @@ export class ProjectService {
   }
 
   /**
-   * Ajouter un message à un projet
+   * Add a message to a project
    */
   async addMessageToProject(projectId: string, message: { 
     context: string, 
@@ -131,7 +131,22 @@ export class ProjectService {
   }
 
   /**
-   * Récupérer les messages d'un projet (chat)
+   * Update a message
+   */
+  async updateMessage(messageId: string, updates: { suggestions?: any }) {
+    try {
+      return await prisma.message.update({
+        where: { id: messageId },
+        data: updates
+      });
+    } catch (error) {
+      console.error('Error in updateMessage:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get project messages (chat)
    */
   async getProjectMessages(projectId: string, context: string, limit: number) {
     try {

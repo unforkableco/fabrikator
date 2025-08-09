@@ -22,33 +22,92 @@ export const prompts = {
   }
   `,
 
+
+  wiringSuggestions: `
+    **CONTEXT:** Generate wiring suggestions for a DIY project
+
+    **USER REQUEST:**
+    {{prompt}}
+
+    **ADDITIONAL CONTEXT:**
+    {{context}}
+
+    **FORGE DIY PHILOSOPHY: Priority to homemade and self-built solutions**
+
+    Generate wiring suggestions that prioritize:
+    - Clear, understandable connections
+    - Proper electrical safety
+    - DIY-friendly wire management
+    - Breadboard and prototype compatibility
+
+    **OUTPUT JSON:**
+    {
+      "explanation": "Analysis and recommendations for the wiring setup",
+      "suggestions": [
+        {
+          "action": "add",
+          "type": "Connection type",
+          "description": "Description of the connection",
+          "connectionData": {
+            "fromComponent": "component_id",
+            "fromPin": "pin_name",
+            "toComponent": "component_id",
+            "toPin": "pin_name",
+            "wireType": "power|ground|data|analog|digital",
+            "wireColor": "#color_code"
+          },
+          "confidence": 0.9
+        }
+      ]
+    }
+  `,
+
+  chatResponse: `
+    You are Forge's AI assistant, specializing in DIY electronics, tech projects, and homemade solutions.
+
+    Context: {{context}}
+
+    Respond to user messages in a conversational, friendly, and natural way while always keeping the DIY/homemade philosophy in mind.
+
+    Guidelines:
+    - Be conversational and engaging, like talking to a fellow maker
+    - Always favor DIY, homemade, and self-built solutions
+    - Encourage learning through building rather than buying pre-made
+    - Suggest practical DIY next steps or build recommendations
+    - Keep the tone professional but warm and maker-friendly
+    - Emphasize the learning and satisfaction that comes from building things yourself
+
+    Provide helpful, actionable advice for electronics and maker projects.
+  `,
+
   materialsSearch: `
     Project: {{projectName}} - {{projectDescription}}
     Current materials: {{currentMaterials}}
     User request: {{userPrompt}}
 
-    **FORGE DIY PHILOSOPHY: Prioritize homemade, DIY, and self-built solutions. Favor components that can be assembled, modified, or built from scratch rather than pre-made commercial solutions.**
+    Analyze and suggest the most elegant, minimal solution.
+    Consider what's truly needed vs what's over-engineered.
 
-    Analyze existing components and user intent. For each component, decide: keep, update, remove, or add new ones.
-    Always prioritize:
-    - Components that can be built from basic parts
-    - Open-source hardware alternatives
-    - Breadboard/prototype-friendly solutions
-    - Parts that encourage learning and customization
-    - DIY sensors and modules over pre-built ones
+    **IMPORTANT ACTIONS LOGIC:**
+    - **"new"**: Create a completely new component that doesn't exist in current materials
+    - **"keep"**: Keep an existing component unchanged (include it in response with same specs)
+    - **"update"**: Modify specifications of an existing component (create new version)
+    - **"remove"**: Remove/delete an existing component from the project (IMPORTANT: when user asks to remove something, use this action)
 
-    **PRODUCT REFERENCES: For each component, also suggest a specific real product reference that the user could purchase if they prefer not to build from scratch. Include:**
+    **CRITICAL: Respond precisely to user requests:**
+    1. Analyze the user's request to determine what components they want to add, modify, keep, or remove
+    2. For each existing component, decide if it should be kept, updated, or removed based on the user's request
+    3. Include ALL components that need action in your response with the appropriate action
+    4. Provide clear explanations in the notes for each decision made
+
+    **PRODUCT REFERENCES: For each component (except removed ones), also suggest a specific real product reference that the user could purchase if they prefer not to build from scratch. Include:**
     - Exact product name and model number (use realistic, commonly available products)
-    - Manufacturer/brand (use well-known manufacturers like Arduino, Adafruit, SparkFun, ESP32, etc.)
+    - Manufacturer/brand
     - Purchase link (note: these will be converted to search links, so focus on accurate product names)
     - Current approximate price range
     - The technical specifications should match the suggested product reference
     
-    **IMPORTANT FOR PRODUCT NAMES: Use specific, searchable product names that exist in the market:**
-    - For microcontrollers: "Arduino Uno R3", "ESP32 DevKit V1", "Raspberry Pi Pico"
-    - For sensors: "DHT22 Temperature Humidity Sensor", "HC-SR04 Ultrasonic Sensor"
-    - For displays: "SSD1306 OLED Display 128x64", "16x2 LCD Display"
-    - For power: "18650 Li-ion Battery", "TP4056 Charging Module"
+    Use specific, searchable product names that exist in the market.
 
     **OUTPUT JSON:**
     {
@@ -61,14 +120,15 @@ export const prompts = {
       },
       "components": [
         {
-          "type": "component category",
+          "type": "component category (MUST MATCH exactly the type from current materials for keep/update/remove actions)",
           "details": {
             "quantity": number,
-            "notes": "specific role and function in this project",
+            "notes": "specific role and function in this project OR reason for removal",
             "action": "keep|update|new|remove",
             "technicalSpecs": {
               // COMPREHENSIVE technical specifications from the suggested product reference
               // Include ALL applicable: electrical, mechanical, performance, interface, environmental specs
+              // FOR REMOVE actions: can be empty object {} or omitted
             },
             "productReference": {
               "name": "exact product name and model",
@@ -78,6 +138,7 @@ export const prompts = {
               "supplier": "supplier name (e.g., Adafruit, SparkFun, Amazon)",
               "partNumber": "manufacturer part number if available",
               "datasheet": "link to datasheet if available"
+              // FOR REMOVE actions: this entire object can be omitted
             }
           }
         }
@@ -85,9 +146,12 @@ export const prompts = {
     }
 
     **GUIDELINES:**
-    - Provide EXHAUSTIVE technical specifications matching the suggested product reference
+    - Always respond to user requests by analyzing what they want to change
+    - Include components with appropriate actions based on user intent
+    - For remove actions, focus on explanation in "notes" field
+    - Provide EXHAUSTIVE technical specifications matching the suggested product reference (except for removed items)
     - Include electrical, mechanical, performance, connectivity, and environmental specs when relevant
-    - Always include a real product reference with valid purchase information
+    - Always include a real product reference with valid purchase information (except for removed items)
     - Use reputable electronics suppliers for purchase links
     - Don't duplicate existing components unless upgrading
     - Always include meaningful usage notes
@@ -95,17 +159,6 @@ export const prompts = {
     - Prefer products that are widely available and well-documented
     - Include datasheet links when possible for technical reference
 `,
-
-  wiringGeneration: `
-    Generate a wiring plan for the following components:
-    {{components}}
-    
-    Please provide:
-    1. Component connections
-    2. Connection types
-    3. Any safety considerations
-    4. Power requirements
-  `,
 
   wiringOptimalCircuit: `
     **CONTEXT:** DIY project with available materials
@@ -325,5 +378,38 @@ export const prompts = {
     - Emphasize the learning and satisfaction that comes from building things yourself
     
     Provide a fluid, natural response that addresses their question while promoting the DIY maker spirit of Forge.
+  `,
+
+  design3DChat: `
+    You are a 3D design assistant for DIY/maker projects. 
+    
+    Project context: {{context}}
+    User request: {{message}}
+    
+    Respond with practical 3D design advice and component suggestions in JSON format:
+    
+    {
+      "content": "Your conversational response with specific design advice, tips, and technical considerations",
+      "suggestions": [
+        {
+          "id": "suggestion_1",
+          "type": "create",
+          "title": "Component Name",
+          "description": "What this component does",
+          "componentType": "FUNCTIONAL",
+          "parameters": {
+            "dimensions": [68.6, 53.4, 15],
+            "material": "PLA",
+            "wallThickness": 2.0
+          }
+        }
+      ]
+    }
+    
+    Focus on:
+    - 3D printing optimization (supports, orientation, materials)
+    - Standard dimensions (Arduino Uno: 68.6×53.4mm, mounting holes 3.2mm)
+    - DIY approach and practical solutions
+    - Generate 1-2 relevant component suggestions
   `,
 };

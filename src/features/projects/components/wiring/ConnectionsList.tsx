@@ -208,7 +208,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
                         <Select
                           value={connection.wireType}
                           label="Wire type"
-                          onChange={(e) => handleWireTypeChange(
+                          onChange={(e: any) => handleWireTypeChange(
                             connection.id, 
                             e.target.value as WiringConnection['wireType']
                           )}
@@ -225,7 +225,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
                         size="small"
                         label="Label"
                         value={connection.label || ''}
-                        onChange={(e) => handleLabelChange(connection.id, e.target.value)}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLabelChange(connection.id, e.target.value)}
                         placeholder="Connection name..."
                         sx={{ minWidth: 160 }}
                       />
@@ -249,7 +249,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
                 <ListItemSecondaryAction>
                   <IconButton
                     edge="end"
-                    onClick={(e) => {
+                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                       e.stopPropagation();
                       onConnectionDelete(connection.id);
                     }}

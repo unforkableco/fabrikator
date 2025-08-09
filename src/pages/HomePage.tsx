@@ -9,7 +9,6 @@ import {
   CardContent,
   CardActions,
   Chip,
-  Box,
   TextField,
   InputAdornment,
   Fab,
@@ -165,22 +164,22 @@ const HomePage: React.FC = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
+      <div style={{ marginBottom: '32px' }}>
         <Typography variant="h3" component="h1" sx={{ fontWeight: 700, color: 'primary.main', mb: 1 }}>
           My Projects
         </Typography>
         <Typography variant="h6" color="text.secondary">
           Manage and track all your hardware projects
         </Typography>
-      </Box>
+      </div>
 
       {/* Search and Filters */}
-      <Box sx={{ mb: 4 }}>
+      <div style={{ marginBottom: '32px' }}>
         <TextField
           fullWidth
           placeholder="Search projects..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -191,7 +190,7 @@ const HomePage: React.FC = () => {
           sx={{ mb: 2 }}
         />
         
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {['all', 'planning', 'in-progress', 'completed'].map((filter) => (
             <Chip
               key={filter}
@@ -201,19 +200,19 @@ const HomePage: React.FC = () => {
               color={selectedFilter === filter ? 'primary' : 'default'}
             />
           ))}
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* Projects Grid */}
       {isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '64px 0' }}>
           <CircularProgress size={60} />
-        </Box>
+        </div>
       ) : (
         <Grid container spacing={3}>
           {filteredProjects.length === 0 ? (
             <Grid item xs={12}>
-              <Box sx={{ textAlign: 'center', py: 8 }}>
+              <div style={{ textAlign: 'center', padding: '64px 0' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   {searchTerm || selectedFilter !== 'all' ? 'No projects match your search' : 'No projects yet'}
                 </Typography>
@@ -227,7 +226,7 @@ const HomePage: React.FC = () => {
                 >
                   Create Project
                 </Button>
-              </Box>
+              </div>
             </Grid>
           ) : (
             filteredProjects.map((project) => (
@@ -247,11 +246,11 @@ const HomePage: React.FC = () => {
                   onClick={() => navigate(`/project/${project.id}`)}
                 >
                   <CardContent sx={{ flexGrow: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                       <Typography variant="h6" component="h2" sx={{ fontWeight: 600, flex: 1 }}>
                         {project.name}
                       </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Chip
                           label={getStatusDisplayLabel(project.status)}
                           color={getStatusColor(project.status) as any}
@@ -260,7 +259,7 @@ const HomePage: React.FC = () => {
                         <IconButton
                           size="small"
                           color="error"
-                          onClick={(e) => handleDeleteClick(e, project)}
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleDeleteClick(e, project)}
                           sx={{ 
                             opacity: 0.7,
                             '&:hover': {
@@ -272,8 +271,8 @@ const HomePage: React.FC = () => {
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                      </Box>
-                    </Box>
+                      </div>
+                    </div>
                     
                     <Typography
                       variant="body2"

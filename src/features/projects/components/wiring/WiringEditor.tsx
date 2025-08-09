@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Box, Typography, Toolbar, Chip, IconButton, Tooltip } from '@mui/material';
+import { Typography, Toolbar, Chip, IconButton, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CableIcon from '@mui/icons-material/Cable';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -1217,7 +1217,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           const isConnected = pin.connected;
           
           return (
-            <g key={pin.id}>
+            <g key={`${component.id}-${pin.id}`}>
               {/* Ombre de la broche */}
               <circle
                 cx={pinX + 1}
@@ -1491,24 +1491,23 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Toolbar */}
-      <Box>
+      <div>
         {/* First row - Components */}
-        <Box sx={{ 
-          bgcolor: 'background.paper', 
-          borderBottom: 1, 
-          borderColor: 'divider',
-          p: 1,
-          minHeight: 48
+        <div style={{ 
+          backgroundColor: '#fff', 
+          borderBottom: '1px solid #e0e0e0',
+          padding: '8px',
+          minHeight: '48px'
         }}>
           <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
             Available components:
           </Typography>
-          <Box sx={{ 
+          <div style={{ 
             display: 'flex', 
             flexWrap: 'wrap', 
-            gap: 1,
+            gap: '8px',
             alignItems: 'center'
           }}>
             {materials.map((material) => {
@@ -1546,13 +1545,13 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
                 />
               );
             })}
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         {/* Second row - Controls */}
         <Toolbar variant="dense" sx={{ bgcolor: 'background.default', minHeight: 40 }}>
           {/* Canvas Size Controls */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 3 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '24px' }}>
             <Typography variant="caption" sx={{ mr: 1, fontWeight: 'bold' }}>
               Canvas:
             </Typography>
@@ -1579,10 +1578,10 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
             <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
               {svgSize.width}×{svgSize.height}
             </Typography>
-          </Box>
+          </div>
 
           {/* Zoom and Pan Controls */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 3 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '24px' }}>
             <Typography variant="caption" sx={{ mr: 1, fontWeight: 'bold' }}>
               Zoom:
             </Typography>
@@ -1604,19 +1603,19 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
                 <DeleteIcon />
               </IconButton>
             </Tooltip>
-          </Box>
+          </div>
           
-          <Box sx={{ flexGrow: 1 }} />
+          <div style={{ flexGrow: 1 }} />
           
           <Typography variant="caption" color="text.secondary">
             Drag component: move • Delete key: delete • Drag empty space: navigate • Wheel: zoom
           </Typography>
         </Toolbar>
-      </Box>
+      </div>
 
       {/* Canvas */}
-      <Box 
-        sx={{ flex: 1, bgcolor: '#fafafa', position: 'relative', overflow: 'hidden' }}
+      <div 
+        style={{ flex: 1, backgroundColor: '#fafafa', position: 'relative', overflow: 'hidden' }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
@@ -1653,14 +1652,14 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
         
         {/* Instructions overlay */}
         {(!diagram || diagram.components.length === 0) && (
-          <Box
-            sx={{
+          <div
+            style={{
               position: 'absolute',
               top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
               textAlign: 'center',
-              color: 'text.secondary',
+              color: '#666',
               pointerEvents: 'none'
             }}
           >
@@ -1671,41 +1670,41 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
             <Typography variant="body2">
               Click on a component in the toolbar to start
             </Typography>
-          </Box>
+          </div>
         )}
         
         {/* Connection instructions */}
         {connectionInProgress && (
-          <Box
-            sx={{
+          <div
+            style={{
               position: 'absolute',
-              top: 10,
-              left: 10,
-              bgcolor: 'info.light',
-              color: 'info.contrastText',
-              p: 1,
-              borderRadius: 1,
+              top: '10px',
+              left: '10px',
+              backgroundColor: '#2196f3',
+              color: 'white',
+              padding: '8px',
+              borderRadius: '4px',
               pointerEvents: 'none'
             }}
           >
             <Typography variant="caption">
               Click on a destination pin to complete the connection
             </Typography>
-          </Box>
+          </div>
         )}
         
         {/* Selected component info */}
         {selectedComponent && diagram && (
-          <Box
-            sx={{
+          <div
+            style={{
               position: 'absolute',
-              top: 10,
-              right: 10,
-              bgcolor: 'primary.light',
-              color: 'primary.contrastText',
-              p: 1,
-              borderRadius: 1,
-              minWidth: 200
+              top: '10px',
+              right: '10px',
+              backgroundColor: '#1976d2',
+              color: 'white',
+              padding: '8px',
+              borderRadius: '4px',
+              minWidth: '200px'
             }}
           >
             <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
@@ -1717,10 +1716,10 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
             <Typography variant="caption">
               Drag to move • Delete key to delete
             </Typography>
-          </Box>
+          </div>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 };
 

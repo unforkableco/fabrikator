@@ -158,7 +158,7 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
                 <TextField
                   label="Material Name"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                   fullWidth
                   placeholder="e.g., ESP32 microcontroller"
                 />
@@ -168,7 +168,7 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
                   <InputLabel>Type</InputLabel>
                   <Select
                     value={type}
-                    onChange={(e) => setType(e.target.value)}
+                    onChange={(e: any) => setType(e.target.value)}
                     label="Type"
                   >
                     {materialTypes.map((materialType) => (
@@ -183,7 +183,7 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
                 <TextField
                   label="Description"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDescription(e.target.value)}
                   fullWidth
                   multiline
                   rows={2}
@@ -211,7 +211,7 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
                   <TextField
                     label="Property"
                     value={newSpecKey}
-                    onChange={(e) => setNewSpecKey(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewSpecKey(e.target.value)}
                     fullWidth
                     size="small"
                     placeholder="e.g., Power, Memory"
@@ -221,7 +221,7 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
                   <TextField
                     label="Value"
                     value={newSpecValue}
-                    onChange={(e) => setNewSpecValue(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewSpecValue(e.target.value)}
                     fullWidth
                     size="small"
                     placeholder="e.g., 3.3V, 520 KB"
@@ -263,13 +263,13 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
                     <>
                       <TextField
                         value={editingSpec.key}
-                        onChange={(e) => setEditingSpec({ ...editingSpec, key: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingSpec({ ...editingSpec, key: e.target.value })}
                         size="small"
                         sx={{ flex: 1 }}
                       />
                       <TextField
                         value={editingSpec.value}
-                        onChange={(e) => setEditingSpec({ ...editingSpec, value: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingSpec({ ...editingSpec, value: e.target.value })}
                         size="small"
                         sx={{ flex: 2 }}
                       />

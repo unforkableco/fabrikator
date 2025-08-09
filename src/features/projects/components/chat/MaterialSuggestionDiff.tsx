@@ -30,6 +30,7 @@ interface MaterialSuggestion {
   type: string;
   details: any;
   currentMaterial?: Material; // Existing material for updates/removes
+  status?: 'pending' | 'accepted' | 'rejected'; // Status de la suggestion
 }
 
 interface MaterialSuggestionDiffProps {

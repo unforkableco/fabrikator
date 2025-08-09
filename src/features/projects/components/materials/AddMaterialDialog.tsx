@@ -60,7 +60,7 @@ const AddMaterialDialog: React.FC<AddMaterialDialogProps> = ({ open, onClose, on
           <TextField
             label="Component Name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
             fullWidth
             placeholder="e.g., ESP32 microcontroller"
           />
@@ -68,7 +68,7 @@ const AddMaterialDialog: React.FC<AddMaterialDialogProps> = ({ open, onClose, on
             <InputLabel>Component Type</InputLabel>
             <Select
               value={type}
-              onChange={(e) => setType(e.target.value)}
+              onChange={(e: any) => setType(e.target.value)}
               label="Component Type"
             >
               <MenuItem value="Microcontroller">Microcontroller</MenuItem>
@@ -83,7 +83,7 @@ const AddMaterialDialog: React.FC<AddMaterialDialogProps> = ({ open, onClose, on
           <TextField
             label="Description"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDescription(e.target.value)}
             fullWidth
             multiline
             rows={2}

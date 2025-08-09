@@ -570,7 +570,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <ToggleButtonGroup
           value={chatMode}
           exclusive
-          onChange={(e, newMode) => newMode && setChatMode(newMode)}
+          onChange={(e: any, newMode: any) => newMode && setChatMode(newMode)}
           size="small"
           sx={{ 
             bgcolor: 'background.paper',
@@ -725,7 +725,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                                   : '@/chat Tell me what to modify...'
           }
           value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputMessage(e.target.value)}
           onKeyPress={handleKeyPress}
           disabled={isGenerating}
           variant="outlined"
