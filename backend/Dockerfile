@@ -36,6 +36,10 @@ RUN apk add --no-cache curl
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nodejs
 
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/uploads/3d /app/uploads/images /app/uploads/documents && \
+    chown -R nodejs:nodejs /app/uploads
+
 # Copy built application
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules

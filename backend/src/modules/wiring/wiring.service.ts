@@ -317,7 +317,7 @@ export class WiringService {
           }
           
           return {
-            id: `remove-suggestion-${crypto.randomUUID()}`, // ✅ TOUJOURS générer un UUID unique
+            id: `remove-suggestion-${uuidv4()}`, // ✅ TOUJOURS générer un UUID unique
             title: suggestion.type || `Remove connection`,
             description: suggestion.description || `Remove connection ${connectionToRemove.fromComponent} → ${connectionToRemove.toComponent}`,
             action: 'remove',
@@ -427,13 +427,13 @@ export class WiringService {
         const toSpecs = toComponentExists.currentVersion?.specs as any || {};
 
         return {
-          id: `wiring-suggestion-${crypto.randomUUID()}`, // ✅ TOUJOURS générer un UUID unique au backend
+          id: `wiring-suggestion-${uuidv4()}`, // ✅ TOUJOURS générer un UUID unique au backend
           title: suggestion.type || `${suggestion.action || 'add'} ${fromSpecs.name || 'Unknown'} → ${toSpecs.name || 'Unknown'}`,
           description: suggestion.description || this.getActionDescription(suggestion.action, fromSpecs.name || 'Unknown', toSpecs.name || 'Unknown', connectionData.fromPin, connectionData.toPin),
           action: suggestion.action || 'add',
           connectionData: {
             // ✅ TOUJOURS générer un UUID unique pour connectionData
-            id: `conn-${crypto.randomUUID()}`,
+            id: `conn-${uuidv4()}`,
             fromComponent: connectionData.fromComponent,
             toComponent: connectionData.toComponent,
             fromPin: connectionData.fromPin,

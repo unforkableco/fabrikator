@@ -367,7 +367,7 @@ export class AIService {
     }
 
     // Use wiringOptimalCircuit for complex wiring analysis (legacy support)
-    if (contextData?.materials && contextData?.currentDiagram) {
+    if (contextData?.materials && contextData.materials.length > 0 && contextData?.currentDiagram) {
       let systemPrompt = prompts.wiringOptimalCircuit
         .replace('{{materials}}', JSON.stringify(contextData.materials, null, 2))
         .replace('{{currentDiagram}}', JSON.stringify(contextData.currentDiagram, null, 2))
