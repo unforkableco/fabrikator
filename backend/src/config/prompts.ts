@@ -412,4 +412,84 @@ export const prompts = {
     - DIY approach and practical solutions
     - Generate 1-2 relevant component suggestions
   `,
+
+  design3DGeneration: `
+    Generate a single design concept for this device: {{projectDescription}}
+    
+    Materials: {{materials}}
+    
+    Requirements:
+    - Generate ONE design concept that represents the device
+    - Keep the design simple and practical with minimal parts
+    
+    Output JSON:
+    {
+      "design": {
+        "concept": "[Device name] Design",
+        "description": "Description of the design concept",
+        "imagePrompt": "Detailed description of what the device should look like for image generation",
+        "keyFeatures": ["feature1", "feature2", "feature3"],
+        "complexity": "low"
+      }
+    }
+  `,
+
+  designImageDescription: `
+    You are an expert at describing electronic devices designs for DALL-E 3 image generation.
+    
+    Project: {{projectDescription}}
+    Materials: {{materials}}
+    Design Description: {{description}}
+    
+    Your task is to create a detailed, descriptive image prompt that will generate a high-quality 3D-style preview of the device.
+    
+    Guidelines:
+    - The design must look like a minimalistic, clean and marketable product
+    - Plain background, simple geometry
+    - The entire device must be fully visible in frame, centered with a small margin around it; do not crop or cut off edges
+    - Use a 3/4 perspective (slightly above eye level) that shows two faces and top surface
+    - Include specific visible components (LEDs, buttons, displays, sensors) when relevant
+    - Keep the description concise but visual and concrete
+    - Focus on the visual appearance; avoid deep technical jargon
+    
+    Example style: "A [device] on a plain background, full device centered with margin (no crop), shown from a slightly high three-quarter view; visible features: [components]."
+    
+    Output a short paragraph suitable to send directly to DALL-E 3.
+  `,
+
+  designImageIteration: `
+    You are an expert product designer. Produce three extremely similar image descriptions to iterate on the same device with only tiny tweaks.
+    
+    Context:
+    - Project: {{projectDescription}}
+    - Materials: {{materials}}
+    - Canonical description and constraints (use this VERBATIM as the base): {{baseDescription}}
+    
+    Rules (critical):
+    - Preserve the device identity and all core features; do not change the device category.
+    - Keep camera angle, lighting, background, and framing identical: full device centered with margin (no crop), plain background, 3/4 slightly-high view.
+    - Variations must be subtle (≤10% change): e.g., tiny chamfer/fillet differences, a slight relocation of the button/port within the same side, minor LED ring thickness, small top recess depth change.
+    - DO NOT change overall proportions, primary silhouette, color scheme, or component count.
+    
+    Output JSON strictly:
+    {
+      "variants": [
+        { "imagePrompt": "Start with the canonical description verbatim, then append a short clause describing ONE tiny change while keeping every original detail." },
+        { "imagePrompt": "same rule as above with a different tiny change" },
+        { "imagePrompt": "same rule as above with a different tiny change" }
+      ]
+    }
+  `,
+  designImageVisionAnalysis: `
+    You are an expert vision assistant for product design. Analyze the provided device image and extract a concise, structured description suitable for re-generating similar images.
+    If a base textual description is provided, reconcile it with the image, preferring what you clearly see.
+    Output strictly JSON with these fields:
+    {
+      "canonicalPrompt": "single paragraph describing the device to be used for image generation (include: minimal/clean look, full device in frame with margin, plain background, 3/4 view instructions)",
+      "visibleComponents": ["LED", "button", "display", "sensor", "ports"],
+      "shape": "overall shape and key cutouts",
+      "finish": "material/finish cues",
+      "notes": "any constraints to preserve"
+    }
+  `,
 };

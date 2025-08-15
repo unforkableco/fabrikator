@@ -230,6 +230,56 @@ export const api = {
       return response.data;
     },
   },
+
+  // Design Preview API endpoints
+  designPreviews: {
+    // Get design preview for a project
+    getDesignPreview: async (projectId: string): Promise<any> => {
+      const response = await apiClient.get(`/design-previews/project/${projectId}`);
+      return response.data;
+    },
+
+    // Generate new design previews
+    generateDesignPreviews: async (projectId: string): Promise<any> => {
+      const response = await apiClient.post(`/design-previews/project/${projectId}/generate`);
+      return response.data;
+    },
+
+    // Select a design option
+    selectDesignOption: async (designPreviewId: string, designOptionId: string): Promise<any> => {
+      const response = await apiClient.post('/design-previews/select', {
+        designPreviewId,
+        designOptionId
+      });
+      return response.data;
+    },
+
+    // Iterate upon a base design to generate 3 similar options
+    iterate: async (projectId: string, baseDesignOptionId: string): Promise<any> => {
+      const response = await apiClient.post('/design-previews/iterate', {
+        projectId,
+        baseDesignOptionId,
+      });
+      return response.data;
+    },
+
+    // Delete design preview
+    deleteDesignPreview: async (designPreviewId: string): Promise<void> => {
+      await apiClient.delete(`/design-previews/${designPreviewId}`);
+    },
+
+    // Start AI-assisted CAD generation from the selected design
+    startCadGeneration: async (projectId: string): Promise<any> => {
+      const response = await apiClient.post(`/design-previews/project/${projectId}/cad/generate`);
+      return response.data;
+    },
+
+    // Get latest CAD generation with parts for a project
+    getLatestCad: async (projectId: string): Promise<any> => {
+      const response = await apiClient.get(`/design-previews/project/${projectId}/cad/latest`);
+      return response.data;
+    },
+  },
 };
 
 // Generic API call function for custom endpoints

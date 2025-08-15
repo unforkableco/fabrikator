@@ -5,13 +5,15 @@
   "main": "src/server.ts",
   "scripts": {
     "start": "ts-node src/server.ts",
-    "dev": "nodemon --exec ts-node src/server.ts",
+    "dev": "nodemon --config nodemon.json --exec ts-node src/server.ts",
     "build": "tsc",
     "test": "jest",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:reset": "prisma migrate reset --force",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "describe:image": "node scripts/describe-image.js",
+    "stl:gen": "python3 scripts/generate_stl.py --analysis scripts/analysis_latest.json --parts scripts/parts_latest.json --out scripts/out"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

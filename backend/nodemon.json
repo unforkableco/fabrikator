@@ -1,0 +1,12 @@
+{
+  "watch": ["src"],
+  "ext": "ts",
+  "ignore": [
+    "scripts/**",
+    "uploads/**",
+    ".venv/**",
+    "**/*.stl"
+  ]
+}
+
+

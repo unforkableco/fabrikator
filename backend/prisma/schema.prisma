@@ -18,6 +18,10 @@ model Project {
   wiringSchemas WiringSchema[]
   messages      Message[]
   scenes3d      Scene3D[]
+  designPreviews DesignPreview[]
+  // Latest picked design thumbnail for summaries
+  designThumbnailUrl String?
+  cadGenerations ProjectCadGeneration[]
 }
 
 model Component {
@@ -139,4 +143,100 @@ enum Component3DType {
   FUNCTIONAL  // Utility pieces (chassis, screws, etc.)
   ELECTRONIC  // Existing electronic components
   MECHANICAL  // Existing mechanical components
+}
+
+model DesignPreview {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId   String   @db.Uuid
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Generated designs (3 options)
+  designs     DesignOption[]
+  
+  // Selected design
+  selectedDesignId String? @db.Uuid
+  selectedDesign   DesignOption? @relation("selectedDesign", fields: [selectedDesignId], references: [id])
+  
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+}
+
+model ProjectCadGeneration {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId    String        @db.Uuid
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  designOptionId String?     @db.Uuid
+  outputDir    String
+  status       String        // pending|success|failed
+  logText      String?       @db.Text
+  // Progress tracking
+  stage        String?       // starting|analyzing|parts_list|codegen|stl_export|finalizing
+  progress     Int?          // 0..100
+  totalParts   Int?          // total number of parts planned
+  completedParts Int?        // number of parts successfully exported
+  failedParts  Int?          // number of parts failed
+  startedAt    DateTime      @default(now()) @db.Timestamptz(6)
+  finishedAt   DateTime?     @db.Timestamptz(6)
+  // Intermediates for reproducibility and iteration
+  analysisJson Json?
+  partsJson    Json?
+  designImagePath String?
+  createdAt    DateTime      @default(now()) @db.Timestamptz(6)
+  parts        ProjectCadPart[]
+}
+
+model ProjectCadPart {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cadGenerationId String   @db.Uuid
+  cadGeneration   ProjectCadGeneration @relation(fields: [cadGenerationId], references: [id], onDelete: Cascade)
+  key             String
+  name            String
+  description     String?  @db.Text
+  geometryHint    String?  @db.Text
+  approxDims      Json?
+  features        Json?
+  appearance      Json?
+  // Snapshot of the single part JSON used to generate this script
+  partJson        Json?
+  // Optional prompt metadata (system/user) for traceability
+  promptMeta      Json?
+  scriptCode      String?  @db.Text
+  scriptPath      String?
+  stlPath         String?
+  stlData         Bytes?
+  status          String   // processing|success|failed
+  errorLog        String?  @db.Text
+  startedAt       DateTime  @default(now()) @db.Timestamptz(6)
+  finishedAt      DateTime? @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model DesignOption {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  designPreviewId String        @db.Uuid
+  designPreview   DesignPreview @relation(fields: [designPreviewId], references: [id], onDelete: Cascade)
+  
+  // Image data
+  imageUrl        String        // URL or file path to generated image
+  imagePrompt     String        // The prompt used to generate this image
+  description     String        // AI-generated description of the design
+  concept         String        // Design concept name
+  
+  // Design metadata
+  keyFeatures     String[]      // Array of key features
+  complexity      String        // low, medium, high
+  printability    String        @default("moderate") // kept for compatibility; default ensures optional on create
+  
+  // Technical specifications for 3D printing (kept for compatibility, but unused)
+  technicalSpecs  Json?
+  
+  // Selection tracking
+  selectedFor     DesignPreview[] @relation("selectedDesign")
+
+  // Iteration chain (self-relation)
+  parentDesignOptionId String? @db.Uuid
+  parentDesign         DesignOption? @relation("DesignIteration", fields: [parentDesignOptionId], references: [id])
+  childDesigns         DesignOption[] @relation("DesignIteration")
+  
+  createdAt       DateTime      @default(now()) @db.Timestamptz(6)
 }

@@ -1,0 +1,188 @@
+[33mcommit 108343860526dc03d04c88aa10645f7e0c018c38[m[33m ([m[1;36mHEAD -> [m[1;32mdb-backend[m[33m)[m
+Merge: 655c7bc af46870
+Author: Stalker474 <anton.possylkine@gmail.com>
+Date:   Sat Aug 9 15:25:37 2025 +0200
+
+    Merge remote changes and resolve package-lock.json conflicts
+
+README.md
+backend/package-lock.json
+backend/src/app.ts
+
+[33mcommit 655c7bc12d618186e95d194583abbdcfe1f2db94[m
+Author: Stalker474 <anton.possylkine@gmail.com>
+Date:   Sat Aug 9 15:22:50 2025 +0200
+
+    dockerization
+
+.dockerignore
+Dockerfile
+README.md
+backend/.dockerignore
+backend/Dockerfile
+backend/package-lock.json
+backend/src/app.ts
+docker-compose.yml
+docker-start.sh
+docker-stop.sh
+nginx.conf
+
+[33mcommit af46870cdefed4f115cd42bd32bd1bc2fb39b5db[m[33m ([m[1;31morigin/db-backend[m[33m)[m
+Author: notfork-h <hacene@unforkable.co>
+Date:   Thu Aug 7 16:12:05 2025 +0200
+
+    Fix material removal suggestions to actually delete materials
+
+backend/src/app.ts
+backend/src/modules/material/material.controller.ts
+backend/src/modules/project/project.controller.ts
+backend/src/modules/project/project.service.ts
+src/features/projects/components/chat/MaterialSuggestionDiff.tsx
+src/features/projects/components/materials/MaterialsPanel.tsx
+src/shared/services/api.ts
+
+[33mcommit 09431fbc264fb83b539f7434f8a986960294193b[m
+Author: notfork-h <hacene@unforkable.co>
+Date:   Thu Aug 7 11:25:06 2025 +0200
+
+    Enhance prompts in prompts.ts to clarify component actions and user request handling. Update MaterialController to include detailed action responses for material updates, additions, and removals, improving the overall response structure and user feedback.
+
+backend/src/config/prompts.ts
+backend/src/modules/material/material.controller.ts
+
+[33mcommit 34fa1c562f996c4449299d4b6202e1c89c5121ad[m
+Author: notfork-h <hacene@unforkable.co>
+Date:   Thu Aug 7 11:00:14 2025 +0200
+
+    Refactor prompts in prompts.ts to streamline component and wiring suggestions, removing outdated sections and enhancing clarity. Update AIService to utilize new materialsSearch prompt for generating component suggestions, improving overall functionality and user experience.
+
+backend/src/config/prompts.ts
+backend/src/services/ai.service.ts
+
+[33mcommit 9185174b680a058927d867df55c1164a34d5cf28[m
+Author: notfork-h <hacene@unforkable.co>
+Date:   Wed Aug 6 16:45:29 2025 +0200
+
+    Add ProjectOverview component to ProjectPage for enhanced project details display
+
+src/features/projects/components/overview/ProjectOverview.tsx
+src/features/projects/components/overview/index.ts
+src/features/projects/pages/ProjectPage.tsx
+
+[33mcommit bfa1b1a66ff8b2cb71b1989919f8c36bc2889afb[m
+Author: notfork-h <hacene@unforkable.co>
+Date:   Wed Aug 6 16:37:18 2025 +0200
+
+    Update README.md to reflect changes in AI provider configuration, including support for multiple providers (OpenAI, Claude, Gemini) and their respective API keys and models. Remove obsolete .env.example file and enhance prompts in the backend for component and wiring suggestions. Refactor AIService to implement a singleton pattern and support dynamic provider switching, improving flexibility and maintainability of AI interactions across the application.
+
+README.md
+backend/.env.example
+backend/env.example
+backend/src/config/prompts.ts
+backend/src/modules/chat/chat.service.ts
+backend/src/modules/material/material.controller.ts
+backend/src/modules/project/project.controller.ts
+backend/src/modules/project/project.router.ts
+backend/src/modules/project/project.service.ts
+backend/src/modules/wiring/wiring.service.ts
+backend/src/services/ai.service.ts
+
+[33mcommit 4d78a4b783edb14773d636ca247485b35fc870a3[m
+Author: notfork-h <hacene@unforkable.co>
+Date:   Wed Aug 6 16:02:44 2025 +0200
+
+    Refactor project creation process by removing manual project creation functionality from the backend and frontend. Update routing to eliminate the obsolete createProject endpoint, streamlining project management features. Enhance NewProjectPage to focus solely on AI-assisted project creation, improving user experience and simplifying the interface.
+
+backend/src/modules/project/project.controller.ts
+backend/src/modules/project/project.router.ts
+src/pages/NewProjectPage.tsx
+src/shared/services/api.ts
+
+[33mcommit 2e0f43a21fb9c7c91b2e85a900578e15728d671f[m
+Author: notfork-h <hacene@unforkable.co>
+Date:   Mon Aug 4 14:54:08 2025 +0200
+
+    Update project dependencies and enhance backend structure by removing obsolete files and integrating new features. Add support for 3D scene management in the Prisma schema and backend services, including new API endpoints for scene creation and versioning. Refactor frontend components to accommodate design features, improve type safety, and streamline user interactions across project management interfaces.
+
+.gitignore
+CLAUDE.md
+backend/dist/config/prompts.js
+backend/dist/controllers/project.controller.js
+backend/dist/index.js
+backend/dist/services/ai.service.js
+backend/dist/services/storage.service.js
+backend/dist/types.js
+backend/package-lock.json
+backend/package.json
+backend/prisma/migrations/20250801125535_add_3d_scene_models/migration.sql
+backend/prisma/schema.prisma
+backend/src/app.ts
+backend/src/config/prompts.ts
+backend/src/modules/chat/chat.controller.ts
+backend/src/modules/chat/chat.router.ts
+backend/src/modules/chat/chat.service.ts
+backend/src/modules/design3d/design3d.controller.ts
+backend/src/modules/design3d/design3d.router.ts
+backend/src/modules/design3d/design3d.service.ts
+backend/src/modules/scene/scene.controller.ts
+backend/src/modules/scene/scene.router.ts
+backend/src/modules/scene/scene.service.ts
+backend/src/server.ts
+backend/src/services/ai.service.ts
+package-lock.json
+package.json
+src/features/projects/components/ProjectHeader.tsx
+src/features/projects/components/ProjectTabs.tsx
+src/features/projects/components/chat/ChatPanel.tsx
+src/features/projects/components/chat/TypingAnimation.tsx
+src/features/projects/components/design/Chat3D/Design3DChat.tsx
+src/features/projects/components/design/Chat3D/index.ts
+src/features/projects/components/design/ComponentLibrary/ComponentLibrary.tsx
+src/features/projects/components/design/ComponentLibrary/index.ts
+src/features/projects/components/design/DesignPanel.tsx
+src/features/projects/components/design/Scene3DEditor/Scene3DEditor.test.md
+src/features/projects/components/design/Scene3DEditor/Scene3DEditor.tsx
+src/features/projects/components/design/Scene3DEditor/SceneGraph.tsx
+src/features/projects/components/design/Scene3DEditor/Viewport3D.tsx
+src/features/projects/components/design/Scene3DEditor/index.ts
+src/features/projects/components/design/index.ts
+src/features/projects/components/index.ts
+src/features/projects/components/materials/AddMaterialDialog.tsx
+src/features/projects/components/materials/EditMaterialDialog.tsx
+src/features/projects/components/wiring/ConnectionsList.tsx
+src/features/projects/components/wiring/WiringEditor.tsx
+src/features/projects/hooks/useScene3D.ts
+src/features/projects/pages/ProjectPage.tsx
+src/mui-types.d.ts
+src/pages/HomePage.tsx
+src/pages/NewProjectPage.tsx
+src/shared/components/layout/AppLayout.tsx
+src/shared/services/api.ts
+src/shared/types/index.ts
+tsconfig.json
+
+[33mcommit 298c700d74edfb9fa93376649008ab5fddcb02c1[m
+Author: notfork-h <hacene@unforkable.co>
+Date:   Thu Jul 31 16:42:57 2025 +0200
+
+    Remove outdated sections from README.md, including database reset and eject commands, as well as project structure and key features details. This update streamlines the documentation to focus on essential installation instructions and troubleshooting guidelines.
+
+README.md
+
+[33mcommit dcd8975b6ce34238e67a07ad05b023cc8e12cb86[m
+Author: notfork-h <hacene@unforkable.co>
+Date:   Thu Jul 31 16:42:01 2025 +0200
+
+    Refactor WiringPanel by removing unused loading state and validation button, streamlining the component for improved performance and user experience. This update focuses on enhancing the clarity and functionality of the wiring interface.
+
+src/features/projects/components/ProjectHeader.tsx
+src/features/projects/components/wiring/WiringPanel.tsx
+
+[33mcommit e839abf4b255ad62b8bc546258b4aff219b66d39[m
+Author: notfork-h <hacene@unforkable.co>
+Date:   Thu Jul 31 16:35:21 2025 +0200
+
+    Update README.md to reflect new features and installation instructions, including wiring diagram generation, component management, and detailed tech stack. Enhance setup guidelines for backend and frontend, and improve troubleshooting section for common issues.
+
+README.md
+backend/.env.example

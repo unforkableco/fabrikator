@@ -120,6 +120,14 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
           {project.name}
         </Typography>
+        {project.designThumbnailUrl && (
+          <Box
+            component="img"
+            src={`http://localhost:3001/${project.designThumbnailUrl}`}
+            alt={project.name}
+            sx={{ width: '100%', maxHeight: 240, objectFit: 'cover', borderRadius: 1, mb: 2 }}
+          />
+        )}
         <Typography variant="body1" color="text.secondary" paragraph sx={{ fontSize: '1.1rem', lineHeight: 1.6 }}>
           {project.description || 'No description available.'}
         </Typography>

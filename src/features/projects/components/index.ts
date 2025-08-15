@@ -5,7 +5,8 @@ export * from './materials';
 export * from './wiring';
 
 // Design components
-export * from './design';
+export { default as DesignPanel } from './design/DesignPanel';
+export { DesignPreviewGenerator } from './design/DesignPreviewGenerator';
 
 // Chat components  
 export * from './chat';

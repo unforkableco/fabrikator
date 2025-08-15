@@ -52,8 +52,11 @@ fi
 
 echo "🔧 Building and starting services..."
 
-# Build all images first
-docker-compose build
+# Build all images first (force rebuild to ensure containers use latest code)
+# Rebuild backend and frontend without cache to avoid stale layers
+docker-compose build --no-cache backend frontend
+# Build migrate image as well (in case Prisma/client changed)
+docker-compose build migrate || true
 
 # Start database first
 echo "🗄️  Starting database..."
@@ -116,7 +119,7 @@ if curl -f http://localhost:3001/api/health > /dev/null 2>&1; then
         echo "🤖 Testing AI project creation..."
         AI_TEST=$(timeout 15 curl -s -X POST http://localhost:3001/api/projects/create-from-prompt \
             -H "Content-Type: application/json" \
-            -d '{"prompt":"Test LED project"}' 2>/dev/null || echo "timeout")
+            -d '{"prompt":"A device to keep my coffee cup warm while I work on the computer. It should be circular, usbc powered, I want a green led strip on the circumference that glows when the device is powered, A button to turn it on and off. It must feature a heating element"}' 2>/dev/null || echo "timeout")
         
         if [[ "$AI_TEST" == *"id"* ]] && [[ "$AI_TEST" != "timeout" ]]; then
             echo "✅ AI project creation is working!"

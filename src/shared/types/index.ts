@@ -9,6 +9,7 @@ export interface Project {
   wiringSchemas?: WiringSchema[];
   messages?: Message[];
   scenes3d?: Scene3D[];
+  designThumbnailUrl?: string; // latest picked design image
 }
 
 export interface ProjectRequirements {
@@ -299,6 +300,62 @@ export interface Component3D {
 }
 
 export type Component3DType = 'DESIGN' | 'FUNCTIONAL' | 'ELECTRONIC' | 'MECHANICAL';
+
+// Design Preview types
+export interface DesignPreview {
+  id: string;
+  projectId: string;
+  designs: DesignOption[];
+  selectedDesignId?: string;
+  selectedDesign?: DesignOption;
+  createdAt: string;
+  updatedAt: string;
+  project?: Project;
+}
+
+// New CAD generation types
+export interface ProjectCadGeneration {
+  id: string;
+  projectId: string;
+  designOptionId?: string;
+  outputDir: string;
+  status: 'pending' | 'success' | 'failed';
+  logText?: string;
+  createdAt: string;
+  parts?: ProjectCadPart[];
+}
+
+export interface ProjectCadPart {
+  id: string;
+  cadGenerationId: string;
+  key: string;
+  name: string;
+  description?: string;
+  geometryHint?: string;
+  approxDims?: any;
+  features?: any;
+  appearance?: any;
+  scriptCode?: string;
+  scriptPath?: string;
+  stlPath?: string;
+  status: 'success' | 'failed';
+  errorLog?: string;
+  createdAt: string;
+}
+
+export interface DesignOption {
+  id: string;
+  designPreviewId: string;
+  concept: string;
+  description: string;
+  imagePrompt: string;
+  imageUrl: string;
+  keyFeatures: string[];
+  complexity: 'low' | 'medium' | 'high';
+  // printability and technicalSpecs removed from the AI contract and UI
+  parentDesignOptionId?: string; // iteration chain
+  createdAt: string;
+}
 
 // API Response types
 export interface ApiResponse<T = any> {

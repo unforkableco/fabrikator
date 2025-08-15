@@ -3,6 +3,8 @@ import { Box, Typography, Tabs, Tab } from '@mui/material';
 import { ViewInAr, Chat } from '@mui/icons-material';
 import { Scene3DEditor } from './Scene3DEditor';
 import { Design3DChat } from './Chat3D/Design3DChat';
+import { DesignPreviewGenerator } from './DesignPreviewGenerator';
+import { DesignPartsGenerator } from './DesignPartsGenerator';
 
 interface DesignPanelProps {
   projectId: string;
@@ -37,6 +39,11 @@ const DesignPanel: React.FC<DesignPanelProps> = ({ projectId }) => {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* AI Design Preview Generator */}
+      <DesignPreviewGenerator projectId={projectId} />
+      {/* AI CAD Parts Generator */}
+      <DesignPartsGenerator projectId={projectId} />
+      
       {/* Tab Header */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tabs value={activeTab} onChange={handleTabChange}>

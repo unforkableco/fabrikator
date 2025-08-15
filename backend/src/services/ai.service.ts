@@ -19,7 +19,7 @@ export class AIService {
       openai: {
         name: 'openai',
         apiKey: process.env.OPENAI_API_KEY || '',
-        model: process.env.OPENAI_MODEL || 'gpt-4',
+        model: process.env.OPENAI_MODEL || 'gpt-4o',
         baseUrl: 'https://api.openai.com/v1/chat/completions'
       },
       claude: {
@@ -118,43 +118,41 @@ export class AIService {
       try {
         let response;
         
-        switch (this.currentProvider.name) {
-          case 'openai':
-            response = await this.callOpenAIProvider(messages, temperature);
-            break;
-          case 'claude':
-            response = await this.callClaude(messages, temperature);
-            break;
-          case 'gemini':
-            response = await this.callGemini(messages, temperature);
-            break;
-          default:
-            throw new Error(`Unsupported provider: ${this.currentProvider.name}`);
+        if (this.currentProvider.name === 'openai') {
+          response = await this.callOpenAI(messages, temperature);
+        } else if (this.currentProvider.name === 'claude') {
+          response = await this.callClaude(messages, temperature);
+        } else if (this.currentProvider.name === 'gemini') {
+          response = await this.callGemini(messages, temperature);
+        } else {
+          throw new Error(`Unsupported AI provider: ${this.currentProvider.name}`);
         }
-
-        console.log(`${this.currentProvider.name} API call successful. Response length: ${response.length}`);
+        
         return response;
       } catch (error: any) {
-        console.error(`Error calling ${this.currentProvider.name} (attempt ${attempt + 1}):`, {
-          status: error?.response?.status,
-          statusText: error?.response?.statusText,
-          message: error?.message,
-          data: error?.response?.data
-        });
+        const isRateLimit = error.response?.status === 429;
+        const isLastAttempt = attempt === retries;
         
-        // If it's a 429 error (rate limiting) and there are remaining attempts
-        if (error?.response?.status === 429 && attempt < retries) {
-          const retryAfter = error?.response?.headers['retry-after'] || 10;
-          console.log(`Rate limited. Waiting ${retryAfter} seconds before retry...`);
-          await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+        if (isRateLimit && !isLastAttempt) {
+          // Calculate exponential backoff delay: 2^attempt * baseDelay (in ms)
+          const baseDelay = 1000; // 1 second
+          const delay = Math.min(baseDelay * Math.pow(2, attempt), 30000); // Max 30 seconds
+          
+          console.log(`Rate limit hit (429), retrying in ${delay}ms (attempt ${attempt + 1}/${retries + 1})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
           continue;
+        }
+        
+        // If it's the last attempt or not a rate limit error, throw the error
+        if (isRateLimit) {
+          throw new Error('OpenAI rate limit exceeded. Please wait a moment and try again.');
         }
         
         throw error;
       }
     }
     
-    throw new Error('Max retries exceeded');
+    throw new Error('Failed to call AI service after all retry attempts');
   }
 
   /**
@@ -176,6 +174,26 @@ export class AIService {
       }
     );
 
+    return response.data.choices[0].message.content;
+  }
+
+  // OpenAI helper to force JSON-only responses
+  private async callOpenAIJson(messages: any[], temperature: number): Promise<string> {
+    const response = await axios.post(
+      this.currentProvider.baseUrl,
+      {
+        model: this.currentProvider.model,
+        messages,
+        temperature,
+        response_format: { type: 'json_object' },
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.currentProvider.apiKey}`
+        }
+      }
+    );
     return response.data.choices[0].message.content;
   }
 
@@ -263,13 +281,13 @@ export class AIService {
       const originalModel = this.currentProvider.model;
       this.currentProvider.model = model;
       try {
-        return await this.callAI(messages, temperature, retries);
+        return await this.callOpenAIProvider(messages, temperature);
       } finally {
         this.currentProvider.model = originalModel;
       }
     }
     
-    return await this.callAI(messages, temperature, retries);
+    return await this.callOpenAIProvider(messages, temperature);
   }
 
   /**
@@ -311,9 +329,16 @@ export class AIService {
     ];
 
     try {
-      const response = await this.callAI(messages, 0.7);
-      const cleanedResponse = this.cleanJsonResponse(response);
-      return JSON.parse(cleanedResponse);
+      // Prefer a strict JSON response when using OpenAI
+      const raw = this.currentProvider.name === 'openai'
+        ? await this.callOpenAIJson(messages, 0.7)
+        : await this.callAI(messages, 0.7);
+      try {
+        return JSON.parse(raw);
+      } catch {
+        const cleanedResponse = this.cleanJsonResponse(raw);
+        return JSON.parse(cleanedResponse);
+      }
     } catch (error) {
       console.error('Error in analyzeProjectPrompt:', error);
       throw error;
@@ -612,6 +637,164 @@ export class AIService {
       return response.trim();
     } catch (error) {
       console.error('Error in answerProjectQuestion:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate 3D design concepts for a project
+   */
+  async generateDesignConcepts(projectDescription: string, materials: any[]) {
+    try {
+      console.log('AI Service - Generating design concepts...');
+      console.log('Project description length:', projectDescription.length);
+      console.log('Materials count:', materials.length);
+      
+      // Prepare materials context
+      const materialsContext = materials.length > 0 
+        ? materials.map(m => `${m.name} (${m.type})`).join(', ')
+        : 'No materials specified';
+      
+      console.log('Materials context:', materialsContext);
+      
+      // Build the system prompt by replacing variables
+      const systemPrompt = prompts.design3DGeneration
+        .replace('{{projectDescription}}', projectDescription)
+        .replace('{{materials}}', materialsContext);
+      
+      console.log('System prompt length:', systemPrompt.length);
+      console.log('System prompt preview:', systemPrompt.substring(0, 200) + '...');
+      
+      const messages = [
+        {
+          role: 'system',
+          content: systemPrompt
+        }
+      ];
+
+      console.log('AI Service - Sending prompt for design generation...');
+      console.log('Using model:', this.currentProvider.model);
+      
+      const response = await this.callAI(messages, 0.4);
+      console.log('AI Service - Design concepts response received');
+      console.log('Response length:', response.length);
+      console.log('Response preview:', response.substring(0, 200) + '...');
+      
+      // Parse the JSON response
+      const cleanedResponse = this.cleanJsonResponse(response);
+      console.log('Cleaned response length:', cleanedResponse.length);
+      
+      const parsedResponse = JSON.parse(cleanedResponse);
+      console.log('Parsed response keys:', Object.keys(parsedResponse));
+      
+      // Validate that we have a design
+      if (!parsedResponse.design) {
+        throw new Error('No design found in AI response');
+      }
+      
+      console.log('Successfully parsed design concept');
+      return parsedResponse;
+    } catch (error: any) {
+      console.error('Error in generateDesignConcepts:', error);
+      console.error('Error details:', error.message);
+      if (error.response) {
+        console.error('API Response error:', error.response.data);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Generate detailed image description for DALL-E 3
+   */
+  async generateImageDescription(
+    projectDescription: string, 
+    materials: any[], 
+    description: string
+  ): Promise<string> {
+    try {
+      console.log('AI Service - Generating image description...');
+      
+      // Build the system prompt by replacing variables
+      const systemPrompt = prompts.designImageDescription
+        .replace('{{projectDescription}}', projectDescription)
+        .replace('{{materials}}', materials.map(m => `${m.name} (${m.type})`).join(', '))
+        .replace('{{description}}', description);
+      
+      console.log('Image description prompt length:', systemPrompt.length);
+      
+      const messages = [
+        {
+          role: 'system',
+          content: systemPrompt
+        }
+      ];
+
+      console.log('AI Service - Sending prompt for image description...');
+      
+      const response = await this.callAI(messages, 0.8);
+      console.log('AI Service - Image description response received');
+      
+      // Clean up the response (remove quotes if wrapped)
+      return response.replace(/^["']|["']$/g, '').trim();
+    } catch (error: any) {
+      console.error('Error in generateImageDescription:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate three minimal variations based on a base image + description
+   */
+  async generateImageVariationsFromBase(
+    projectDescription: string,
+    materials: any[],
+    baseDescription: string
+  ): Promise<{ variants: { imagePrompt: string }[] }> {
+    try {
+      const systemPrompt = prompts.designImageIteration
+        .replace('{{projectDescription}}', projectDescription)
+        .replace('{{materials}}', materials.map(m => `${m.name} (${m.type})`).join(', '))
+        .replace('{{baseDescription}}', baseDescription);
+
+      const messages = [
+        { role: 'system', content: systemPrompt }
+      ];
+
+      const response = await this.callAI(messages, 0.2);
+      const cleaned = this.cleanJsonResponse(response);
+      const parsed = JSON.parse(cleaned);
+      if (!parsed.variants || !Array.isArray(parsed.variants) || parsed.variants.length !== 3) {
+        throw new Error('Invalid variants response');
+      }
+      return parsed;
+    } catch (error) {
+      console.error('Error in generateImageVariationsFromBase:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Vision analysis of an image URL to produce a canonical prompt and features
+   */
+  async analyzeImageForPrompt(imageUrl: string, baseDescription?: string): Promise<any> {
+    try {
+      const systemPrompt = prompts.designImageVisionAnalysis;
+      const userContent: any[] = [
+        { type: 'text', text: baseDescription ? `Base description: ${baseDescription}` : 'Analyze the image.' },
+        { type: 'image_url', image_url: { url: imageUrl } },
+      ];
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent as any }
+      ];
+
+      const response = await this.callAI(messages, 0.4);
+      const cleaned = this.cleanJsonResponse(response);
+      return JSON.parse(cleaned);
+    } catch (error) {
+      console.error('Error in analyzeImageForPrompt:', error);
       throw error;
     }
   }

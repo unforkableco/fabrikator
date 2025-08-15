@@ -20,6 +20,7 @@ import {
   DialogContentText,
   DialogActions,
   IconButton,
+  Box,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -245,6 +246,14 @@ const HomePage: React.FC = () => {
                   }}
                   onClick={() => navigate(`/project/${project.id}`)}
                 >
+                  {project.designThumbnailUrl && (
+                    <Box
+                      component="img"
+                      src={`http://localhost:3001/${project.designThumbnailUrl}`}
+                      alt={project.name}
+                      sx={{ width: '100%', height: 160, objectFit: 'cover' }}
+                    />
+                  )}
                   <CardContent sx={{ flexGrow: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                       <Typography variant="h6" component="h2" sx={{ fontWeight: 600, flex: 1 }}>
