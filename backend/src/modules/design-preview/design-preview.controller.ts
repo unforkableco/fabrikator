@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import path from 'path';
+import { designQueue, cadQueue } from '../../workers/index';
 import { DesignPreviewService } from './design-preview.service';
 
 export class DesignPreviewController {
@@ -36,14 +37,13 @@ export class DesignPreviewController {
     try {
       const { projectId } = req.params;
       
-      console.log('Generating design previews for project:', projectId);
-      
-      const designPreview = await this.designPreviewService.generateDesignPreviews(projectId);
-      
-      res.json({
-        message: 'Design previews generated successfully',
-        designPreview,
-      });
+      console.log('Enqueue design previews for project:', projectId);
+      await designQueue.add(
+        'generate',
+        { projectId },
+        { jobId: `design:${projectId}`, removeOnComplete: true, removeOnFail: 100 } as any
+      );
+      res.status(202).json({ message: 'Design generation started' });
     } catch (error: any) {
       console.error('Error generating design previews:', error);
       res.status(500).json({ 

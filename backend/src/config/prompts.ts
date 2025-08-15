@@ -492,4 +492,45 @@ export const prompts = {
       "notes": "any constraints to preserve"
     }
   `,
+
+  // CAD: derive parts list from analysis
+  cadPartsFromAnalysis: `
+    You design a minimal, buildable set of 3D printable parts for the device described.
+    Input analysis JSON (visual + constraints): {{analysis}}
+    Respond with STRICT JSON:
+    {
+      "parts": [
+        {
+          "key": "snake_case_identifier",
+          "name": "Human-readable name",
+          "role": "short description of function",
+          "geometry_hint": "concise geometric description (shapes, cutouts, recesses)",
+          "approx_dims_mm": { "x": number?, "y": number?, "z": number?, "d": number?, "h": number? },
+          "features": [ { "type": "fillet|chamfer|hole|slot|shell|rib|groove", "where": "edges/faces/area", "value_mm": number } ],
+          "appearance": { "color_hex": "#b0bec5" }
+        }
+      ]
+    }
+    Rules:
+    - Output MUST contain between 3 and 20 parts. Never return zero parts.
+    - Focus on shells, covers, diffusers, brackets, feet.
+    - Do NOT include electronics; model only printable geometry.
+    - Keep values concise; when unknown, omit.
+  `,
+
+  // CAD: generate deterministic CadQuery code for a single part
+  cadPartScript: `
+    You generate CadQuery (Python) code for ONE part deterministically.
+    Input JSON:
+    {{part}}
+    Requirements:
+    - Use: import cadquery as cq; from cadquery import exporters
+    - Implement a function build_part() that returns a cq.Workplane or Solid
+    - Use approx_dims_mm and geometry_hint to drive sizes; clamp radii to safe values
+    - Never use len(Workplane); use selection.size() to check empty selections
+    - Avoid failing operations; skip when selections are empty
+    - Do not read/write files except final export
+    - At the end of the file, export with: exporters.export(solid, os.environ.get('STL_PATH', 'out.stl'))
+    - Do NOT include any explanations, only pure Python code
+  `,
 };

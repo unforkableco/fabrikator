@@ -4,6 +4,7 @@ import fs from 'fs';
 import { prisma } from '../../prisma/prisma.service';
 // AIService may be used later for streaming logs or retries
 import { DesignPreviewCadService } from './design-preview_cad.service';
+import { cadQueue } from '../../workers/index';
 
 // Minimal controller to kick off CAD generation using the same logic as scripts/describe-image.js (simplified)
 export async function startCadGeneration(req: Request, res: Response) {
@@ -18,16 +19,17 @@ export async function startCadGeneration(req: Request, res: Response) {
     const selected = preview?.selectedDesign;
     if (!selected?.imageUrl) return res.status(400).json({ error: 'No selected design image' });
 
-    // Kick off generation asynchronously to avoid long-running HTTP request
-    const service = new DesignPreviewCadService();
-    setImmediate(() => {
-      service.runGeneration(projectId).catch((e) => {
-        console.error('CAD generation worker error', e);
-      });
-    });
-
-    // Return immediately; frontend should poll `getLatestCad`
-    res.status(202).json({ message: 'CAD generation started' });
+    // Return 202 if a job already exists (dedupe by jobId)
+    try {
+      await cadQueue.add('generate', { projectId }, { jobId: `cad:${projectId}`, removeOnComplete: true, removeOnFail: 100 } as any);
+      res.status(202).json({ message: 'CAD generation started' });
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      if (msg.includes('JobId') && msg.includes('already exists')) {
+        return res.status(202).json({ message: 'CAD generation already running' });
+      }
+      throw err;
+    }
   } catch (e: any) {
     console.error('startCadGeneration error', e);
     res.status(500).json({ error: 'Failed to start CAD generation' });

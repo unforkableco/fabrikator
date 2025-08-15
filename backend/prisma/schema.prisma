@@ -156,6 +156,13 @@ model DesignPreview {
   // Selected design
   selectedDesignId String? @db.Uuid
   selectedDesign   DesignOption? @relation("selectedDesign", fields: [selectedDesignId], references: [id])
+  // Async generation progress tracking for initial/iterative image generation
+  status       String?    // pending|success|failed
+  stage        String?    // starting|concept|description|image_variants|finalizing
+  progress     Int?
+  logText      String?    @db.Text
+  startedAt    DateTime?  @db.Timestamptz(6)
+  finishedAt   DateTime?  @db.Timestamptz(6)
   
   createdAt   DateTime @default(now()) @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @db.Timestamptz(6)

@@ -3,6 +3,7 @@
   "ext": "ts",
   "ignore": [
     "scripts/**",
+    "scripts/tmp/**",
     "uploads/**",
     ".venv/**",
     "**/*.stl"

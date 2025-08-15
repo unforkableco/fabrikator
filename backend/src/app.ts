@@ -10,6 +10,7 @@ import design3dRouter from './modules/design3d/design3d.router';
 import chatRouter from './modules/chat/chat.router';
 import designPreviewRouter from './modules/design-preview/design-preview.router';
 import { ProjectController } from './modules/project/project.controller';
+import './workers/index';
 
 // Create Express application
 const app = express();

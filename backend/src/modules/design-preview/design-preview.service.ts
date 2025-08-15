@@ -62,6 +62,101 @@ export class DesignPreviewService {
     }
   }
 
+  private async updatePreviewProgress(projectId: string, data: any) {
+    const preview = await prisma.designPreview.findFirst({ where: { projectId } });
+    if (!preview) return;
+    await prisma.designPreview.update({ where: { id: preview.id }, data });
+  }
+
+  /**
+   * Background runner: generates designs with incremental progress updates
+   */
+  async runGenerateDesignPreviews(projectId: string) {
+    try {
+      await this.getOrCreateDesignPreview(projectId);
+      await this.updatePreviewProgress(projectId, {
+        status: 'pending', stage: 'starting', progress: 0, startedAt: new Date(), logText: ''
+      });
+
+      // Get project/materials
+      const project = await prisma.project.findUnique({ where: { id: projectId }, include: { components: { include: { currentVersion: true } } } });
+      if (!project) throw new Error('Project not found');
+      const materials = await this.materialService.listMaterials(projectId);
+      const materialsContext = materials.map((m: any) => ({
+        name: m.currentVersion?.specs?.name || 'Unknown',
+        type: m.currentVersion?.specs?.type || 'Unknown',
+        specs: m.currentVersion?.specs || {},
+      }));
+
+      await this.updatePreviewProgress(projectId, { stage: 'concept', progress: 10 });
+
+      // Concept
+      const aiResponse = await this.aiService.generateDesignConcepts(
+        project.description || '',
+        materialsContext
+      );
+      if (!aiResponse.design) throw new Error('Failed to generate design concept');
+
+      await this.updatePreviewProgress(projectId, { stage: 'description', progress: 40 });
+
+      // Image description
+      let detailedImagePrompt: string = '';
+      try {
+        detailedImagePrompt = await this.aiService.generateImageDescription(
+          project.description || '',
+          materialsContext,
+          aiResponse.design.description
+        );
+      } catch {
+        detailedImagePrompt = aiResponse.design.imagePrompt;
+      }
+
+      await this.updatePreviewProgress(projectId, { stage: 'image_variants', progress: 70 });
+
+      // Variations
+      const imageResults = await this.imageService.generateDesignVariations(detailedImagePrompt, 3);
+
+      // Prepare preview and wipe existing designs
+      let designPreview = await this.getOrCreateDesignPreview(projectId);
+      if (designPreview.designs.length > 0) {
+        await prisma.designOption.deleteMany({ where: { designPreviewId: designPreview.id } });
+      }
+
+      // Create options
+      const created: any[] = [];
+      for (let i = 0; i < imageResults.length; i++) {
+        const imageResult = imageResults[i];
+        const design = aiResponse.design;
+        if (imageResult.url && !imageResult.error) {
+          const filename = `design_${projectId}_${Date.now()}_${i}.png`;
+          const imagePath = await this.imageService.downloadAndSaveImage(imageResult.url, filename);
+          const designOption = await prisma.designOption.create({
+            data: {
+              designPreviewId: designPreview.id,
+              concept: design.concept,
+              description: design.description,
+              imagePrompt: imageResult.revisedPrompt || detailedImagePrompt,
+              imageUrl: imagePath,
+              keyFeatures: design.keyFeatures || [],
+              complexity: design.complexity || 'medium',
+              printability: 'moderate',
+            },
+          });
+          created.push(designOption);
+        }
+      }
+
+      await this.updatePreviewProgress(projectId, { stage: 'finalizing', progress: 90 });
+
+      // Refresh and mark success
+      await this.getOrCreateDesignPreview(projectId);
+      await this.updatePreviewProgress(projectId, { status: 'success', progress: 100, finishedAt: new Date() });
+    } catch (error: any) {
+      await this.updatePreviewProgress(projectId, { status: 'failed', stage: 'finalizing', progress: 100 });
+      throw error;
+    }
+  }
+
   /**
    * Generate new design previews using AI
    */

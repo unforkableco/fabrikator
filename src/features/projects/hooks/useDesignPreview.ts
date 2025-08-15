@@ -4,7 +4,8 @@ import { DesignPreview } from '../../../shared/types';
 
 interface UseDesignPreviewReturn {
   designPreview: DesignPreview | null;
-  isLoading: boolean;
+  isLoading: boolean; // image generation/iteration loading
+  isCadLoading: boolean; // CAD generation loading
   error: string | null;
   generateDesigns: () => Promise<void>;
   selectDesign: (designOptionId: string) => Promise<void>;
@@ -17,10 +18,12 @@ interface UseDesignPreviewReturn {
 
 export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
   const [designPreview, setDesignPreview] = useState<DesignPreview | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // image ops
+  const [isCadLoading, setIsCadLoading] = useState(false); // CAD ops
   const [error, setError] = useState<string | null>(null);
   const [latestCad, setLatestCad] = useState<any | null>(null);
   const [cadPollTimer, setCadPollTimer] = useState<any>(null);
+  const [designPollTimer, setDesignPollTimer] = useState<any>(null);
 
   // Load existing design preview
   const loadDesignPreview = useCallback(async () => {
@@ -44,7 +47,7 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
     }
   }, [projectId]);
 
-  // Generate new design previews
+  // Generate new design previews (enqueue + poll)
   const generateDesigns = useCallback(async () => {
     if (!projectId) return;
 
@@ -52,8 +55,30 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
       setIsLoading(true);
       setError(null);
       
-      const response = await api.designPreviews.generateDesignPreviews(projectId);
-      setDesignPreview(response.designPreview);
+      // Start async job (202 expected)
+      await api.designPreviews.generateDesignPreviews(projectId);
+
+      // Poll preview until designs are available or status changes
+      const poll = async () => {
+        try {
+          const data = await api.designPreviews.getDesignPreview(projectId);
+          setDesignPreview(data);
+          const done = (Array.isArray(data?.designs) && data.designs.length >= 3) || data?.status === 'success' || data?.status === 'failed';
+          if (done) {
+            if (designPollTimer) {
+              clearInterval(designPollTimer);
+              setDesignPollTimer(null);
+            }
+            setIsLoading(false);
+          }
+        } catch (_) {
+          // ignore transient errors during polling
+        }
+      };
+
+      await poll();
+      const t = setInterval(poll, 2000);
+      setDesignPollTimer(t);
     } catch (err: any) {
       let errorMessage = 'Failed to generate design previews';
       
@@ -72,11 +97,10 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
       }
       
       setError(errorMessage);
-      throw err;
-    } finally {
       setIsLoading(false);
+      throw err;
     }
-  }, [projectId]);
+  }, [projectId, designPollTimer]);
 
   // Select a design option
   const selectDesign = useCallback(async (designOptionId: string) => {
@@ -113,21 +137,20 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
       await api.designPreviews.deleteDesignPreview(designPreview.id);
       setDesignPreview(null);
       
-      // Generate new ones
+      // Generate new ones (will enqueue + poll)
       await generateDesigns();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to regenerate design previews');
       throw err;
     } finally {
-      setIsLoading(false);
+      // generateDesigns will manage isLoading as it polls
     }
   }, [designPreview, generateDesigns]);
 
-  // Iterate upon latest selected design
+  // Iterate upon latest selected design (sync response for now)
   const iterate = useCallback(async (baseDesignOptionId: string) => {
     if (!projectId) return;
     try {
-      // Keep the current selection visible and only show loading placeholders in the proposals area
       setIsLoading(true);
       setError(null);
       const updated = await api.designPreviews.iterate(projectId, baseDesignOptionId);
@@ -144,7 +167,7 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
   const startCad = useCallback(async () => {
     if (!projectId) return;
     try {
-      setIsLoading(true);
+      setIsCadLoading(true);
       setError(null);
       await api.designPreviews.startCadGeneration(projectId);
 
@@ -157,6 +180,7 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
               clearInterval(cadPollTimer);
               setCadPollTimer(null);
             }
+            setIsCadLoading(false);
           }
         } catch {
           // ignore transient errors
@@ -168,9 +192,8 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
       setCadPollTimer(t);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to start CAD generation');
+      setIsCadLoading(false);
       throw err;
-    } finally {
-      setIsLoading(false);
     }
   }, [projectId, cadPollTimer]);
 
@@ -187,12 +210,14 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
     })();
     return () => {
       if (cadPollTimer) clearInterval(cadPollTimer);
+      if (designPollTimer) clearInterval(designPollTimer);
     };
-  }, [loadDesignPreview, projectId, cadPollTimer]);
+  }, [loadDesignPreview, projectId, cadPollTimer, designPollTimer]);
 
   return {
     designPreview,
     isLoading,
+    isCadLoading,
     error,
     generateDesigns,
     selectDesign,
