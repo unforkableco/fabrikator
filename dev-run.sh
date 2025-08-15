@@ -12,8 +12,14 @@ DB_USER="postgres"
 DB_PASS="postgres"
 DB_NAME="fabrikator"
 
+# Redis (for job queues)
+REDIS_CONTAINER="fabrikator-redis"
+REDIS_IMAGE="redis:7-alpine"
+REDIS_PORT="6379"
+
 BE_PID=""
 FE_PID=""
+WK_PID=""
 
 log() { echo -e "[dev-run] $*"; }
 
@@ -52,6 +58,29 @@ start_db() {
   fi
 }
 
+start_redis() {
+  if docker ps --format '{{.Names}}' | grep -q "^${REDIS_CONTAINER}$"; then
+    log "Redis container already running: ${REDIS_CONTAINER}"
+    return
+  fi
+  if ! docker ps -a --format '{{.Names}}' | grep -q "^${REDIS_CONTAINER}$"; then
+    log "Starting Redis container ${REDIS_CONTAINER}..."
+    docker run -d --name "${REDIS_CONTAINER}" \
+      -p ${REDIS_PORT}:6379 \
+      ${REDIS_IMAGE} >/dev/null
+  else
+    log "Starting existing Redis container ${REDIS_CONTAINER}..."
+    docker start "${REDIS_CONTAINER}" >/dev/null
+  fi
+}
+
+stop_redis() {
+  if docker ps --format '{{.Names}}' | grep -q "^${REDIS_CONTAINER}$"; then
+    log "Stopping Redis container ${REDIS_CONTAINER}..."
+    docker stop "${REDIS_CONTAINER}" >/dev/null || true
+  fi
+}
+
 stop_db() {
   if docker ps --format '{{.Names}}' | grep -q "^${DB_CONTAINER}$"; then
     log "Stopping DB container ${DB_CONTAINER}..."
@@ -70,7 +99,8 @@ prep_backend() {
     echo "DATABASE_URL=postgresql://${DB_USER}:${DB_PASS}@localhost:${DB_PORT}/${DB_NAME}?schema=public" >> .env
   fi
   log "Installing backend deps..."
-  npm ci
+  # Try clean install; if lockfile is out of sync, fall back to npm install to update it
+  npm ci || npm install --no-audit --no-fund
   log "Prisma sync..."
   npx prisma db push
   npx prisma generate
@@ -110,6 +140,14 @@ start_frontend() {
   popd >/dev/null
 }
 
+start_workers() {
+  pushd "$BACKEND_DIR" >/dev/null
+  log "Starting workers (BullMQ)..."
+  npm run worker &
+  WK_PID=$!
+  popd >/dev/null
+}
+
 shutdown() {
   log "Shutting down..."
   if [[ -n "$FE_PID" ]] && ps -p "$FE_PID" >/dev/null 2>&1; then
@@ -122,7 +160,13 @@ shutdown() {
     kill "$BE_PID" 2>/dev/null || true
     wait "$BE_PID" 2>/dev/null || true
   fi
+  if [[ -n "$WK_PID" ]] && ps -p "$WK_PID" >/dev/null 2>&1; then
+    log "Stopping workers (PID $WK_PID)"
+    kill "$WK_PID" 2>/dev/null || true
+    wait "$WK_PID" 2>/dev/null || true
+  fi
   stop_db
+  stop_redis
   log "Done."
 }
 
@@ -130,6 +174,9 @@ trap shutdown INT TERM EXIT
 
 log "Starting database..."
 start_db
+
+log "Starting Redis..."
+start_redis
 
 log "Preparing backend..."
 prep_backend
@@ -139,6 +186,7 @@ prep_frontend
 
 log "Launching services..."
 start_backend
+start_workers
 start_frontend
 
 log "All services started. Backend: http://localhost:3001  Frontend: http://localhost:3000"
