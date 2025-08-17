@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { DesignPreviewController } from './design-preview.controller';
-import { startCadGeneration } from './design-preview_cad.controller';
+import { startCadGeneration, retryCadPart } from './design-preview_cad.controller';
 
 const router = Router();
 const designPreviewController = new DesignPreviewController();
@@ -28,5 +28,8 @@ router.get('/project/:projectId/cad/latest', designPreviewController.getLatestCa
 
 // Serve STL for a part (DB-first)
 router.get('/cad/parts/:partId/stl', designPreviewController.getPartStl.bind(designPreviewController));
+
+// Retry a single CAD part generation (include previous error in prompt)
+router.post('/cad/parts/:partId/retry', retryCadPart);
 
 export default router;

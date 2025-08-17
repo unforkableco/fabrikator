@@ -3,11 +3,9 @@ export const prompts = {
   Analyze the following project description and provide a comprehensive analysis in both structured and human-readable format:
   {{description}}
 
-  **IMPORTANT: This is for Forge, a DIY/homemade electronics and tech project builder. All solutions must prioritize DIY, homemade, and self-built approaches.**
-
   Generate only:
   1. A concise, impactful "name" for the project
-  2. A detailed "description" that restates and enriches the idea with DIY/homemade focus
+  2. A detailed "description" that rephrases and enriches the idea
 
   **Your response must be strictly a JSON object**:
   {
@@ -445,12 +443,14 @@ export const prompts = {
     
     Guidelines:
     - The design must look like a minimalistic, clean and marketable product
-    - Plain background, simple geometry
+    - Isolated packshot: plain seamless studio background (white or light gray), no environment or props
+    - Single object only: render ONLY the device itself. Do NOT include phones, plants, soil, cables, hands, text, logos, or any accessories
     - The entire device must be fully visible in frame, centered with a small margin around it; do not crop or cut off edges
     - Use a 3/4 perspective (slightly above eye level) that shows two faces and top surface
     - Include specific visible components (LEDs, buttons, displays, sensors) when relevant
     - Keep the description concise but visual and concrete
     - Focus on the visual appearance; avoid deep technical jargon
+    - Do not include anything apart from the device, the background and the camera angle, for example if the device is a phone stand, do not include the phone
     
     Example style: "A [device] on a plain background, full device centered with margin (no crop), shown from a slightly high three-quarter view; visible features: [components]."
     
@@ -468,6 +468,7 @@ export const prompts = {
     Rules (critical):
     - Preserve the device identity and all core features; do not change the device category.
     - Keep camera angle, lighting, background, and framing identical: full device centered with margin (no crop), plain background, 3/4 slightly-high view.
+    - Maintain packshot isolation: device ONLY, no props or companion items.
     - Variations must be subtle (≤10% change): e.g., tiny chamfer/fillet differences, a slight relocation of the button/port within the same side, minor LED ring thickness, small top recess depth change.
     - DO NOT change overall proportions, primary silhouette, color scheme, or component count.
     
@@ -481,22 +482,28 @@ export const prompts = {
     }
   `,
   designImageVisionAnalysis: `
-    You are an expert vision assistant for product design. Analyze the provided device image and extract a concise, structured description suitable for re-generating similar images.
-    If a base textual description is provided, reconcile it with the image, preferring what you clearly see.
-    Output strictly JSON with these fields:
-    {
-      "canonicalPrompt": "single paragraph describing the device to be used for image generation (include: minimal/clean look, full device in frame with margin, plain background, 3/4 view instructions)",
-      "visibleComponents": ["LED", "button", "display", "sensor", "ports"],
-      "shape": "overall shape and key cutouts",
-      "finish": "material/finish cues",
-      "notes": "any constraints to preserve"
-    }
+    You are an expert product-design vision assistant. Describe the device in the image in rich, precise prose to guide both re‑rendering and CAD planning.
+    If a base textual description is provided, reconcile it with the image, but prefer observable details.
+    Inputs to consider (for ambiguity resolution and material inference):
+    - Device description: {{projectDescription}}
+    - Materials list (concise): {{materials}}
+    Include:
+    - Overall geometry and silhouette (primary shapes, notable contours)
+    - Approximate overall dimensions (mm): width (X), depth (Y), height (Z) with scale cues (e.g., USB‑C, buttons)
+    - Visible components and placements (ports, LEDs, buttons, vents), with relative positions
+    - Key features (fillets, chamfers, recesses, slots, bosses/ribs) and where they appear
+    - Likely split lines and how parts fit (e.g., cover to base via lip/groove)
+    - Color and finish details (palette, matte/satin/gloss)
+    - Any constraints to preserve (camera 3/4 view, full device in frame with margin, minimalistic aesthetic)
+    - Materials: Using the device description and materials list above, infer plausible 3D printing materials for external and flexible parts (e.g., PLA/PETG for shells, TPU for feet/dampers) and mention them succinctly.
+    - Use millimeters for dimensions.
   `,
 
-  // CAD: derive parts list from analysis
+  // CAD: derive parts list from a descriptive analysis
   cadPartsFromAnalysis: `
-    You design a minimal, buildable set of 3D printable parts for the device described.
-    Input analysis JSON (visual + constraints): {{analysis}}
+    You design a set of 3D printable parts for the device described. Be extremely detailed, make sure parts fit together well, that none of the parts are overlapping, and can be easily assembled.
+    At this stage it's not necessary to consider electrical connections, but if assembly requires screws then create anchors so the user can embed screws into the part.
+    Inputs:\n- Visual description: {{analysisDescription}}\n- Device description: {{projectDescription}}\n- Materials list (concise): {{materials}}
     Respond with STRICT JSON:
     {
       "parts": [
@@ -505,32 +512,87 @@ export const prompts = {
           "name": "Human-readable name",
           "role": "short description of function",
           "geometry_hint": "concise geometric description (shapes, cutouts, recesses)",
-          "approx_dims_mm": { "x": number?, "y": number?, "z": number?, "d": number?, "h": number? },
+          "dims_mm": { "x": number?, "y": number?, "z": number?, "d": number?, "h": number? },
           "features": [ { "type": "fillet|chamfer|hole|slot|shell|rib|groove", "where": "edges/faces/area", "value_mm": number } ],
           "appearance": { "color_hex": "#b0bec5" }
         }
       ]
     }
     Rules:
-    - Output MUST contain between 3 and 20 parts. Never return zero parts.
-    - Focus on shells, covers, diffusers, brackets, feet.
+    - Output MUST contain parts. Never return zero parts.
     - Do NOT include electronics; model only printable geometry.
-    - Keep values concise; when unknown, omit.
+    - Provide exact dimensions in dims_mm wherever possible. Avoid unknowns; when necessary, infer from typical consumer product scales.
+    - Ensure mating parts have matching dimensions at interfaces (e.g., cover lip to base groove). Call these out in a "notes" property in each part's features if relevant.
+    - Ensure that parts are suitable for integrating hardware, for example if the main body is a shell it should be split into two parts so that the hardware can be inserted into the shell.
   `,
 
   // CAD: generate deterministic CadQuery code for a single part
   cadPartScript: `
-    You generate CadQuery (Python) code for ONE part deterministically.
-    Input JSON:
-    {{part}}
+    You generate deterministic CadQuery (Python) for ONE part.
+    Device context:\n{{deviceContext}}\nPart JSON:\n{{part}}
     Requirements:
-    - Use: import cadquery as cq; from cadquery import exporters
-    - Implement a function build_part() that returns a cq.Workplane or Solid
-    - Use approx_dims_mm and geometry_hint to drive sizes; clamp radii to safe values
-    - Never use len(Workplane); use selection.size() to check empty selections
-    - Avoid failing operations; skip when selections are empty
-    - Do not read/write files except final export
-    - At the end of the file, export with: exporters.export(solid, os.environ.get('STL_PATH', 'out.stl'))
-    - Do NOT include any explanations, only pure Python code
+    - import cadquery as cq; from cadquery import exporters; import os, math
+    - Provide build_part() -> cq.Workplane or Solid
+    - Dimensions: prefer part.dims_mm; if missing, use part.approx_dims_mm; otherwise infer reasonable values from context
+    - Use geometry_hint and features to apply operations; clamp radii/chamfers to safe values (e.g., min 0.2mm, max 3mm or 15% of thickness)
+    - Never use len() on Workplane; use selection.size()
+    - Guard all selection-dependent ops; skip gracefully on empty selections
+    - Always create a base solid FIRST from dims_mm before any cuts/holes:
+      - Example pattern for a plate: solid = cq.Workplane('XY').rect(width, depth).extrude(thickness)
+      - Then operate on faces: solid = solid.faces('>Z').workplane().hole(diameter) or .pushPoints(...).hole(...)
+    - Never use a standalone workplane for boolean ops without a solid. Avoid patterns like: wp = cq.Workplane('XY'); wp.rarray(...).circle(...).cutThruAll()
+    - Only call cutThruAll on a workplane derived from an existing solid's face: solid = solid.faces('>Z').workplane(...).rarray(...).circle(...); solid = solid.cutThruAll()
+    - Prefer .hole/.cut operations scoped on solid's faces over raw cutThruAll when suitable
+    - DO NOT call .fillet() or .chamfer() directly on selections or chain like .faces(...).edges().chamfer(...).
+      Only use helper functions that validate selections and clamp values. Never bypass these helpers.
+      def apply_fillet(solid, selector, r):
+          try:
+              sel = solid.edges(selector)
+              if hasattr(sel, 'size') and sel.size() > 0:
+                  rr = max(0.2, min(float(r), 3.0))
+                  return sel.fillet(rr)
+          except Exception:
+              pass
+          return solid
+      def apply_chamfer(solid, selector, c):
+          try:
+              sel = solid.edges(selector)
+              if hasattr(sel, 'size') and sel.size() > 0:
+                  # Clamp chamfer by local thickness and a hard cap
+                  cc = max(0.2, min(float(c), 3.0))
+                  return sel.chamfer(cc)
+          except Exception:
+              pass
+          return solid
+    - When creating a workplane from a face, NEVER call .faces(...).workplane() on a selection that may contain multiple faces.
+      Always reduce to a single planar face first. For example:
+      def largest_planar_face(solid, selector):
+          try:
+              faces = solid.faces(selector).vals()
+              faces = [f for f in faces if hasattr(f, 'Area')]
+              return max(faces, key=lambda f: f.Area()) if faces else None
+          except Exception:
+              return None
+      # usage:
+      f = largest_planar_face(solid, ">Z")
+      if f is not None:
+          wp = cq.Workplane(obj=f)
+          # proceed with sketch/extrude on wp
+      else:
+          # skip or choose a safe default workplane
+    - For grooves/channels (e.g., LED ring), prefer sketch+extrude/cut or boolean subtract of a torus/circular ring rather than applying a large chamfer across a whole face. Avoid global face chamfers.
+    - Ensure build_part returns a valid non-empty solid/shape; if impossible, return a minimal placeholder primitive sized by dims_mm
+    - At end: if Workplane, convert with .val(); then exporters.export(solid, os.environ.get('STL_PATH','out.stl'))
+    - If deviceContext includes a "Previous error" and/or "Previous script" section (from a prior failed execution), you MUST:
+      - Read the error and identify the failing operation(s)
+      - Generate a corrected implementation that avoids the failure while respecting all constraints above
+      - If a previous script is present, you may reuse stable parts but MUST rewrite problematic areas to be robust
+      - Do NOT include any prose about the fix; return only the corrected Python module
+    - STRICT OUTPUT:
+      - Return ONLY valid Python code for a single module
+      - NO prose, NO markdown, NO code fences, NO comments
+      - The FIRST non-empty line MUST be: "import cadquery as cq"
+      - Then: "from cadquery import exporters" and any other imports
+      - You MUST define: def build_part(): ...
   `,
 };

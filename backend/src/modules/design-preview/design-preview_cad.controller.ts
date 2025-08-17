@@ -36,4 +36,18 @@ export async function startCadGeneration(req: Request, res: Response) {
   }
 }
 
+export async function retryCadPart(req: Request, res: Response) {
+  try {
+    const { partId } = req.params as any;
+    if (!partId) return res.status(400).json({ error: 'partId required' });
+
+    const service = new DesignPreviewCadService();
+    await service.retryPart(partId);
+    return res.json({ message: 'Retry triggered' });
+  } catch (e: any) {
+    console.error('retryCadPart error', e);
+    return res.status(500).json({ error: 'Failed to retry CAD part' });
+  }
+}
+
 

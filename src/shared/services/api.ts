@@ -279,6 +279,12 @@ export const api = {
       const response = await apiClient.get(`/design-previews/project/${projectId}/cad/latest`);
       return response.data;
     },
+
+    // Retry a single CAD part (includes previous error and script in prompt)
+    retryCadPart: async (partId: string): Promise<any> => {
+      const response = await apiClient.post(`/design-previews/cad/parts/${partId}/retry`);
+      return response.data;
+    },
   },
 };
 

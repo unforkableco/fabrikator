@@ -14,6 +14,9 @@ interface UseDesignPreviewReturn {
   startCad: () => Promise<void>;
   latestCad: any | null;
   cadParts: any[];
+  retryPart: (partId: string) => Promise<void>;
+  retryingPartIds: Set<string>;
+  retryErrors: Record<string, string | null>;
 }
 
 export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
@@ -24,6 +27,8 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
   const [latestCad, setLatestCad] = useState<any | null>(null);
   const [cadPollTimer, setCadPollTimer] = useState<any>(null);
   const [designPollTimer, setDesignPollTimer] = useState<any>(null);
+  const [retryingPartIds, setRetryingPartIds] = useState<Set<string>>(new Set());
+  const [retryErrors, setRetryErrors] = useState<Record<string, string | null>>({});
 
   // Load existing design preview
   const loadDesignPreview = useCallback(async () => {
@@ -197,6 +202,60 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
     }
   }, [projectId, cadPollTimer]);
 
+  // Retry a single CAD part with per-part loading and polling until it finishes
+  const retryPart = useCallback(async (partId: string) => {
+    if (!partId) return;
+    try {
+      setRetryErrors(prev => ({ ...prev, [partId]: null }));
+      setRetryingPartIds(prev => new Set([...Array.from(prev), partId]));
+      await api.designPreviews.retryCadPart(partId);
+
+      const pollOnce = async () => {
+        const data = await api.designPreviews.getLatestCad(projectId);
+        setLatestCad(data);
+        const found = Array.isArray(data?.parts) ? data.parts.find((p: any) => p.id === partId) : null;
+        return found && found.status !== 'processing';
+      };
+
+      // Initial check
+      let done = false;
+      try { done = await pollOnce(); } catch {
+        // ignore
+      }
+      if (done) {
+        setRetryingPartIds(prev => { const n = new Set(Array.from(prev)); n.delete(partId); return n; });
+        return;
+      }
+
+      // Poll until status leaves 'processing' or timeout ~30s
+      const start = Date.now();
+      const interval = 1200;
+      const maxMs = 30000;
+      await new Promise<void>((resolve) => {
+        const t = setInterval(async () => {
+          try {
+            const finished = await pollOnce();
+            if (finished || Date.now() - start > maxMs) {
+              clearInterval(t);
+              resolve();
+            }
+          } catch {
+            // ignore transient
+          }
+        }, interval);
+      });
+    } catch (err: any) {
+      setRetryErrors(prev => ({ ...prev, [partId]: err?.response?.data?.error || 'Retry failed' }));
+    } finally {
+      setRetryingPartIds(prev => { const n = new Set(Array.from(prev)); n.delete(partId); return n; });
+      // Refresh once more
+      try {
+        const data = await api.designPreviews.getLatestCad(projectId);
+        setLatestCad(data);
+      } catch {}
+    }
+  }, [projectId]);
+
   // Load design preview and latest CAD on mount
   useEffect(() => {
     loadDesignPreview();
@@ -226,5 +285,8 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
     startCad,
     latestCad,
     cadParts: Array.isArray(latestCad?.parts) ? latestCad.parts : [],
+    retryPart,
+    retryingPartIds,
+    retryErrors,
   };
 };

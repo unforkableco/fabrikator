@@ -308,6 +308,12 @@ export interface DesignPreview {
   designs: DesignOption[];
   selectedDesignId?: string;
   selectedDesign?: DesignOption;
+  // async generation tracking
+  status?: 'pending' | 'success' | 'failed';
+  stage?: string;
+  progress?: number;
+  startedAt?: string;
+  finishedAt?: string;
   createdAt: string;
   updatedAt: string;
   project?: Project;
@@ -321,6 +327,14 @@ export interface ProjectCadGeneration {
   outputDir: string;
   status: 'pending' | 'success' | 'failed';
   logText?: string;
+  stage?: string;
+  progress?: number;
+  totalParts?: number;
+  completedParts?: number;
+  failedParts?: number;
+  analysisJson?: any;
+  partsJson?: any;
+  designImagePath?: string;
   createdAt: string;
   parts?: ProjectCadPart[];
 }

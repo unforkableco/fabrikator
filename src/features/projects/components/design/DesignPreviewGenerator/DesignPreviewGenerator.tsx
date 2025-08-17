@@ -132,8 +132,8 @@ export const DesignPreviewGenerator: React.FC<DesignPreviewGeneratorProps> = ({ 
     );
   }
 
-  // Initial generation loading (no data yet)
-  if (!designPreview && isLoading) {
+  // Initial generation loading (no data yet) or backend pending state
+  if ((!designPreview && isLoading) || (designPreview as any)?.status === 'pending') {
     return (
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
@@ -175,9 +175,9 @@ export const DesignPreviewGenerator: React.FC<DesignPreviewGeneratorProps> = ({ 
             variant="contained"
             startIcon={<AutoAwesome />}
             onClick={handleGenerateDesigns}
-            disabled={isLoading}
+            disabled={isLoading || (designPreview as any)?.status === 'pending'}
           >
-            Generate Designs
+            {(designPreview as any)?.status === 'pending' ? 'Generating…' : 'Generate Designs'}
           </Button>
         )}
       </Box>

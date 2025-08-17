@@ -32,3 +32,4 @@ yarn-error.log*
 # locals
 /backend/uploads
 .venv/
+/backend/scripts/tmp
