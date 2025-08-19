@@ -2,6 +2,68 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '../../../shared/services/api';
 import { DesignPreview } from '../../../shared/types';
 
+interface EnhancedPipelineConfig {
+  maxRefinementIterations: number;
+  enableValidation: boolean;
+  materialType: string;
+  qualityTarget: 'draft' | 'standard' | 'high';
+}
+
+interface EnhancedPipelineStatus {
+  generationId: string;
+  status: string;
+  stage: string;
+  progress: number;
+  pipelineType: string;
+  parts: {
+    total: number;
+    successful: number;
+    failed: number;
+    processing: number;
+    successRate: number;
+    byIteration?: Record<string, Array<{ id: string; key: string; name: string; status: string }>>;
+  };
+  analysis: {
+    hardwareSpecs: boolean;
+    assemblyPlan: boolean;
+    manufacturingConstraints: boolean;
+    componentsAnalyzed: number;
+    interfacesDefined: number;
+  };
+  validation: {
+    overallStatus: string;
+    totalChecks: number;
+    criticalIssues: number;
+    recommendations: number;
+  } | null;
+  refinement: {
+    iterationsCompleted: number;
+    lastRefinement: any;
+  };
+  qualityScore: number;
+  startedAt: string;
+  finishedAt?: string;
+}
+
+interface ValidationResults {
+  validationId: string;
+  overallStatus: string;
+  validatedAt: string;
+  summary: {
+    totalChecks: number;
+    passedChecks: number;
+    failedChecks: number;
+    warnings: number;
+  };
+  interfaceValidation: any[];
+  assemblyValidation: any[];
+  manufacturingValidation: any[];
+  functionalValidation: any[];
+  criticalIssues: any[];
+  recommendations: any;
+  partResults: any[];
+}
+
 interface UseDesignPreviewReturn {
   designPreview: DesignPreview | null;
   isLoading: boolean; // image generation/iteration loading
@@ -11,6 +73,15 @@ interface UseDesignPreviewReturn {
   selectDesign: (designOptionId: string) => Promise<void>;
   tryAgain: () => Promise<void>;
   iterate: (baseDesignOptionId: string) => Promise<void>;
+  
+  // Enhanced CAD Pipeline
+  enhancedConfig: EnhancedPipelineConfig;
+  setEnhancedConfig: (config: Partial<EnhancedPipelineConfig>) => void;
+  startEnhancedCad: () => Promise<void>;
+  enhancedStatus: EnhancedPipelineStatus | null;
+  validationResults: ValidationResults | null;
+  
+  // Legacy compatibility (deprecated)
   startCad: () => Promise<void>;
   latestCad: any | null;
   cadParts: any[];
@@ -24,11 +95,28 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
   const [isLoading, setIsLoading] = useState(false); // image ops
   const [isCadLoading, setIsCadLoading] = useState(false); // CAD ops
   const [error, setError] = useState<string | null>(null);
+  
+  // Enhanced pipeline state
+  const [enhancedConfig, setEnhancedConfigState] = useState<EnhancedPipelineConfig>({
+    maxRefinementIterations: 3,
+    enableValidation: true,
+    materialType: 'PLA',
+    qualityTarget: 'standard'
+  });
+  const [enhancedStatus, setEnhancedStatus] = useState<EnhancedPipelineStatus | null>(null);
+  const [validationResults, setValidationResults] = useState<ValidationResults | null>(null);
+  const [enhancedPollTimer, setEnhancedPollTimer] = useState<any>(null);
+  
+  // Legacy state (for compatibility)
   const [latestCad, setLatestCad] = useState<any | null>(null);
   const [cadPollTimer, setCadPollTimer] = useState<any>(null);
   const [designPollTimer, setDesignPollTimer] = useState<any>(null);
   const [retryingPartIds, setRetryingPartIds] = useState<Set<string>>(new Set());
   const [retryErrors, setRetryErrors] = useState<Record<string, string | null>>({});
+
+  const setEnhancedConfig = useCallback((config: Partial<EnhancedPipelineConfig>) => {
+    setEnhancedConfigState(prev => ({ ...prev, ...config }));
+  }, []);
 
   // Load existing design preview
   const loadDesignPreview = useCallback(async () => {
@@ -168,7 +256,61 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
     }
   }, [projectId]);
 
-  // Start CAD generation (async + polling)
+  // Enhanced CAD pipeline generation
+  const startEnhancedCad = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      setIsCadLoading(true);
+      setError(null);
+      await api.designPreviews.startEnhancedCadGeneration(projectId, enhancedConfig);
+
+      const pollEnhanced = async () => {
+        try {
+          const statusData = await api.designPreviews.getEnhancedPipelineStatus(projectId);
+          setEnhancedStatus(statusData);
+          
+          // Also try to get validation results if available
+          try {
+            const validationData = await api.designPreviews.getValidationResults(projectId);
+            setValidationResults(validationData);
+          } catch {
+            // Validation results might not be available yet
+          }
+
+          // Check if pipeline is complete
+          if (statusData?.status && !['pending', 'processing'].includes(statusData.status)) {
+            if (enhancedPollTimer) {
+              clearInterval(enhancedPollTimer);
+              setEnhancedPollTimer(null);
+            }
+            setIsCadLoading(false);
+          }
+        } catch {
+          // ignore transient errors
+        }
+      };
+
+      await pollEnhanced();
+      const t = setInterval(pollEnhanced, 2000);
+      setEnhancedPollTimer(t);
+    } catch (err: any) {
+      let errorMessage = 'Failed to start enhanced CAD generation';
+      
+      if (err.response?.status === 429) {
+        errorMessage = 'System is currently busy. Please wait a moment and try again.';
+      } else if (err.response?.status === 400) {
+        errorMessage = 'Invalid configuration. Please check your settings and try again.';
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      }
+      
+      setError(errorMessage);
+      setIsCadLoading(false);
+      throw err;
+    }
+  }, [projectId, enhancedConfig, enhancedPollTimer]);
+
+  // Legacy CAD generation (deprecated but kept for compatibility)
   const startCad = useCallback(async () => {
     if (!projectId) return;
     try {
@@ -256,9 +398,29 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
     }
   }, [projectId]);
 
-  // Load design preview and latest CAD on mount
+  // Load design preview, enhanced status, and legacy CAD on mount
   useEffect(() => {
     loadDesignPreview();
+    
+    // Load enhanced pipeline status
+    (async () => {
+      try {
+        const statusData = await api.designPreviews.getEnhancedPipelineStatus(projectId);
+        setEnhancedStatus(statusData);
+        
+        // Also load validation results if available
+        try {
+          const validationData = await api.designPreviews.getValidationResults(projectId);
+          setValidationResults(validationData);
+        } catch {
+          // No validation results yet
+        }
+      } catch {
+        // No enhanced pipeline data yet
+      }
+    })();
+    
+    // Load legacy CAD for compatibility
     (async () => {
       try {
         const data = await api.designPreviews.getLatestCad(projectId);
@@ -267,11 +429,13 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
         // no CAD yet
       }
     })();
+    
     return () => {
       if (cadPollTimer) clearInterval(cadPollTimer);
       if (designPollTimer) clearInterval(designPollTimer);
+      if (enhancedPollTimer) clearInterval(enhancedPollTimer);
     };
-  }, [loadDesignPreview, projectId, cadPollTimer, designPollTimer]);
+  }, [loadDesignPreview, projectId, cadPollTimer, designPollTimer, enhancedPollTimer]);
 
   return {
     designPreview,
@@ -282,6 +446,15 @@ export const useDesignPreview = (projectId: string): UseDesignPreviewReturn => {
     selectDesign,
     tryAgain,
     iterate,
+    
+    // Enhanced pipeline
+    enhancedConfig,
+    setEnhancedConfig,
+    startEnhancedCad,
+    enhancedStatus,
+    validationResults,
+    
+    // Legacy compatibility
     startCad,
     latestCad,
     cadParts: Array.isArray(latestCad?.parts) ? latestCad.parts : [],

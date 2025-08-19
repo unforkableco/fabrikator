@@ -268,19 +268,43 @@ export const api = {
       await apiClient.delete(`/design-previews/${designPreviewId}`);
     },
 
-    // Start AI-assisted CAD generation from the selected design
+    // Enhanced multi-agent CAD generation pipeline
+    startEnhancedCadGeneration: async (projectId: string, config?: {
+      maxRefinementIterations?: number;
+      enableValidation?: boolean;
+      materialType?: string;
+      qualityTarget?: 'draft' | 'standard' | 'high';
+    }): Promise<any> => {
+      const response = await apiClient.post(
+        `/design-previews/project/${projectId}/cad/enhanced/generate`,
+        config || {}
+      );
+      return response.data;
+    },
+
+    // Get enhanced pipeline status with detailed metrics
+    getEnhancedPipelineStatus: async (projectId: string): Promise<any> => {
+      const response = await apiClient.get(`/design-previews/project/${projectId}/cad/enhanced/status`);
+      return response.data;
+    },
+
+    // Get detailed validation results for enhanced pipeline
+    getValidationResults: async (projectId: string): Promise<any> => {
+      const response = await apiClient.get(`/design-previews/project/${projectId}/cad/enhanced/validation`);
+      return response.data;
+    },
+
+    // Legacy endpoints (kept for compatibility)
     startCadGeneration: async (projectId: string): Promise<any> => {
       const response = await apiClient.post(`/design-previews/project/${projectId}/cad/generate`);
       return response.data;
     },
 
-    // Get latest CAD generation with parts for a project
     getLatestCad: async (projectId: string): Promise<any> => {
       const response = await apiClient.get(`/design-previews/project/${projectId}/cad/latest`);
       return response.data;
     },
 
-    // Retry a single CAD part (includes previous error and script in prompt)
     retryCadPart: async (partId: string): Promise<any> => {
       const response = await apiClient.post(`/design-previews/cad/parts/${partId}/retry`);
       return response.data;

@@ -33,3 +33,5 @@ yarn-error.log*
 /backend/uploads
 .venv/
 /backend/scripts/tmp
+/backend/debug
+/backend/scripts/temp

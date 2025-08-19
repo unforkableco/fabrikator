@@ -31,6 +31,7 @@ model Component {
   versions         CompVersion[]
   currentVersion   CompVersion?  @relation("currentCompVersion", fields: [currentVersionId], references: [id])
   project          Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  componentSpecs   ComponentSpecs[]
 }
 
 model CompVersion {
@@ -190,6 +191,12 @@ model ProjectCadGeneration {
   designImagePath String?
   createdAt    DateTime      @default(now()) @db.Timestamptz(6)
   parts        ProjectCadPart[]
+  // Enhanced pipeline additions
+  hardwareSpecs Json?        // Hardware analysis results
+  assemblyPlan  Json?        // Assembly planning results
+  manufacturingConstraints Json? // Manufacturing optimization results
+  assemblyValidations AssemblyValidation[]
+  refinementIterations RefinementIteration[]
 }
 
 model ProjectCadPart {
@@ -216,6 +223,10 @@ model ProjectCadPart {
   startedAt       DateTime  @default(now()) @db.Timestamptz(6)
   finishedAt      DateTime? @db.Timestamptz(6)
   createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  // Enhanced pipeline additions
+  interfaces      PartInterface[] @relation("PartA")
+  connectedTo     PartInterface[] @relation("PartB")
+  validationResults PartValidationResult[]
 }
 
 model DesignOption {
@@ -246,4 +257,129 @@ model DesignOption {
   childDesigns         DesignOption[] @relation("DesignIteration")
   
   createdAt       DateTime      @default(now()) @db.Timestamptz(6)
+}
+
+// Enhanced Pipeline Models
+
+// Component technical specifications extracted by HardwareAnalysisService
+model ComponentSpecs {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  componentId  String     @db.Uuid
+  component    Component  @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  
+  // Physical dimensions and constraints
+  dimensions   Json       // width, height, depth, mounting holes
+  ports        Json       // USB-C, power, button locations with coordinates
+  constraints  Json       // clearances, orientations, thermal requirements
+  mountingInfo Json       // hole patterns, screw types, depths
+  
+  // Analysis metadata
+  extractedBy  String     // ai_agent or manual
+  confidence   Float?     // confidence score for AI extraction
+  verified     Boolean    @default(false)
+  
+  createdAt    DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(6)
+  
+  @@unique([componentId])
+}
+
+// Part-to-part interfaces and relationships defined by AssemblyPlanningService
+model PartInterface {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partAId       String          @db.Uuid
+  partBId       String          @db.Uuid
+  partA         ProjectCadPart  @relation("PartA", fields: [partAId], references: [id], onDelete: Cascade)
+  partB         ProjectCadPart  @relation("PartB", fields: [partBId], references: [id], onDelete: Cascade)
+  
+  // Interface specifications
+  interfaceType String          // screw, clip, press-fit, snap, slide
+  dimensions    Json            // interface geometry specifications
+  tolerances    Json            // fit tolerances and clearances
+  features      Json            // specific features needed (holes, tabs, grooves)
+  
+  // Assembly information
+  assemblyOrder Int?            // order in assembly sequence
+  toolsRequired String[]        // tools needed for assembly
+  notes         String?         @db.Text
+  
+  createdAt     DateTime        @default(now()) @db.Timestamptz(6)
+  
+  @@unique([partAId, partBId])
+}
+
+// Assembly validation results from AssemblyValidationService
+model AssemblyValidation {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cadGenerationId String               @db.Uuid
+  cadGeneration   ProjectCadGeneration @relation(fields: [cadGenerationId], references: [id], onDelete: Cascade)
+  
+  // Validation results
+  overallStatus   String               // passed, failed, warning
+  fitmentCheck    Json                 // part-to-part fitment results
+  clearanceCheck  Json                 // clearance validation results
+  interferenceCheck Json              // interference detection results
+  accessibilityCheck Json             // assembly accessibility analysis
+  
+  // Specific issues found
+  issues          Json                 // detailed list of problems
+  recommendations Json                 // suggested fixes
+  
+  // Validation metadata
+  validatedBy     String               // validation agent version
+  validationTime  DateTime             @default(now()) @db.Timestamptz(6)
+  
+  partResults     PartValidationResult[]
+}
+
+// Individual part validation results
+model PartValidationResult {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assemblyValidationId String             @db.Uuid
+  partId               String             @db.Uuid
+  assemblyValidation   AssemblyValidation @relation(fields: [assemblyValidationId], references: [id], onDelete: Cascade)
+  part                 ProjectCadPart     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  
+  // Part-specific validation results
+  geometryValid    Boolean              // basic geometry validation
+  dimensionsValid  Boolean              // dimension accuracy check
+  featuresValid    Boolean              // required features present
+  printabilityValid Boolean             // 3D printing feasibility
+  
+  // Specific issues
+  geometryIssues   String[]             // geometry problems found
+  dimensionIssues  String[]             // dimension problems
+  featureIssues    String[]             // missing or incorrect features
+  printIssues      String[]             // 3D printing problems
+  
+  // Recommendations
+  recommendations  Json                 // specific improvement suggestions
+  
+  validatedAt      DateTime             @default(now()) @db.Timestamptz(6)
+}
+
+// Refinement iterations tracking
+model RefinementIteration {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cadGenerationId  String               @db.Uuid
+  cadGeneration    ProjectCadGeneration @relation(fields: [cadGenerationId], references: [id], onDelete: Cascade)
+  
+  // Iteration information
+  iterationNumber  Int                  // 1, 2, 3, etc.
+  triggerReason    String               // validation_failure, user_feedback, quality_improvement
+  
+  // Input for refinement
+  previousResults  Json                 // previous validation results
+  targetIssues     String[]             // specific issues to address
+  refinementGoals  Json                 // goals for this iteration
+  
+  // Refinement results
+  status           String               // in_progress, completed, failed
+  partModifications Json                // what parts were modified
+  improvements     Json                 // improvements achieved
+  
+  // Metadata
+  startedAt        DateTime             @default(now()) @db.Timestamptz(6)
+  completedAt      DateTime?            @db.Timestamptz(6)
+  refinedBy        String               // refinement agent version
 }

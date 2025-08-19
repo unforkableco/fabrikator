@@ -659,8 +659,7 @@ export class AIService {
       
       // Build the system prompt by replacing variables
       const systemPrompt = prompts.design3DGeneration
-        .replace('{{projectDescription}}', projectDescription)
-        .replace('{{materials}}', materialsContext);
+        .replace('{{projectDescription}}', projectDescription);
       
       console.log('System prompt length:', systemPrompt.length);
       console.log('System prompt preview:', systemPrompt.substring(0, 200) + '...');
@@ -718,7 +717,6 @@ export class AIService {
       // Build the system prompt by replacing variables
       const systemPrompt = prompts.designImageDescription
         .replace('{{projectDescription}}', projectDescription)
-        .replace('{{materials}}', materials.map(m => `${m.name} (${m.type})`).join(', '))
         .replace('{{description}}', description);
       
       console.log('Image description prompt length:', systemPrompt.length);
@@ -790,9 +788,19 @@ export class AIService {
         { role: 'user', content: userContent as any }
       ];
 
-      const response = await this.callAI(messages, 0.4);
-      const cleaned = this.cleanJsonResponse(response);
-      return JSON.parse(cleaned);
+      // Prefer JSON-mode when available (OpenAI)
+      let raw: string;
+      if (this.currentProvider.name === 'openai') {
+        raw = await this.callOpenAIJson(messages, 0.4);
+      } else {
+        raw = await this.callAI(messages, 0.4);
+      }
+      try {
+        return JSON.parse(raw);
+      } catch {
+        const cleaned = this.cleanJsonResponse(raw);
+        return JSON.parse(cleaned);
+      }
     } catch (error) {
       console.error('Error in analyzeImageForPrompt:', error);
       throw error;

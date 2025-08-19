@@ -5,7 +5,7 @@ export const prompts = {
 
   Generate only:
   1. A concise, impactful "name" for the project
-  2. A detailed "description" that rephrases and enriches the idea
+  2. A detailed "description" that rephrases and enriches the provided description
 
   **Your response must be strictly a JSON object**:
   {
@@ -15,7 +15,7 @@ export const prompts = {
       "summary": "string",
       "technicalRequirements": ["string"],
       "challenges": ["string"],
-      "recommendations": ["string - focus on DIY and homemade solutions"]
+      "recommendations": ["string"]
     }
   }
   `,
@@ -406,7 +406,6 @@ export const prompts = {
     
     Focus on:
     - 3D printing optimization (supports, orientation, materials)
-    - Standard dimensions (Arduino Uno: 68.6×53.4mm, mounting holes 3.2mm)
     - DIY approach and practical solutions
     - Generate 1-2 relevant component suggestions
   `,
@@ -414,11 +413,10 @@ export const prompts = {
   design3DGeneration: `
     Generate a single design concept for this device: {{projectDescription}}
     
-    Materials: {{materials}}
-    
     Requirements:
     - Generate ONE design concept that represents the device
     - Keep the design simple and practical with minimal parts
+    - All parts of the device must be made of plastic
     
     Output JSON:
     {
@@ -436,7 +434,6 @@ export const prompts = {
     You are an expert at describing electronic devices designs for DALL-E 3 image generation.
     
     Project: {{projectDescription}}
-    Materials: {{materials}}
     Design Description: {{description}}
     
     Your task is to create a detailed, descriptive image prompt that will generate a high-quality 3D-style preview of the device.
@@ -447,10 +444,10 @@ export const prompts = {
     - Single object only: render ONLY the device itself. Do NOT include phones, plants, soil, cables, hands, text, logos, or any accessories
     - The entire device must be fully visible in frame, centered with a small margin around it; do not crop or cut off edges
     - Use a 3/4 perspective (slightly above eye level) that shows two faces and top surface
-    - Include specific visible components (LEDs, buttons, displays, sensors) when relevant
-    - Keep the description concise but visual and concrete
     - Focus on the visual appearance; avoid deep technical jargon
     - Do not include anything apart from the device, the background and the camera angle, for example if the device is a phone stand, do not include the phone
+    - Make sure the prompt you generate specifies the device must be entirely visible in the frame, centered with a small margin around it
+    - The device must be made of plastic
     
     Example style: "A [device] on a plain background, full device centered with margin (no crop), shown from a slightly high three-quarter view; visible features: [components]."
     
@@ -462,7 +459,6 @@ export const prompts = {
     
     Context:
     - Project: {{projectDescription}}
-    - Materials: {{materials}}
     - Canonical description and constraints (use this VERBATIM as the base): {{baseDescription}}
     
     Rules (critical):
@@ -486,7 +482,6 @@ export const prompts = {
     If a base textual description is provided, reconcile it with the image, but prefer observable details.
     Inputs to consider (for ambiguity resolution and material inference):
     - Device description: {{projectDescription}}
-    - Materials list (concise): {{materials}}
     Include:
     - Overall geometry and silhouette (primary shapes, notable contours)
     - Approximate overall dimensions (mm): width (X), depth (Y), height (Z) with scale cues (e.g., USB‑C, buttons)
@@ -497,6 +492,21 @@ export const prompts = {
     - Any constraints to preserve (camera 3/4 view, full device in frame with margin, minimalistic aesthetic)
     - Materials: Using the device description and materials list above, infer plausible 3D printing materials for external and flexible parts (e.g., PLA/PETG for shells, TPU for feet/dampers) and mention them succinctly.
     - Use millimeters for dimensions.
+
+    STRICT JSON OUTPUT ONLY (no prose, no markdown):
+    {
+      "canonicalPrompt": "One paragraph to re-render the image faithfully (concise, descriptive).",
+      "geometry": {
+        "overall_shape": "cylindrical|rectangular|...",
+        "notes": "salient geometric cues"
+      },
+      "approx_dimensions_mm": { "width": number, "depth": number, "height": number },
+      "visible_components": [ { "type": string, "position_hint": string } ],
+      "features": [ "filleted rim", "top recess", "side port cutout" ],
+      "split_lines": "how parts likely separate",
+      "colors_finishes": [ "matte black body", "satin top" ],
+      "material_inference": { "shell": "PLA|PETG", "flex": "TPU|none" }
+    }
   `,
 
   // CAD: derive parts list from a descriptive analysis
@@ -537,14 +547,15 @@ export const prompts = {
     - Use geometry_hint and features to apply operations; clamp radii/chamfers to safe values (e.g., min 0.2mm, max 3mm or 15% of thickness)
     - Never use len() on Workplane; use selection.size()
     - Guard all selection-dependent ops; skip gracefully on empty selections
-    - Always create a base solid FIRST from dims_mm before any cuts/holes:
-      - Example pattern for a plate: solid = cq.Workplane('XY').rect(width, depth).extrude(thickness)
-      - Then operate on faces: solid = solid.faces('>Z').workplane().hole(diameter) or .pushPoints(...).hole(...)
-    - Never use a standalone workplane for boolean ops without a solid. Avoid patterns like: wp = cq.Workplane('XY'); wp.rarray(...).circle(...).cutThruAll()
-    - Only call cutThruAll on a workplane derived from an existing solid's face: solid = solid.faces('>Z').workplane(...).rarray(...).circle(...); solid = solid.cutThruAll()
-    - Prefer .hole/.cut operations scoped on solid's faces over raw cutThruAll when suitable
-    - DO NOT call .fillet() or .chamfer() directly on selections or chain like .faces(...).edges().chamfer(...).
-      Only use helper functions that validate selections and clamp values. Never bypass these helpers.
+    - Choose base primitive by dims:
+      - If dims has diameter: start with circle(diameter/2).extrude(height)
+      - Else if dims has length/width: start with rect(length,width).extrude(height)
+    - For shells: preserve a bottom thickness >= wall_thickness:
+      - Create outer solid; then cut inner profile with depth = height - wall_thickness (do NOT remove the bottom)
+    - Never use a standalone workplane for boolean ops without a solid.
+    - Only call cutThruAll/cutBlind on workplanes derived from a solid's face.
+    - Prefer .hole/.cut on face-scoped workplanes over raw cutThruAll when suitable
+    - DO NOT call .fillet() or .chamfer() directly on selections; only via helpers. Use valid edge selectors (e.g., '|Z' for vertical edges) when passing to helpers.
       def apply_fillet(solid, selector, r):
           try:
               sel = solid.edges(selector)
@@ -564,24 +575,10 @@ export const prompts = {
           except Exception:
               pass
           return solid
-    - When creating a workplane from a face, NEVER call .faces(...).workplane() on a selection that may contain multiple faces.
-      Always reduce to a single planar face first. For example:
-      def largest_planar_face(solid, selector):
-          try:
-              faces = solid.faces(selector).vals()
-              faces = [f for f in faces if hasattr(f, 'Area')]
-              return max(faces, key=lambda f: f.Area()) if faces else None
-          except Exception:
-              return None
-      # usage:
-      f = largest_planar_face(solid, ">Z")
-      if f is not None:
-          wp = cq.Workplane(obj=f)
-          # proceed with sketch/extrude on wp
-      else:
-          # skip or choose a safe default workplane
-    - For grooves/channels (e.g., LED ring), prefer sketch+extrude/cut or boolean subtract of a torus/circular ring rather than applying a large chamfer across a whole face. Avoid global face chamfers.
+    - When creating a workplane from a face, reduce to a single planar face first (largest_planar_face pattern).
     - Ensure build_part returns a valid non-empty solid/shape; if impossible, return a minimal placeholder primitive sized by dims_mm
+    - ENCLOSURE RULE: If the part is a shell or enclosure base, it MUST have a bottom of at least wall_thickness. Inner cut depth MUST be height - wall_thickness (not full height).
+    - WATERTIGHTNESS CHECK: Ensure the final result is a closed solid suitable for STL export; avoid operations that leave open faces.
     - At end: if Workplane, convert with .val(); then exporters.export(solid, os.environ.get('STL_PATH','out.stl'))
     - If deviceContext includes a "Previous error" and/or "Previous script" section (from a prior failed execution), you MUST:
       - Read the error and identify the failing operation(s)
@@ -594,5 +591,497 @@ export const prompts = {
       - The FIRST non-empty line MUST be: "import cadquery as cq"
       - Then: "from cadquery import exporters" and any other imports
       - You MUST define: def build_part(): ...
+  `,
+
+  // Enhanced Pipeline Prompts
+
+  // Hardware Analysis: Extract precise component specifications
+  hardwareSpecsExtraction: `
+    You are an expert electronics engineer analyzing components for 3D mechanical integration.
+
+    **PROJECT CONTEXT:**
+    Project: {{projectDescription}}
+    Components List: {{components}}
+
+    **TASK:**
+    For each component, extract precise technical specifications needed for mechanical design:
+
+    1. **Physical Dimensions** (in millimeters):
+       - Length, width, height
+       - PCB thickness if applicable
+       - Component clearance zones
+
+    2. **Port and Interface Locations**:
+       - USB-C, micro-USB, power jacks
+       - Button positions and sizes
+       - LED positions and orientations
+       - Audio jacks, SD card slots
+       - Coordinate positions relative to component edges
+
+    3. **Mounting Requirements**:
+       - Mounting hole patterns (diameter, spacing)
+       - Standoff heights and types
+       - Screw specifications (M2, M3, etc.)
+       - Heat sink or cooling requirements
+
+    4. **Electrical Clearances**:
+       - Minimum clearances from metal parts
+       - Keep-out zones around antennas
+       - Thermal considerations
+
+    **OUTPUT JSON SCHEMA (REFERENCE ONLY — NOT AN EXAMPLE):**
+    - Return ONE JSON object with key "components": Array<{
+        id: string,
+        name: string,
+        dimensions: { length_mm: number, width_mm: number, height_mm: number, pcb_thickness_mm?: number },
+        ports: Array<{ type: string, position: { x_mm: number, y_mm: number, z_mm?: number }, orientation?: string, dimensions?: { width_mm?: number, height_mm?: number, depth_mm?: number } }>,
+        mounting: { holes: Array<{ diameter_mm: number, position: { x_mm: number, y_mm: number, z_mm?: number } }>, standoff_height_mm?: number, screw_type?: string },
+        clearances: { top_mm?: number, sides_mm?: number, bottom_mm?: number, thermal_zone_mm?: number }
+      }>
+
+    **IMPORTANT:**
+    - Use standard component datasheets when possible
+    - For unknown components, make reasonable engineering estimates
+    - Always include mounting hole patterns
+    - Consider real-world assembly constraints
+
+    **STRICT OUTPUT RULES:**
+    - Return ONLY a single JSON object conforming to the schema above.
+    - Do NOT include prose, markdown, or code fences.
+    - The first character must be { and the last character must be }.
+    - All IDs/names MUST come from inputs; do NOT copy literals from examples.
+  `,
+
+  // Assembly Planning: Define how parts fit together
+  assemblyArchitecturePlanning: `
+    You are an expert mechanical engineer planning assembly architecture for electronic devices.
+
+    **INPUTS:**
+    Project Description: {{projectDescription}}
+    Hardware Specifications: {{hardwareSpecs}}
+    Design Image Analysis: {{designAnalysis}}
+    Geometry Hints (from vision, MUST BE HONORED): {{geometryHints}}
+
+    **TASK:**
+    Plan how the device should be assembled, defining part relationships and connection methods.
+
+    **CONTENT-ORIGIN RULES (CRITICAL):
+    - Use ONLY the provided inputs (Project Description, Hardware Specifications, Design Analysis).
+    - NEVER introduce brands/models/components unless they explicitly exist in Hardware Specifications.
+    - When referencing components, ALWAYS use the exact component IDs/names from Hardware Specifications.
+    - Treat any example as SCHEMA ONLY. Do NOT copy values, names, or brands from examples.
+
+    **ANALYSIS REQUIREMENTS:**
+
+    1. **Overall Assembly Strategy**:
+       - How the enclosure splits (top/bottom, front/back, multi-piece)
+       - Main structural elements and their roles
+       - Assembly sequence and dependencies
+
+    2. **Part Interface Definition**:
+       - How each part connects to others
+       - Connection methods (screws, clips, press-fits, snap-fits)
+       - Interface features needed (tabs, grooves, alignment pins)
+
+    3. **Hardware Integration**:
+       - How electronic components mount inside
+       - Access requirements for ports and buttons
+       - Cable routing and strain relief
+
+    4. **Manufacturing Considerations**:
+       - Part orientation for optimal 3D printing
+       - Support minimization
+       - Post-processing requirements
+
+    **OUTPUT JSON SCHEMA (REFERENCE ONLY — NOT AN EXAMPLE):**
+    - Return ONE JSON object with these keys/types; populate values ONLY from inputs:
+      - assemblyStrategy: {
+          splitMethod: string,
+          mainParts: string[],
+          assemblySequence: string[]
+        }
+      - partInterfaces: Array<{
+          partA: string,
+          partB: string,
+          connectionType: "screw"|"clip"|"press-fit"|"snap"|"slide"|"adhesive",
+          interfaceFeatures: { screwHoles?: number, screwType?: string, alignmentPins?: number, sealingLip?: boolean, snapFits?: number, clips?: number },
+          tolerances: { fit_type: "clearance"|"interference"|"transition", gap_mm: number, tolerance_class?: string },
+          assemblyOrder?: number,
+          toolsRequired?: string[],
+          notes?: string
+        }>
+      - hardwareIntegration: Array<{
+          component: string,
+          mountingMethod: "standoffs"|"direct_mount"|"clips"|"adhesive",
+          position: { x_mm: number, y_mm: number, z_mm: number },
+          accessRequired: string[],
+          features: string[]
+        }>
+      - manufacturingNotes: { printOrientation: string, supportMinimization: string, postProcessing: string[] }
+      - planMetadata: { createdBy: string, planningMethod: string, confidence: number, timestamp: string (ISO 8601) }
+
+    **CRITICAL REQUIREMENTS:**
+    - mainParts MUST be canonical part keys in snake_case (e.g., base_enclosure, top_cover, phone_cradle, back_support). No product phrases or brand/model names.
+    - mainParts MUST include at least two distinct structural parts (2–6 typical). If design suggests a single body, decompose into at least base and cover consistent with Geometry Hints.
+    - Every part must have a clear connection method to at least one other part
+    - Electronic components must be properly supported and accessible
+    - Assembly must be feasible with common tools
+    - Consider serviceability and repairability
+    - If Geometry Hints indicate a cylindrical/circular form, the main enclosure parts MUST be cylindrical (use diameter/height instead of length/width)
+    
+    **STRICT OUTPUT RULES:**
+    - Return ONLY a single JSON object conforming to the schema above.
+    - Do NOT include prose, markdown, or code fences.
+    - The first character must be { and the last character must be }.
+    - All part and component identifiers MUST come from inputs or canonical part keys. Do NOT copy literals from examples.
+  `,
+
+  // Manufacturing Constraints: 3D printing optimization
+  manufacturingOptimization: `
+    You are an expert in 3D printing design optimization and manufacturing constraints.
+
+    **INPUTS:**
+    Parts List: {{partsList}}
+    Assembly Plan: {{assemblyPlan}}
+    Material Type: {{materialType}} (default: PLA)
+
+    **TASK:**
+    Define manufacturing constraints and optimizations for 3D printing each part.
+
+    **ANALYSIS AREAS:**
+
+    1. **Print Orientation Optimization**:
+       - Best orientation for each part
+       - Surface finish requirements
+       - Strength considerations
+
+    2. **Support Requirements**:
+       - Support-free design modifications
+       - Unavoidable support areas
+       - Support removal accessibility
+
+    3. **Tolerance and Fit Specifications**:
+       - Clearance fits for moving parts
+       - Interference fits for assemblies
+       - Material-specific shrinkage compensation
+
+    4. **Feature Constraints**:
+       - Minimum wall thickness
+       - Minimum hole diameter
+       - Maximum overhang angles
+       - Bridge limitations
+
+    **OUTPUT JSON SCHEMA (REFERENCE ONLY — NOT AN EXAMPLE):**
+    - Return ONE JSON object with these keys/types; populate values ONLY from inputs and material:
+      - materialProperties: { type: string, shrinkage_factor: number, layer_height_mm: number, nozzle_diameter_mm: number }
+      - partConstraints: Array<{
+          partKey: string,
+          printOrientation: { optimal_face: string, rotation: { x: number, y: number, z: number }, reason: string },
+          supportRequirements: { support_free: boolean, critical_overhangs: string[], support_removal_access: "poor"|"fair"|"good" },
+          geometryConstraints: { min_wall_thickness_mm: number, min_hole_diameter_mm: number, max_overhang_angle_deg: number, max_bridge_span_mm: number },
+          tolerances: { general_tolerance_mm: number, fit_tolerances: { clearance_fit_mm: number, loose_fit_mm: number, press_fit_mm: number } }
+        }>
+      - assemblyTolerances: Array<{ interface: string, tolerance_type: "clearance"|"interference"|"transition", gap_mm: number, compensation?: string }>
+      - qualityRequirements: { surface_finish: "draft"|"standard"|"high", dimensional_accuracy: string, critical_features: string[] }
+
+    **DESIGN RULES:**
+    - Always prioritize support-free printing when possible
+    - Consider post-processing requirements (drilling, tapping)
+    - Account for material shrinkage in critical dimensions
+    - Design for common FDM printer capabilities
+
+    **STRICT OUTPUT RULES:**
+    - Return ONLY a single JSON object conforming to the schema above.
+    - Do NOT include prose, markdown, or code fences.
+    - The first character must be { and the last character must be }.
+    - All part keys and interfaces MUST come from inputs; do NOT copy literals from examples.
+  `,
+
+  // Enhanced Parts Specification with full context
+  contextualPartSpecification: `
+    You are an expert mechanical designer creating detailed 3D printable parts with full assembly context.
+
+    **COMPLETE CONTEXT:**
+    Project: {{projectDescription}}
+    Hardware Specs: {{hardwareSpecs}}
+    Assembly Plan: {{assemblyPlan}}
+    Manufacturing Constraints: {{manufacturingConstraints}}
+    Design Analysis: {{designAnalysis}}
+    Geometry Hints (MUST BE HONORED): {{geometryHints}}
+    Required Parts (MUST INCLUDE): {{requiredParts}}
+
+    **TASK:**
+    Generate comprehensive part specifications that work together as a complete assembly.
+
+    **CONTENT-ORIGIN RULES (CRITICAL):**
+    - Use ONLY the provided inputs (Project, Hardware Specs, Assembly Plan, Manufacturing Constraints, Design Analysis).
+    - NEVER introduce brands/models/components unless they explicitly exist in Hardware Specs.
+    - When referencing components or parts, ALWAYS use the exact IDs/names from inputs.
+    - Treat any examples as SCHEMA ONLY. Do NOT copy example values into the output.
+
+    **ENHANCED REQUIREMENTS:**
+    - Normalize part keys to canonical snake_case (e.g., base_enclosure, top_cover, phone_cradle, back_support). If assemblyPlan mainParts contain product phrases, decompose into canonical parts consistent with Geometry Hints.
+    - Use Geometry Hints to choose shape primitives: cylindrical shapes MUST specify diameter/height; rectangular shells MUST specify length/width/height; always include wall_thickness for shells.
+    - Cross-part coordination: ensure interface dims match across mating parts and reference the same coordinate frame.
+
+    **OUTPUT JSON SCHEMA (REFERENCE ONLY — NOT AN EXAMPLE):**
+    - Return ONE JSON object with these keys/types; populate values ONLY from inputs:
+      - assemblyReferenceFrame: {
+          origin: string,
+          units: "millimeters",
+          coordinate_system: string
+        }
+      - parts: Array<{
+          key: string,
+          name: string,
+          role: string,
+          geometry_hint: string,
+          dims_mm: { length?: number, width?: number, height?: number, diameter?: number, wall_thickness?: number },
+          hardware_integration: Array<{
+            component: string,
+            mounting_method: string,
+            position: { x: number, y: number, z: number },
+            features: Array<{ type: string, position: { x: number, y: number, z: number }, diameter_mm?: number, height_mm?: number, pilot_hole_mm?: number, thread?: string }>
+          }>,
+          port_cutouts: Array<{
+            component: string,
+            port_type: string,
+            position: { x: number, y: number, z: number },
+            dimensions: { width: number, height: number, depth: number },
+            chamfer_mm?: number, tolerance_mm?: number
+          }>,
+          interfaces: Array<{
+            connects_to: string,
+            interface_type: string,
+            features: Array<{ type: string, position: { x: number, y: number, z: number }, outer_diameter_mm?: number, inner_diameter_mm?: number, height_mm?: number, thread?: string }>,
+            mating_features: Array<{ type: string, diameter_mm?: number, countersink?: boolean, depth_mm?: number }>
+          }>,
+          features: Array<{ type: string, where: string, radius_mm?: number, size_mm?: number, depth_mm?: number, width_mm?: number }>,
+          cable_management: Array<{ type: string, path: string, width_mm: number, depth_mm: number, radius_mm: number }>,
+          manufacturing: { print_orientation: string, support_required: boolean, critical_surfaces: string[], post_processing?: string[] },
+          appearance: { color_hex: string }
+        }>
+      - assembly_validation: { critical_interfaces: string[], clearance_checks: string[], strength_requirements: string[] }
+      - specificationMetadata: { generatedBy: string, context_sources: string[], confidence: number, timestamp: string (ISO 8601) }
+
+    **CRITICAL REQUIREMENTS:**
+    - MUST include every part listed in Required Parts; if Required Parts contain product phrases, map to canonical parts (e.g., base_enclosure/top_cover/phone_cradle) and include them.
+    - HONOR Geometry Hints: pick cylindrical vs rectangular dims correctly; do NOT output rectangular dims for cylindrical shells.
+    - All interface dimensions MUST match between mating parts; coordinate system MUST be consistent across all parts.
+
+    **STRICT OUTPUT RULES:**
+    - Return ONLY a single JSON object conforming to the schema above.
+    - Do NOT include prose, markdown, or code fences.
+    - The first character must be { and the last character must be }.
+    - All IDs/names MUST come from inputs or canonical part keys. Do NOT copy literals from examples.
+  `,
+
+  // Assembly Validation: Check fitment and assembly
+  assemblyValidationAnalysis: `
+    You are an expert assembly validation engineer analyzing 3D models for manufacturing and assembly issues.
+
+    **INPUTS:**
+    Parts Specifications: {{partsSpecs}}
+    Assembly Plan: {{assemblyPlan}}
+    Generated STL Analysis: {{stlAnalysis}}
+    Manufacturing Constraints: {{manufacturingConstraints}}
+
+    **VALIDATION TASKS:**
+
+    1. **Geometric Compatibility**:
+       - Interface dimension matching
+       - Clearance verification
+       - Interference detection
+
+    2. **Assembly Feasibility**:
+       - Tool access for fasteners
+       - Assembly sequence validation
+       - Component installation clearances
+
+    3. **Manufacturing Quality**:
+       - Feature printability assessment
+       - Tolerance stack-up analysis
+       - Support requirement validation
+
+    4. **Functional Requirements**:
+       - Port accessibility
+       - Button operation clearances
+       - Thermal management adequacy
+
+    5. **Enclosure Integrity (CRITICAL)**:
+       - Shells/enclosures MUST preserve a bottom or explicit base thickness; flag if inner cuts remove the bottom
+       - Check for watertight/closed solids suitable for STL export; flag open surfaces
+
+    **OUTPUT JSON SCHEMA (REFERENCE ONLY — NOT AN EXAMPLE):**
+    - Return ONE JSON object with these keys and types; populate values ONLY from the inputs:
+      - overallStatus: "passed" | "failed" | "warning"
+      - validationSummary: { total_checks: number; passed: number; failed: number; warnings: number }
+      - interfaceValidation: Array<{ interface: string; status: "passed"|"failed"|"warning"; checks: Record<string, boolean>; measurements?: Record<string, number>; issues?: string[]; recommendations?: string[] }>
+      - assemblyValidation: Array<{ component: string; status: "passed"|"failed"|"warning"; issues: string[]; recommendations: string[] }>
+      - manufacturingValidation: Array<{ part: string; printability: "passed"|"failed"|"warning"; issues: string[]; recommendations: string[] }>
+      - functionalValidation: Array<{ function: string; status: "passed"|"failed"|"warning"; details?: Record<string, number|string> }>
+      - criticalIssues: Array<{ severity: "high"|"medium"|"low"; category: "assembly"|"manufacturing"|"functional"; description: string; affected_parts: string[]; fix_required: boolean }>
+      - recommendations: { immediate_fixes: string[]; optimizations: string[] }
+      - validationMetadata: { validatedBy: string; validationTime: string (ISO 8601); confidence: number }
+
+    **STRICT OUTPUT RULES:**
+    - Return ONLY a single JSON object conforming to the schema above.
+    - Do NOT include prose, markdown, or code fences.
+    - The first character must be { and the last character must be }.
+    - All identifiers (parts, components, interfaces) MUST come from the inputs.
+
+    CONTENT-ORIGIN RULES (CRITICAL):
+    - Use ONLY the provided inputs
+    - Do NOT invent parts; use exact part keys and names from inputs
+    - Treat any JSON shown above as SCHEMA ONLY. Do NOT copy numeric values, strings, component names, or example measurements.
+    - All identifiers like component, part, interface MUST come from inputs. If unknown, omit or use generic labels derived from inputs.
+    - If enclosure integrity fails (missing bottom or open shell), mark overallStatus as failed and include a high-severity critical issue
+  `,
+
+  // Refinement: Iterative improvement based on validation
+  refinementPlanning: `
+    You are an expert design refinement engineer improving 3D models based on validation feedback.
+
+    **INPUTS:**
+    Validation Results: {{validationResults}}
+    Current Part Specifications: {{currentSpecs}}
+    Failed Parts List: {{failedParts}}
+    Iteration History: {{previousIterations}}
+
+    **TASK:**
+    Plan specific refinements to address validation failures and improve overall design quality.
+
+    **SCOPE CORRECTION (CRITICAL):**
+    - If assemblyPlan lists parts not present in currentSpecs.parts, your first action is to ADD minimal specifications for EACH missing part before changing existing ones.
+    - Restrict modifications primarily to parts implicated by validation criticalIssues and their directly connected interface partners.
+    - Do not repeatedly add the same feature; avoid redundant alignment_pin additions.
+
+    **REFINEMENT STRATEGY:**
+
+    1. **Issue Prioritization**:
+       - Critical failures that prevent assembly
+       - Manufacturing issues that cause print failures
+       - Quality improvements for better functionality
+
+    2. **Root Cause Analysis**:
+       - Why each issue occurred
+       - Upstream design decisions that led to problems
+       - System-level changes needed
+
+    3. **Targeted Improvements**:
+       - Specific parameter adjustments
+       - Feature additions or modifications
+       - Interface redesigns
+
+    4. **Validation Planning**:
+       - How to verify fixes work
+       - What new issues might be introduced
+       - Regression testing requirements
+
+    **OUTPUT FORMAT (strict JSON):**
+    {
+      "refinementPlan": {
+        "iteration_number": 2,
+        "primary_objectives": [
+          "Fix mounting post height issues",
+          "Improve port accessibility",
+          "Optimize print orientation"
+        ],
+        "expected_outcomes": [
+          "Eliminate assembly interferences",
+          "Achieve 95% printability score",
+          "Reduce assembly time by 20%"
+        ]
+      },
+      "partModifications": [
+        {
+          "part_key": "base_shell",
+          "modification_type": "dimensional_adjustment",
+          "changes": [
+            {
+              "feature": "mounting_post_rpi_1",
+              "parameter": "height_mm",
+              "current_value": 9.8,
+              "new_value": 11.0,
+              "reason": "Insufficient clearance for component mounting"
+            },
+            {
+              "feature": "usb_cutout",
+              "parameter": "width_mm",
+              "current_value": 10.0,
+              "new_value": 12.0,
+              "reason": "Inadequate access clearance"
+            }
+          ],
+          "validation_checks": [
+            "Verify new mounting height with component thickness",
+            "Confirm expanded cutout doesn't weaken structure"
+          ]
+        }
+      ],
+      "newFeatures": [
+        {
+          "part_key": "base_shell",
+          "feature_type": "alignment_pin",
+          "specification": {
+            "diameter_mm": 2.0,
+            "height_mm": 3.0,
+            "position": {"x": 60, "y": 40, "z": 22},
+            "mating_hole_tolerance": 0.1
+          },
+          "purpose": "Improve assembly alignment and reduce user error"
+        }
+      ],
+      "interfaceUpdates": [
+        {
+          "interface": "base_to_cover",
+          "update_type": "tolerance_adjustment",
+          "current_gap_mm": 0.1,
+          "new_gap_mm": 0.2,
+          "affected_parts": ["base_shell", "top_cover"],
+          "reason": "Manufacturing tolerance stack-up causing tight fit"
+        }
+      ],
+      "validationPlan": {
+        "critical_checks": [
+          "Assembly interference analysis",
+          "Component mounting verification",
+          "Print orientation validation"
+        ],
+        "success_criteria": {
+          "zero_assembly_failures": true,
+          "all_ports_accessible": true,
+          "printable_without_supports": true
+        },
+        "regression_tests": [
+          "Previous iteration's passing tests",
+          "Overall assembly sequence validation"
+        ]
+      },
+      "riskAssessment": {
+        "potential_new_issues": [
+          "Enlarged cutouts may reduce structural strength",
+          "Higher mounting posts may affect cover clearance"
+        ],
+        "mitigation_strategies": [
+          "Add reinforcement ribs around enlarged cutouts",
+          "Verify cover clearance with new post heights"
+        ]
+      }
+    }
+
+    **REFINEMENT PRINCIPLES:**
+    - Address root causes, not just symptoms
+    - Make minimal changes to achieve maximum improvement
+    - Consider system-level impacts of local changes
+    - Prioritize manufacturing feasibility
+    - Maintain design intent and aesthetic goals
+    
+    STRICT JSON OUTPUT RULES:
+    - Output must be a single JSON object only. Do not include any prose, markdown, or code fences.
+    - The first character must be { and the last character must be }.
+    - Use double quotes for all keys and string values.
+    - No trailing commas or comments.
+    - Do not wrap JSON, do not include backticks.
   `,
 };

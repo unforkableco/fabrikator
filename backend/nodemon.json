@@ -6,7 +6,21 @@
     "scripts/tmp/**",
     "uploads/**",
     ".venv/**",
-    "**/*.stl"
+    "**/*.stl",
+    "**/*.tmp",
+    "**/*.temp",
+    "**/*.swp",
+    "**/*.swo",
+    "**/*.log",
+    "**/*.cache",
+    "debug/**",
+    "tmp/**",
+    "temp/**",
+    "cache/**",
+    "dist/**",
+    "build/**",
+    "node_modules/**/.cache/**",
+    "**/.DS_Store"
   ]
 }
 

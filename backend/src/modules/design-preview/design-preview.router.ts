@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import { DesignPreviewController } from './design-preview.controller';
-import { startCadGeneration, retryCadPart } from './design-preview_cad.controller';
+import { 
+  startCadGeneration, 
+  retryCadPart,
+  startEnhancedCadGeneration,
+  getEnhancedPipelineStatus,
+  getValidationResults
+} from './design-preview_cad.controller';
 
 const router = Router();
 const designPreviewController = new DesignPreviewController();
@@ -31,5 +37,16 @@ router.get('/cad/parts/:partId/stl', designPreviewController.getPartStl.bind(des
 
 // Retry a single CAD part generation (include previous error in prompt)
 router.post('/cad/parts/:partId/retry', retryCadPart);
+
+// Enhanced CAD Pipeline Endpoints
+
+// Start enhanced multi-agent CAD generation pipeline
+router.post('/project/:projectId/cad/enhanced/generate', startEnhancedCadGeneration);
+
+// Get enhanced pipeline status with detailed metrics
+router.get('/project/:projectId/cad/enhanced/status', getEnhancedPipelineStatus);
+
+// Get detailed validation results for enhanced pipeline
+router.get('/project/:projectId/cad/enhanced/validation', getValidationResults);
 
 export default router;
