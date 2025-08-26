@@ -1,4 +1,9 @@
 export const prompts = {
+  // Simplified prompt for GPT-5 reasoning models
+  materialsSearchSimple: `For project "{{projectName}}" ({{projectDescription}}), user wants: {{userPrompt}}
+
+List needed electronics components in JSON format:
+{"explanation": {"summary": "brief", "reasoning": "why"}, "components": [{"type": "name", "details": {"quantity": 1, "notes": "use", "action": "new", "technicalSpecs": {}, "productReference": {"name": "product", "manufacturer": "brand", "estimatedPrice": "$0"}}}]}`,
   projectAnalysis: `
   Analyze the following project description and provide a comprehensive analysis in both structured and human-readable format:
   {{description}}

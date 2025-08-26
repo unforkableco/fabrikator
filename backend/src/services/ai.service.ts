@@ -1,17 +1,28 @@
+import OpenAI from 'openai';
 import axios from 'axios';
 import { prompts } from '../config/prompts';
+import { getModelConfig, supportsJsonMode, usesReasoningAPI } from '../config/models.config';
 
 export interface AIProvider {
   name: string;
   apiKey: string;
   model: string;
-  baseUrl: string;
+  baseUrl?: string;
+}
+
+export interface AICallOptions {
+  temperature?: number;
+  maxTokens?: number;
+  jsonMode?: boolean;
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high';
+  textVerbosity?: 'low' | 'medium' | 'high';
 }
 
 export class AIService {
   private static instance: AIService;
   private currentProvider: AIProvider;
   private providers: { [key: string]: AIProvider };
+  private openaiClient: OpenAI | null = null;
 
   private constructor() {
     // Initialize supported providers
@@ -19,8 +30,7 @@ export class AIService {
       openai: {
         name: 'openai',
         apiKey: process.env.OPENAI_API_KEY || '',
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        baseUrl: 'https://api.openai.com/v1/chat/completions'
+        model: process.env.OPENAI_MODEL || 'gpt-4o'
       },
       claude: {
         name: 'claude',
@@ -49,6 +59,13 @@ export class AIService {
       throw new Error(`API key not configured for provider: ${selectedProvider}`);
     }
 
+    // Initialize OpenAI client if using OpenAI provider
+    if (this.currentProvider.name === 'openai') {
+      this.openaiClient = new OpenAI({
+        apiKey: this.currentProvider.apiKey
+      });
+    }
+
     console.log(`AIService initialized with provider: ${this.currentProvider.name}, model: ${this.currentProvider.model}`);
   }
 
@@ -68,6 +85,51 @@ export class AIService {
    */
   public static create(): AIService {
     return AIService.getInstance();
+  }
+
+  /**
+   * Utility function to normalize price strings for consistent frontend parsing
+   */
+  public normalizePriceString(priceStr: string): string {
+    if (!priceStr || typeof priceStr !== 'string') return '$0.00';
+    
+    // Extract the first valid price in USD if available, otherwise the first price found
+    const usdMatch = priceStr.match(/\$(\d+(?:\.\d{2})?)/);
+    if (usdMatch) {
+      return `$${usdMatch[1]}`;
+    }
+    
+    // If no USD found, convert GBP ranges to USD (rough conversion: £1 = $1.25)
+    const gbpRangeMatch = priceStr.match(/£(\d+)[-–]£?(\d+)/);
+    if (gbpRangeMatch) {
+      const minPrice = parseFloat(gbpRangeMatch[1]) * 1.25;
+      return `$${minPrice.toFixed(2)}`;
+    }
+    
+    // Extract any price with currency symbol
+    const currencyMatch = priceStr.match(/[£$€](\d+(?:\.\d+)?)/);
+    if (currencyMatch) {
+      const amount = parseFloat(currencyMatch[1]);
+      const symbol = priceStr.charAt(priceStr.indexOf(currencyMatch[1]) - 1);
+      
+      if (symbol === '£') {
+        // Convert GBP to USD
+        return `$${(amount * 1.25).toFixed(2)}`;
+      } else if (symbol === '€') {
+        // Convert EUR to USD  
+        return `$${(amount * 1.10).toFixed(2)}`;
+      } else {
+        return `$${amount.toFixed(2)}`;
+      }
+    }
+    
+    // Last resort: extract first number and assume USD
+    const numberMatch = priceStr.match(/(\d+(?:\.\d+)?)/);
+    if (numberMatch) {
+      return `$${parseFloat(numberMatch[1]).toFixed(2)}`;
+    }
+    
+    return '$0.00';
   }
 
   /**
@@ -156,45 +218,65 @@ export class AIService {
   }
 
   /**
-   * OpenAI-specific API call
+   * OpenAI-specific API call using SDK
    */
-  private async callOpenAIProvider(messages: any[], temperature: number): Promise<string> {
-    const response = await axios.post(
-      this.currentProvider.baseUrl,
-      {
+  private async callOpenAIProvider(messages: any[], temperature: number, options: AICallOptions = {}): Promise<string> {
+    if (!this.openaiClient) {
+      throw new Error('OpenAI client not initialized');
+    }
+
+    const modelConfig = getModelConfig(this.currentProvider.model);
+    const isReasoningModel = modelConfig?.isReasoningModel || false;
+
+    try {
+      // For now, use Chat Completions API for all OpenAI models
+      // TODO: Update to Responses API when available in SDK
+      const requestOptions: any = {
         model: this.currentProvider.model,
-        messages,
-        temperature
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.currentProvider.apiKey}`
+        messages
+      };
+
+      // Set temperature based on model capabilities
+      if (isReasoningModel) {
+        // GPT-5 only supports temperature=1 (default)
+        // Don't set temperature parameter to use default
+        // Also don't set max_completion_tokens as it causes empty responses
+      } else {
+        // GPT-4 supports custom temperature and max_tokens
+        requestOptions.temperature = temperature;
+        // Use correct parameter for token limits
+        const tokenLimit = options.maxTokens || 4096;
+        requestOptions.max_tokens = tokenLimit;
+      }
+
+      // Add JSON mode if supported and requested (GPT-4 family only)
+      if (options.jsonMode && supportsJsonMode(this.currentProvider.model)) {
+        requestOptions.response_format = { type: 'json_object' };
+      }
+
+      // For reasoning models (GPT-5), adjust prompts to encourage better reasoning
+      if (isReasoningModel) {
+        // Add instruction for better reasoning in system prompt if not already present
+        const systemMessage = messages.find((m: any) => m.role === 'system');
+        if (systemMessage && !systemMessage.content.includes('Think step by step')) {
+          systemMessage.content = `Think step by step and reason through this carefully.\n\n${systemMessage.content}`;
         }
       }
-    );
 
-    return response.data.choices[0].message.content;
+      const response = await this.openaiClient.chat.completions.create(requestOptions);
+      return response.choices[0].message?.content || '';
+    } catch (error: any) {
+      console.error('OpenAI API Error:', error.message);
+      if (error.response?.data) {
+        console.error('API Response:', error.response.data);
+      }
+      throw error;
+    }
   }
 
   // OpenAI helper to force JSON-only responses
   private async callOpenAIJson(messages: any[], temperature: number): Promise<string> {
-    const response = await axios.post(
-      this.currentProvider.baseUrl,
-      {
-        model: this.currentProvider.model,
-        messages,
-        temperature,
-        response_format: { type: 'json_object' },
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.currentProvider.apiKey}`
-        }
-      }
-    );
-    return response.data.choices[0].message.content;
+    return await this.callOpenAIProvider(messages, temperature, { jsonMode: true });
   }
 
   /**
@@ -221,7 +303,7 @@ export class AIService {
     }
 
     const response = await axios.post(
-      this.currentProvider.baseUrl,
+      this.currentProvider.baseUrl || 'https://api.anthropic.com/v1/messages',
       claudePayload,
       {
         headers: {
@@ -319,7 +401,15 @@ export class AIService {
    */
   async analyzeProjectPrompt(prompt: string) {
     // Use the configuration prompt by replacing variables
-    const systemPrompt = prompts.projectAnalysis.replace('{{description}}', prompt);
+    let systemPrompt = prompts.projectAnalysis.replace('{{description}}', prompt);
+    
+    const modelConfig = getModelConfig(this.currentProvider.model);
+    const isReasoningModel = modelConfig?.isReasoningModel || false;
+    
+    // For reasoning models, enhance the prompt for better JSON output
+    if (isReasoningModel) {
+      systemPrompt = `You are an expert project analyst. Think through this step by step and provide a well-structured analysis.\n\n${systemPrompt}\n\nIMPORTANT: Respond with valid JSON only. Do not include any text before or after the JSON.`;
+    }
     
     const messages = [
       {
@@ -329,10 +419,18 @@ export class AIService {
     ];
 
     try {
-      // Prefer a strict JSON response when using OpenAI
-      const raw = this.currentProvider.name === 'openai'
-        ? await this.callOpenAIJson(messages, 0.7)
-        : await this.callAI(messages, 0.7);
+      let raw: string;
+      if (this.currentProvider.name === 'openai') {
+        // Use JSON mode for supported models, reasoning-enhanced prompts for others
+        if (supportsJsonMode(this.currentProvider.model)) {
+          raw = await this.callOpenAIJson(messages, 0.7);
+        } else {
+          raw = await this.callOpenAIProvider(messages, 0.7);
+        }
+      } else {
+        raw = await this.callAI(messages, 0.7);
+      }
+      
       try {
         return JSON.parse(raw);
       } catch {
@@ -497,13 +595,7 @@ export class AIService {
   async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[] }) {
     const { name, description, userPrompt = '', previousComponents = [], currentMaterials = [] } = params;
     
-    // Build the system prompt by replacing variables
-    let systemPrompt = prompts.materialsSearch
-      .replace('{{projectName}}', name)
-      .replace('{{projectDescription}}', description)
-      .replace('{{userPrompt}}', userPrompt);
-    
-    // Simplify current materials to reduce prompt size
+    // Simplify current materials first
     const simplifiedMaterials = currentMaterials.map(material => ({
       id: material.id,
       type: material.currentVersion?.specs?.type || 'unknown',
@@ -513,18 +605,31 @@ export class AIService {
       status: material.currentVersion?.specs?.status || 'suggested'
     }));
     
+    // Build the system prompt by replacing variables
+    const modelConfig = getModelConfig(this.currentProvider.model);
+    const isReasoningModel = modelConfig?.isReasoningModel || false;
+    
+    let systemPrompt: string;
+    
+    // Use the same complex prompt for both GPT-4 and GPT-5
+    // GPT-5 can handle complexity better than we thought
+    systemPrompt = prompts.materialsSearch
+      .replace('{{projectName}}', name)
+      .replace('{{projectDescription}}', description)
+      .replace('{{userPrompt}}', userPrompt);
+    
+    // Replace all placeholders  
     const currentMaterialsJson = simplifiedMaterials.length > 0 
       ? JSON.stringify(simplifiedMaterials, null, 2)
       : '[]';
     
-    systemPrompt = systemPrompt.replace('{{currentMaterials}}', currentMaterialsJson);
-    
-    // Add previous components to prompt if available
     const previousCompJson = previousComponents.length > 0 
-      ? JSON.stringify(previousComponents.slice(0, 3)) // Limit to 3 components
+      ? JSON.stringify(previousComponents.slice(0, 3))
       : '[]';
     
-    systemPrompt = systemPrompt.replace('{{previousComponents}}', previousCompJson);
+    systemPrompt = systemPrompt
+      .replace('{{currentMaterials}}', currentMaterialsJson)
+      .replace('{{previousComponents}}', previousCompJson);
     
     const messages = [
       {
@@ -538,7 +643,22 @@ export class AIService {
     console.log('Simplified materials count:', simplifiedMaterials.length);
     
     try {
-      const response = await this.callAI(messages, 0.7);
+      let response: string;
+      if (this.currentProvider.name === 'openai') {
+        // Use JSON mode for supported models, direct call for reasoning models
+        const modelConfig = getModelConfig(this.currentProvider.model);
+        if (supportsJsonMode(this.currentProvider.model)) {
+          response = await this.callOpenAIJson(messages, 0.7);
+        } else if (modelConfig?.isReasoningModel) {
+          // For GPT-5, use direct call without additional prompt modification
+          response = await this.callOpenAIProvider(messages, 0.7);
+        } else {
+          response = await this.callOpenAIProvider(messages, 0.7);
+        }
+      } else {
+        response = await this.callAI(messages, 0.7);
+      }
+      
       console.log('AI Service - Raw response received:', response);
       
       // Clean the response using the utility function
@@ -552,6 +672,17 @@ export class AIService {
       if (!parsedResponse.components || !Array.isArray(parsedResponse.components) || parsedResponse.components.length === 0) {
         throw new Error('No components found in AI response');
       }
+      
+      // Normalize price strings to prevent frontend parsing issues
+      parsedResponse.components = parsedResponse.components.map((component: any) => {
+        if (component.details?.productReference?.estimatedPrice) {
+          const originalPrice = component.details.productReference.estimatedPrice;
+          const normalizedPrice = this.normalizePriceString(originalPrice);
+          component.details.productReference.estimatedPrice = normalizedPrice;
+          console.log(`Price normalized: "${originalPrice}" -> "${normalizedPrice}"`);
+        }
+        return component;
+      });
       
       return parsedResponse;
     } catch (error) {
