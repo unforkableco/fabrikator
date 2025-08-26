@@ -11,7 +11,7 @@ import {
   CircularProgress,
   Paper,
 } from '@mui/material';
-import { AutoAwesome, Refresh, CheckCircle } from '@mui/icons-material';
+import { AutoAwesome, Refresh } from '@mui/icons-material';
 import { useDesignPreview } from '../../../hooks/useDesignPreview';
 import { DesignOption } from '../../../../../shared/types';
 

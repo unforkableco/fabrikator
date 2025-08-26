@@ -22,8 +22,7 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemIcon,
-  Divider
+  ListItemIcon
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import { 
@@ -36,7 +35,6 @@ import {
   ExpandMore,
   Build,
   Assessment,
-  Refresh,
   Visibility
 } from '@mui/icons-material';
 import { useDesignPreview } from '../../../hooks/useDesignPreview';
@@ -70,9 +68,7 @@ export const DesignPartsGenerator: React.FC<Props> = ({ projectId }) => {
     enhancedStatus,
     validationResults,
     // Legacy fallback
-    startCad,
-    cadParts,
-    latestCad
+    cadParts
   } = useDesignPreview(projectId);
 
   const [activeTab, setActiveTab] = useState(0);
