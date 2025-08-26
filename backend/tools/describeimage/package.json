@@ -1,0 +1,23 @@
+{
+  "name": "describe-image",
+  "version": "1.0.0",
+  "description": "TypeScript rewrite of describe-image.js with knowledge-enhanced prompts",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "node test/e2e.test.js",
+    "test:with-build": "npm run build && npm test"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
