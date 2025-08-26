@@ -1,9 +1,9 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { spawnSync } from 'child_process';
-import axios from 'axios';
 import { prompts } from '../config/prompts';
 import { prisma } from '../prisma/prisma.service';
+import { AIService } from './ai.service';
 
 // Import all the new services
 import { HardwareAnalysisService, HardwareSpecs } from './hardware-analysis.service';
@@ -49,6 +49,7 @@ export class EnhancedCadPipelineService {
   private enhancedPartsService: EnhancedPartsSpecificationService;
   private assemblyValidationService: AssemblyValidationService;
   private refinementService: RefinementService;
+  private aiService: AIService;
 
   constructor() {
     this.backendRoot = process.cwd();
@@ -61,6 +62,7 @@ export class EnhancedCadPipelineService {
     this.enhancedPartsService = new EnhancedPartsSpecificationService();
     this.assemblyValidationService = new AssemblyValidationService();
     this.refinementService = new RefinementService();
+    this.aiService = AIService.getInstance();
   }
 
   /**
@@ -522,19 +524,9 @@ Attempt ${attempt} of ${maxScriptRetries}.`;
         prompt += `\n\nPrevious attempt failed. Please fix with the following guidance and return a corrected script:\n${errorFeedback}`;
       }
 
-      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        messages: [{ role: 'system', content: prompt }],
-        temperature: 0.2,
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-        },
-        timeout: 120000
-      });
+      const response = await this.aiService.callAI([{ role: 'system', content: prompt }], 0.2);
 
-      const scriptCode = (response.data.choices[0].message.content || '')
+      const scriptCode = response
         .replace(/^```python[\r\n]*/i, '')
         .replace(/```\s*$/i, '')
         .trim();
@@ -707,20 +699,11 @@ Attempt ${attempt} of ${maxScriptRetries}.`;
         .replace('{{projectDescription}}', projectDescription)
         .replace('{{materials}}', '');
 
-      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        messages: [
-          { role: 'system', content: sys },
-          { role: 'user', content: [ { type: 'text', text: 'Describe this device design for mechanical inference' }, { type: 'image_url', image_url: { url: dataUrl } } ] as any }
-        ],
-        temperature: 0.2,
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-        }
-      });
-      return (response.data.choices?.[0]?.message?.content || '').trim();
+      const response = await this.aiService.callAI([
+        { role: 'system', content: sys },
+        { role: 'user', content: [ { type: 'text', text: 'Describe this device design for mechanical inference' }, { type: 'image_url', image_url: { url: dataUrl } } ] as any }
+      ], 0.2);
+      return response.trim();
     } catch (e) {
       console.warn('[EnhancedPipeline] Vision analysis failed:', (e as Error).message);
       return null;

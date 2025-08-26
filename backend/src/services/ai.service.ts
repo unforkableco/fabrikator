@@ -62,7 +62,8 @@ export class AIService {
     // Initialize OpenAI client if using OpenAI provider
     if (this.currentProvider.name === 'openai') {
       this.openaiClient = new OpenAI({
-        apiKey: this.currentProvider.apiKey
+        apiKey: this.currentProvider.apiKey,
+        timeout: 600000 // 10 minutes timeout for GPT-5
       });
     }
 

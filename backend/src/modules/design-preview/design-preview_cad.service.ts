@@ -1,17 +1,19 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { spawnSync } from 'child_process';
-import axios from 'axios';
 import { prompts } from '../../config/prompts';
 import { prisma } from '../../prisma/prisma.service';
+import { AIService } from '../../services/ai.service';
 
 export class DesignPreviewCadService {
   private backendRoot: string;
   private scriptsDir: string;
+  private aiService: AIService;
 
   constructor() {
     this.backendRoot = process.cwd();
     this.scriptsDir = path.join(this.backendRoot, 'scripts');
+    this.aiService = AIService.getInstance();
   }
 
   public async retryPart(partId: string): Promise<void> {
@@ -52,12 +54,8 @@ export class DesignPreviewCadService {
         .replace('{{deviceContext}}', deviceContext)
         .replace('{{part}}', JSON.stringify(partJson));
       console.log(`[cad] Retry generating script for part ${part.key} (prevError=${!!part.errorLog}, prevScript=${!!part.scriptCode})`);
-      const resp = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        messages: [ { role: 'system', content: sys } ],
-        temperature: 0.2,
-      }, { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, timeout: 120000 });
-      scriptCode = (resp.data.choices[0].message.content || '')
+      const resp = await this.aiService.callAI([{ role: 'system', content: sys }], 0.2);
+      scriptCode = resp
         .replace(/^```python[\r\n]*/i, '')
         .replace(/```\s*$/i, '')
         .trim();
@@ -214,16 +212,8 @@ export class DesignPreviewCadService {
         { role: 'system', content: sysPrompt },
         { role: 'user', content: [ { type: 'text', text: 'Analyze this device image' }, { type: 'image_url', image_url: { url: dataUrl } } ] as any },
       ];
-      const resp = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        // prose output
-        temperature: 0.4,
-        messages,
-      }, {
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        timeout: 120000,
-      });
-      analysisDescription = String(resp.data.choices[0].message.content || '').trim();
+      const resp = await this.aiService.callAI(messages, 0.4);
+      analysisDescription = String(resp || '').trim();
     } catch (e: any) {
       combinedLog += `Vision analysis failed: ${e?.message || e}\n`;
     }
@@ -242,16 +232,15 @@ export class DesignPreviewCadService {
         .replace('{{analysisDescription}}', analysisDescription || '')
         .replace('{{projectDescription}}', project?.description || '')
         .replace('{{materials}}', materialsContext);
-      const resp = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        response_format: { type: 'json_object' },
-        temperature: 0.3,
-        messages: [ { role: 'system', content: sys } ],
-      }, {
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        timeout: 120000,
-      });
-      partsJson = JSON.parse(resp.data.choices[0].message.content || '{"parts":[]}');
+      // Use AI service with JSON mode support
+      const currentProvider = this.aiService.getCurrentProvider();
+      let resp: string;
+      if (currentProvider.name === 'openai') {
+        resp = await (this.aiService as any).callOpenAIJson([{ role: 'system', content: sys }], 0.3);
+      } else {
+        resp = await this.aiService.callAI([{ role: 'system', content: sys }], 0.3);
+      }
+      partsJson = JSON.parse(resp || '{"parts":[]}');
       if (!Array.isArray(partsJson.parts) || partsJson.parts.length === 0) {
         combinedLog += 'No parts were generated from analysis. Aborting CAD generation.\n';
         await prisma.projectCadGeneration.update({
@@ -312,12 +301,8 @@ export class DesignPreviewCadService {
         const deviceContext = `Project: ${project?.description || ''}\nMaterials: ${materialsContext}`;
         const sysFull = sys.replace('{{deviceContext}}', deviceContext);
         console.log(`[cad] Generating script for part ${key}`);
-        const resp = await axios.post('https://api.openai.com/v1/chat/completions', {
-          model: process.env.OPENAI_MODEL || 'gpt-4o',
-          messages: [ { role: 'system', content: sysFull } ],
-          temperature: 0.2,
-        }, { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, timeout: 120000 });
-        scriptCode = (resp.data.choices[0].message.content || '').replace(/^```python[\r\n]*/i, '').replace(/```\s*$/i, '').trim();
+        const resp = await this.aiService.callAI([{ role: 'system', content: sysFull }], 0.2);
+        scriptCode = (resp || '').replace(/^```python[\r\n]*/i, '').replace(/```\s*$/i, '').trim();
       } catch (e: any) {
         combinedLog += `Script gen failed for ${key}: ${e?.message || e}\n`;
         console.error(`[cad] Script generation failed for ${key}:`, e?.message || e);
