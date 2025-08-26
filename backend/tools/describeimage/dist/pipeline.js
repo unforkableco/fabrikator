@@ -42,11 +42,14 @@ const axios_1 = __importDefault(require("axios"));
 const prompts_1 = require("./prompts");
 const utils_1 = require("./utils");
 const retry_1 = require("./retry");
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
-if (!OPENAI_API_KEY) {
-    console.error('OPENAI_API_KEY is not set');
-    process.exit(1);
+function getOpenAIKey() {
+    const apiKey = process.env.OPENAI_API_KEY || '';
+    if (!apiKey) {
+        console.error('OPENAI_API_KEY is not set');
+        process.exit(1);
+    }
+    return apiKey;
 }
 class DescribeImagePipeline {
     constructor(backendRoot) {
@@ -149,6 +152,7 @@ class DescribeImagePipeline {
         console.log(`Saved parts: ${partsLatest}`);
     }
     async callOpenAIJson(messages, temperature = 0.4) {
+        const apiKey = getOpenAIKey();
         const response = await axios_1.default.post('https://api.openai.com/v1/chat/completions', {
             model: OPENAI_MODEL,
             response_format: { type: 'json_object' },
@@ -157,7 +161,7 @@ class DescribeImagePipeline {
         }, {
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Authorization': `Bearer ${apiKey}`,
             },
             timeout: 120000,
         });

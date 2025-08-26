@@ -43,7 +43,13 @@ const child_process_1 = require("child_process");
 const axios_1 = __importDefault(require("axios"));
 const prompts_1 = require("./prompts");
 const utils_1 = require("./utils");
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const getOpenAIKey = () => {
+    const apiKey = process.env.OPENAI_API_KEY || '';
+    if (!apiKey) {
+        throw new Error('OPENAI_API_KEY is not set or is empty in retry.ts');
+    }
+    return apiKey;
+};
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 class RetryManager {
     constructor(pythonBin, tempDir) {
@@ -129,6 +135,8 @@ class RetryManager {
         }
     }
     async generateCode(systemPrompt, temperature) {
+        const apiKey = getOpenAIKey();
+        console.log(`🔑 API Key Status: Found (${apiKey.substring(0, 10)}...)`);
         const response = await axios_1.default.post('https://api.openai.com/v1/chat/completions', {
             model: OPENAI_MODEL,
             temperature,
@@ -136,7 +144,7 @@ class RetryManager {
         }, {
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Authorization': `Bearer ${apiKey}`,
             },
             timeout: 120000,
         });

@@ -6,7 +6,15 @@ import { Part, RetryAttempt, GenerationResult } from './types';
 import { buildCadGenerationPrompt, buildErrorRecoveryPrompt, buildSimplifiedCadPrompt, buildPrimitiveFallbackPrompt } from './prompts';
 import { stripCodeFences, writeFileSafe } from './utils';
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+// Don't load environment variables at module level - they need to be loaded after dotenv.config()
+const getOpenAIKey = (): string => {
+  const apiKey = process.env.OPENAI_API_KEY || '';
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not set or is empty in retry.ts');
+  }
+  return apiKey;
+};
+
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
 export class RetryManager {
@@ -124,6 +132,10 @@ export class RetryManager {
   }
 
   private async generateCode(systemPrompt: string, temperature: number): Promise<string> {
+    // Get API key and add diagnostic logging
+    const apiKey = getOpenAIKey();
+    // console.log(`🔑 API Key Status: Found (${apiKey.substring(0, 10)}...)`);
+    
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
@@ -134,7 +146,7 @@ export class RetryManager {
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         timeout: 120000,
       }

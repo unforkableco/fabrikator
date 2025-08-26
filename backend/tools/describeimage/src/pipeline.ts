@@ -6,12 +6,15 @@ import { buildVisionAnalysisPrompt, buildPartsProposalPrompt } from './prompts';
 import { ensureDirs, toDataUrl, writeFileSafe, ensureVenv } from './utils';
 import { RetryManager } from './retry';
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
-if (!OPENAI_API_KEY) {
-  console.error('OPENAI_API_KEY is not set');
-  process.exit(1);
+function getOpenAIKey(): string {
+  const apiKey = process.env.OPENAI_API_KEY || '';
+  if (!apiKey) {
+    console.error('OPENAI_API_KEY is not set');
+    process.exit(1);
+  }
+  return apiKey;
 }
 
 export class DescribeImagePipeline {
@@ -151,6 +154,7 @@ export class DescribeImagePipeline {
   }
 
   private async callOpenAIJson(messages: any[], temperature: number = 0.4): Promise<string> {
+    const apiKey = getOpenAIKey();
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
@@ -162,7 +166,7 @@ export class DescribeImagePipeline {
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         timeout: 120000,
       }

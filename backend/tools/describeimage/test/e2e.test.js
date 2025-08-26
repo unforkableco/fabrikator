@@ -16,7 +16,7 @@ const BACKEND_DIR = path.dirname(path.dirname(TOOL_DIR));
 const SCRIPTS_DIR = path.join(BACKEND_DIR, 'scripts');
 
 // Test configuration
-const TEST_IMAGE = path.join(TEST_DIR, 'mug.png');
+const TEST_IMAGE = path.join(TEST_DIR, 'gameboy.png');
 const TOOL_BINARY = path.join(TOOL_DIR, 'dist', 'index.js');
 
 function cleanupTestFiles() {
@@ -60,8 +60,17 @@ function runTool(imagePath) {
   return new Promise((resolve, reject) => {
     console.log(`🚀 Running tool: node ${TOOL_BINARY} ${imagePath}`);
     
+    // Ensure environment variables are passed to child process
+    const rootDir = path.dirname(path.dirname(path.dirname(BACKEND_DIR)));
+    const env = {
+      ...process.env,
+      // Ensure the child process can find the root .env file
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    };
+    
     const child = spawn('node', [TOOL_BINARY, imagePath], {
       cwd: BACKEND_DIR,
+      env: env,
       stdio: ['inherit', 'pipe', 'pipe']
     });
 
