@@ -13,8 +13,9 @@
     "db:generate": "prisma generate",
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
-    "describe:image": "node scripts/describe-image.js",
-    "stl:gen": "python3 scripts/generate_stl.py --analysis scripts/analysis_latest.json --parts scripts/parts_latest.json --out scripts/out"
+    "cad:gen": "ts-node tools/generate_and_run.ts tools/analysis_latest.txt",
+    "cad:spec": "ts-node tools/analyze_cad_image.ts tools/image2.png --notes \"design of a desktop coffee cup warmer, with ON led indicator, on/off button and a USBC port for power\" ",
+    "cad:upload": "ts-node tools/upload_vector_store.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
@@ -27,8 +28,9 @@
     "ioredis": "^5.4.1",
     "multer": "^2.0.2",
     "node-fetch": "^2.7.0",
-    "openai": "^5.15.0",
+    "openai": "^4.73.0",
     "pg": "^8.11.3",
+    "undici": "^7.15.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
