@@ -21,7 +21,7 @@ export class MaterialController {
       const { projectId } = req.params;
       const components = await this.materialService.listMaterials(projectId);
       
-      // Transform components to materials 
+      // Transform components to materials (legacy structure)
       const materials = components.map(component => {
         const specs = component.currentVersion?.specs as any || {};
         return {
@@ -31,7 +31,7 @@ export class MaterialController {
           quantity: specs.quantity,
           description: specs.description,
           status: specs.status,
-          requirements: specs.requirements || {}, // Now contains only technical specifications
+          requirements: specs.requirements || {},
           productReference: specs.productReference || null,
           aiSuggested: specs.createdBy === 'AI'
         };
@@ -85,7 +85,7 @@ export class MaterialController {
         return res.status(404).json({ error: 'Material not found' });
       }
       
-      // Transformer le composant en matériau avec spécifications techniques filtrées
+      // Transformer le composant en matériau (legacy)
       const specs = component.currentVersion?.specs as any || {};
       const material = {
         ...component,
@@ -122,7 +122,6 @@ export class MaterialController {
       
       const result = await this.materialService.updateMaterialStatus(id, action, updateData);
       
-      // Transformer le résultat pour filtrer les spécifications techniques
       if (result.component) {
         const specs = result.component.currentVersion?.specs as any || {};
         const transformedMaterial = {
@@ -137,7 +136,6 @@ export class MaterialController {
           aiSuggested: specs.createdBy === 'AI'
         };
         
-        // Ajouter l'information d'action
         const responseWithAction = {
           ...result,
           component: transformedMaterial,
@@ -185,41 +183,25 @@ export class MaterialController {
       const { projectId } = req.params;
       const { prompt } = req.body;
       
-      // Récupérer les infos du projet
-      const project = await prisma.project.findUnique({
-        where: { id: projectId }
-      });
-      
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
-      
-      // Obtenir les suggestions de l'IA
+      const project = await prisma.project.findUnique({ where: { id: projectId } });
+      if (!project) return res.status(404).json({ error: 'Project not found' });
+
       const currentMaterials = await this.materialService.listMaterials(projectId);
-      
       const suggestions = await this.aiService.suggestMaterials({
         name: project.name || 'Unnamed Project',
         description: project.description || '',
         userPrompt: prompt || '',
-        currentMaterials: currentMaterials
+        currentMaterials
       });
-      
+
       if (!suggestions || !Array.isArray(suggestions.components)) {
-        return res.status(500).json({ 
-          error: 'Failed to generate material suggestions' 
-        });
+        return res.status(500).json({ error: 'Failed to generate material suggestions' });
       }
-      
-      // Traiter les suggestions selon leur action
-      const processedMaterials = [];
-      
+
+      const processedMaterials: any[] = [];
       for (const component of suggestions.components) {
         const action = component.details?.action || 'new';
-        
         if (action === 'new') {
-          // Nouveau composant
-          console.log('AI Component structure:', JSON.stringify(component, null, 2));
-          
           const materialData = {
             name: component.type,
             type: component.type,
@@ -230,24 +212,13 @@ export class MaterialController {
             status: 'suggested',
             createdBy: 'AI'
           };
-          
           const result = await this.materialService.createMaterial(projectId, materialData);
-          processedMaterials.push({
-            ...result,
-            action: 'add',
-            actionDetails: {
-              type: 'add',
-              description: `New component added: ${component.type}`,
-              component: component.type
-            }
-          });
+          processedMaterials.push({ ...result, action: 'add', actionDetails: { type: 'add', description: `New component added: ${component.type}`, component: component.type } });
         } else if (action === 'update' || action === 'keep') {
-          // Mettre à jour un composant existant (nouvelle version +1)
           const existingComponent = currentMaterials.find(m => {
-            const specs = m.currentVersion?.specs as any;
-            return specs?.type === component.type || specs?.name === component.type;
+            const specs = (m.currentVersion?.specs as any);
+            return (specs?.type === component.type) || (specs?.name === component.type);
           });
-          
           if (existingComponent) {
             const updateData = {
               name: component.type,
@@ -259,54 +230,21 @@ export class MaterialController {
               status: 'suggested',
               createdBy: 'AI'
             };
-            
-            const result = await this.materialService.updateMaterialStatus(
-              existingComponent.id, 
-              'update', 
-              updateData
-            );
-            processedMaterials.push({
-              ...result,
-              action: 'modified',
-              actionDetails: {
-                type: 'modified',
-                description: `Component modified: ${component.type}`,
-                component: component.type,
-                previousVersion: existingComponent.currentVersion?.versionNumber || 1
-              }
-            });
+            const result = await this.materialService.updateMaterialStatus(existingComponent.id, 'update', updateData);
+            processedMaterials.push({ ...result, action: 'modified', actionDetails: { type: 'modified', description: `Component modified: ${component.type}`, component: component.type, previousVersion: existingComponent.currentVersion?.versionNumber || 1 } });
           }
         } else if (action === 'remove') {
-          // Supprimer un composant existant (changer son statut à "rejected")
           const existingComponent = currentMaterials.find(m => {
-            const specs = m.currentVersion?.specs as any;
-            return specs?.type === component.type || specs?.name === component.type;
+            const specs = (m.currentVersion?.specs as any);
+            return (specs?.type === component.type) || (specs?.name === component.type);
           });
-          
           if (existingComponent) {
-            // Marquer le composant comme rejeté au lieu de le supprimer physiquement
-            const result = await this.materialService.updateMaterialStatus(
-              existingComponent.id, 
-              'reject', 
-              { 
-                notes: component.details?.notes || `Component removed by AI: ${component.type}`,
-                removedBy: 'AI'
-              }
-            );
-            processedMaterials.push({
-              ...result,
-              action: 'remove',
-              actionDetails: {
-                type: 'remove',
-                description: `Component removed: ${component.type}`,
-                component: component.type,
-                reason: component.details?.notes || 'Component not necessary'
-              }
-            });
+            const result = await this.materialService.updateMaterialStatus(existingComponent.id, 'reject', { notes: component.details?.notes || `Component removed by AI: ${component.type}`, removedBy: 'AI' });
+            processedMaterials.push({ ...result, action: 'remove', actionDetails: { type: 'remove', description: `Component removed: ${component.type}`, component: component.type, reason: component.details?.notes || 'Component not necessary' } });
           }
         }
       }
-      
+
       res.status(201).json(processedMaterials);
     } catch (error) {
       console.error('Error generating material suggestions:', error);
@@ -321,39 +259,22 @@ export class MaterialController {
     try {
       const { projectId } = req.params;
       const { prompt } = req.body;
-      
-      console.log('Preview suggestions request:', { projectId, prompt });
-      
-      // Récupérer les infos du projet
-      const project = await prisma.project.findUnique({
-        where: { id: projectId }
-      });
-      
-      if (!project) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
-      
-      // Obtenir les suggestions de l'IA sans les créer
+
+      const project = await prisma.project.findUnique({ where: { id: projectId } });
+      if (!project) return res.status(404).json({ error: 'Project not found' });
+
       const currentMaterials = await this.materialService.listMaterials(projectId);
-      console.log('Current materials count:', currentMaterials.length);
-      
-      console.log('Calling AI service with prepared prompt...');
       const suggestions = await this.aiService.suggestMaterials({
         name: project.name || 'Unnamed Project',
         description: project.description || '',
         userPrompt: prompt || '',
-        currentMaterials: currentMaterials
+        currentMaterials
       });
-      
-      console.log('AI suggestions received:', suggestions);
-      
+
       if (!suggestions || !Array.isArray(suggestions.components)) {
-        return res.status(500).json({ 
-          error: 'Failed to generate material suggestions preview' 
-        });
+        return res.status(500).json({ error: 'Failed to generate material suggestions preview' });
       }
-      
-      // Retourner les suggestions avec l'explication complète sans les appliquer
+
       res.json(suggestions);
     } catch (error) {
       console.error('Error previewing material suggestions:', error);
@@ -368,37 +289,26 @@ export class MaterialController {
     try {
       const { projectId } = req.params;
       const { suggestion } = req.body;
-      
-      console.log('Processing material suggestion:', { projectId, suggestion });
-      
-      if (!suggestion) {
-        return res.status(400).json({ error: 'Invalid suggestion data' });
-      }
-      
+
+      if (!suggestion) return res.status(400).json({ error: 'Invalid suggestion data' });
+
       const action = suggestion.action || 'new';
-      
-      // Get current materials to find existing ones
       const currentMaterials = await this.materialService.listMaterials(projectId);
-      
+
       if (action === 'new') {
-        // Create new material
+        const baseSpecs = suggestion.details?.specs || suggestion.details?.technicalSpecs || {};
         const materialData = {
           name: suggestion.type || suggestion.title,
           type: suggestion.type || suggestion.title,
           description: suggestion.details?.notes || suggestion.description || '',
           quantity: suggestion.details?.quantity || 1,
-          requirements: suggestion.details?.technicalSpecs || {},
+          requirements: baseSpecs,
           productReference: suggestion.details?.productReference || null,
           status: 'suggested',
           createdBy: 'AI'
         };
-        
-        console.log('Creating new material with data:', materialData);
-        
         const result = await this.materialService.createMaterial(projectId, materialData);
-        
-        // Transform result for frontend
-        const specs = result.component?.currentVersion?.specs as any || {};
+        const specs = (result.component?.currentVersion?.specs as any) || {};
         const transformedMaterial = {
           ...result.component,
           name: specs.name,
@@ -410,47 +320,105 @@ export class MaterialController {
           productReference: specs.productReference || null,
           aiSuggested: specs.createdBy === 'AI',
           action: 'add',
-          actionDetails: {
-            type: 'add',
-            description: `New component added: ${materialData.type}`,
-            component: materialData.type
-          }
+          actionDetails: { type: 'add', description: `New component added: ${materialData.type}`, component: materialData.type }
         };
-        
         return res.status(201).json(transformedMaterial);
-        
       } else if (action === 'update') {
-        // Update existing material
         const existingComponent = currentMaterials.find(m => {
-          const specs = m.currentVersion?.specs as any;
-          return specs?.type === suggestion.type || specs?.name === suggestion.type;
+          const specs = (m.currentVersion?.specs as any);
+          return (specs?.type === suggestion.type) || (specs?.name === suggestion.type);
         });
-        
-        if (!existingComponent) {
-          return res.status(404).json({ error: 'Material to update not found' });
+        if (!existingComponent) return res.status(404).json({ error: 'Material to update not found' });
+
+        const currentSpecs = (existingComponent.currentVersion?.specs as any) || {};
+        const currentReqs = currentSpecs.requirements || {};
+        const patch = suggestion.details?.specsPatch;
+        const incomingSpecs = suggestion.details?.specs || suggestion.details?.technicalSpecs || {};
+
+        let mergedRequirements = { ...currentReqs };
+        if (patch && (patch.set || patch.remove)) {
+          const deletePathsFromSet: string[] = [];
+          const collectDeletePaths = (obj: any, basePath: string[] = []) => {
+            Object.entries(obj).forEach(([k, v]) => {
+              const path = [...basePath, k];
+              if (v && typeof v === 'object' && !Array.isArray(v)) {
+                collectDeletePaths(v, path);
+              } else if (v === null || v === '__DELETE__') {
+                deletePathsFromSet.push(path.join('.'));
+              }
+            });
+          };
+          const deepMerge = (target: any, src: any) => {
+            Object.entries(src).forEach(([k, v]) => {
+              if (v === null || v === '__DELETE__') return;
+              if (v && typeof v === 'object' && !Array.isArray(v)) {
+                target[k] = deepMerge(target[k] || {}, v);
+              } else {
+                target[k] = v;
+              }
+            });
+            return target;
+          };
+          if (patch.set && typeof patch.set === 'object') {
+            collectDeletePaths(patch.set);
+            mergedRequirements = deepMerge({ ...mergedRequirements }, patch.set);
+          }
+          const deleteByPath = (obj: any, path: string) => {
+            const parts = path.split('.');
+            const last = parts.pop();
+            let ref = obj;
+            for (const p of parts) {
+              if (ref == null) return;
+              const idx = Number.isInteger(+p) ? parseInt(p, 10) : NaN;
+              if (!isNaN(idx) && Array.isArray(ref)) {
+                ref = ref[idx];
+              } else {
+                ref = ref[p];
+              }
+            }
+            if (last == null || ref == null) return;
+            const idx = Number.isInteger(+last) ? parseInt(last, 10) : NaN;
+            if (!isNaN(idx) && Array.isArray(ref)) {
+              ref.splice(idx, 1);
+            } else {
+              delete ref[last];
+            }
+          };
+          const toRemove: string[] = [];
+          if (Array.isArray(patch.remove)) toRemove.push(...patch.remove);
+          toRemove.push(...deletePathsFromSet);
+          toRemove.forEach((p: string) => deleteByPath(mergedRequirements, p));
+          const pruneEmpty = (obj: any) => {
+            if (obj && typeof obj === 'object') {
+              Object.keys(obj).forEach((k) => {
+                const v = obj[k];
+                if (v && typeof v === 'object') {
+                  pruneEmpty(v);
+                  if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) delete obj[k];
+                  if (Array.isArray(v) && v.length === 0) delete obj[k];
+                } else if (v === undefined) {
+                  delete obj[k];
+                }
+              });
+            }
+          };
+          pruneEmpty(mergedRequirements as any);
+        } else {
+          mergedRequirements = { ...mergedRequirements, ...incomingSpecs };
         }
-        
+
         const updateData = {
           name: suggestion.type || suggestion.title,
           type: suggestion.type || suggestion.title,
           description: suggestion.details?.notes || suggestion.description || '',
           quantity: suggestion.details?.quantity || 1,
-          requirements: suggestion.details?.technicalSpecs || {},
+          requirements: mergedRequirements,
           productReference: suggestion.details?.productReference || null,
           status: 'suggested',
           createdBy: 'AI'
         };
-        
-        console.log('Updating material:', existingComponent.id, updateData);
-        
-        const result = await this.materialService.updateMaterialStatus(
-          existingComponent.id, 
-          'update', 
-          updateData
-        );
-        
-        // Transform result for frontend
-        const specs = result.component?.currentVersion?.specs as any || {};
+        const result = await this.materialService.updateMaterialStatus(existingComponent.id, 'update', updateData);
+        const specs = (result.component?.currentVersion?.specs as any) || {};
         const transformedMaterial = {
           ...result.component,
           name: specs.name,
@@ -462,49 +430,53 @@ export class MaterialController {
           productReference: specs.productReference || null,
           aiSuggested: specs.createdBy === 'AI',
           action: 'modified',
-          actionDetails: {
-            type: 'modified',
-            description: `Component updated: ${suggestion.type}`,
-            component: suggestion.type
-          }
+          actionDetails: { type: 'modified', description: `Component updated: ${suggestion.type}`, component: suggestion.type }
         };
-        
         return res.status(200).json(transformedMaterial);
-        
       } else if (action === 'remove') {
-        // Remove existing material by deleting it completely
         const existingComponent = currentMaterials.find(m => {
-          const specs = m.currentVersion?.specs as any;
-          return specs?.type === suggestion.type || specs?.name === suggestion.type;
+          const specs = (m.currentVersion?.specs as any);
+          return (specs?.type === suggestion.type) || (specs?.name === suggestion.type);
         });
-        
-        if (!existingComponent) {
-          return res.status(404).json({ error: 'Material to remove not found' });
-        }
-        
-        console.log('Deleting material:', existingComponent.id);
-        
-        // Delete the material completely
+        if (!existingComponent) return res.status(404).json({ error: 'Material to remove not found' });
         await this.materialService.deleteMaterial(existingComponent.id);
-        
         return res.status(200).json({
           action: 'removed',
-          actionDetails: {
-            type: 'removed',
-            description: `Component removed: ${suggestion.type}`,
-            component: suggestion.type,
-            reason: suggestion.details?.notes || 'Component removed as requested'
-          },
+          actionDetails: { type: 'removed', description: `Component removed: ${suggestion.type}`, component: suggestion.type, reason: suggestion.details?.notes || 'Component removed as requested' },
           materialId: existingComponent.id
         });
-        
       } else {
         return res.status(400).json({ error: `Unsupported action: ${action}` });
       }
-      
     } catch (error) {
       console.error('Error processing material suggestion:', error);
       res.status(500).json({ error: 'Failed to process material suggestion' });
+    }
+  }
+
+  /**
+   * Suggest purchase references for an approved component (no persistence)
+   */
+  async suggestPurchaseReferences(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const component = await this.materialService.getMaterialById(id);
+      if (!component) return res.status(404).json({ error: 'Material not found' });
+
+      // Optionally enforce only for APPROVED materials
+      const specs = component.currentVersion?.specs as any || {};
+      if (specs.status !== 'approved') {
+        return res.status(400).json({ error: 'Material must be approved before suggesting references' });
+      }
+
+      const project = await prisma.project.findUnique({ where: { id: component.projectId } });
+      if (!project) return res.status(404).json({ error: 'Project not found' });
+
+      const refs = await this.aiService.suggestProductReferences({ project, component });
+      res.json({ references: refs });
+    } catch (error) {
+      console.error('Error suggesting purchase references:', error);
+      res.status(500).json({ error: 'Failed to suggest purchase references' });
     }
   }
 }

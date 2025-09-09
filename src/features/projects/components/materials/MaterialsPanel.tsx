@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, startTransition } from 'react';
 import { Box, Typography, Button, Card } from '@mui/material';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import { Material } from '../../../../shared/types';
@@ -36,9 +36,47 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [pendingSuggestions, setPendingSuggestions] = useState<any[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isInitialLoaded, setIsInitialLoaded] = useState<boolean>(false);
+
+  // Local view state for immediate UI updates
+  const [displayMaterials, setDisplayMaterials] = useState<Material[]>(materials);
+  const [lastEditedAtById, setLastEditedAtById] = useState<Record<string, number>>({});
+  const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+  const OPTIMISTIC_HOLD_MS = 1200;
+
+  React.useEffect(() => {
+    if (materials && materials.length >= 0) {
+      setIsInitialLoaded(true);
+    }
+  }, [materials]);
+
+  React.useEffect(() => {
+    const now = Date.now();
+    setDisplayMaterials(prev => {
+      const prevById = new Map(prev.map(m => [m.id, m]));
+      return materials.map(incoming => {
+        const editedAt = lastEditedAtById[incoming.id];
+        if (editedAt && (now - editedAt) < OPTIMISTIC_HOLD_MS) {
+          const optimistic = prevById.get(incoming.id) || incoming;
+          return {
+            ...incoming,
+            name: optimistic.name,
+            type: optimistic.type,
+            description: optimistic.description,
+            requirements: optimistic.requirements,
+          } as Material;
+        }
+        return incoming;
+      });
+    });
+  }, [materials, lastEditedAtById]);
 
   // Rejected materials are now automatically filtered on the backend
-  const activeMaterials = materials;
+  const activeMaterials = displayMaterials;
+
+  const handleToggleExpanded = (id: string, expanded: boolean) => {
+    setExpandedById(prev => ({ ...prev, [id]: expanded }));
+  };
 
   // Load messages on startup
   const loadChatMessages = useCallback(async () => {
@@ -207,11 +245,32 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
 
   const handleSaveEditedMaterial = async (materialId: string, updatedMaterial: Partial<Material>) => {
     try {
-      // Use the API directly to update the material
-      await api.projects.updateMaterial(materialId, updatedMaterial);
+      // Optimistic update
+      setDisplayMaterials(prev => prev.map(m => {
+        if (m.id !== materialId) return m;
+        return {
+          ...m,
+          name: updatedMaterial.name ?? m.name,
+          type: updatedMaterial.type ?? m.type,
+          description: updatedMaterial.description ?? m.description,
+          requirements: updatedMaterial.requirements ?? m.requirements,
+        } as Material;
+      }));
+      setLastEditedAtById(prev => ({ ...prev, [materialId]: Date.now() }));
+
       setShowEditDialog(false);
       setEditingMaterial(null);
+
+      // Persist in background
+      api.projects.updateMaterial(materialId, updatedMaterial)
+        .catch((err) => console.error('Failed to persist material update:', err));
+
+      // Transition non bloquante pour le refresh serveur
+      setTimeout(() => {
+        startTransition(() => {
       onMaterialsUpdated?.();
+        });
+      }, 350);
     } catch (error) {
       console.error('Error updating material:', error);
     }
@@ -560,45 +619,24 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   };
 
   return (
-    <Box sx={{ display: 'flex', gap: 3, height: '100%' }}>
-      {/* Materials List - Left Side */}
+    <Box sx={{ display: 'flex', gap: 2 }}>
       <Box sx={{ flex: 2 }}>
-        {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h5" component="h2" sx={{ fontWeight: 600 }}>
-            Required Components
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<PlaylistAddIcon />}
-            onClick={() => setShowAddDialog(true)}
-            sx={{ textTransform: 'none' }}
-          >
-            Add Component
-          </Button>
-        </Box>
-
-        {/* Status Legend */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6">Materials</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <StatusLegend />
-
-        {/* Materials List */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {activeMaterials.length === 0 ? (
-            <Card sx={{ p: 4, textAlign: 'center' }}>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                No components added yet
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Add components to your project to get started
-              </Typography>
               <Button
                 variant="contained"
                 startIcon={<PlaylistAddIcon />}
                 onClick={() => setShowAddDialog(true)}
               >
-                Add First Component
+              Add Material
               </Button>
-            </Card>
+          </Box>
+        </Box>
+
+        {(!isInitialLoaded && isLoading) ? (
+          <Card sx={{ p: 2 }}>Loading materials...</Card>
           ) : (
             activeMaterials.map((material) => (
               <MaterialCard
@@ -607,10 +645,11 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
                 onEdit={handleEditMaterial}
                 onApprove={onApproveSelected}
                 onReject={onRejectSelected}
+              expanded={expandedById[material.id] ?? false}
+              onExpandedChange={(exp) => handleToggleExpanded(material.id, exp)}
               />
             ))
           )}
-        </Box>
       </Box>
 
       {/* Chat Panel - Right Side */}
@@ -643,6 +682,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           setEditingMaterial(null);
         }}
         onSave={handleSaveEditedMaterial}
+        onRefetch={onMaterialsUpdated}
       />
     </Box>
   );

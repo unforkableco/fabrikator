@@ -96,6 +96,35 @@ export interface ProductReference {
   datasheet?: string;
 }
 
+// Normalized technical specification for a material/component
+export interface MaterialSpec {
+  id?: string;
+  componentId?: string;
+  name?: string;
+  type?: string;
+  description?: string;
+  quantity?: number;
+  requirements?: { [key: string]: string | number };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Normalized procurement reference (1-n per component)
+export interface PurchaseReference {
+  id: string;
+  componentId: string;
+  name: string;
+  manufacturer: string;
+  supplier: string;
+  purchaseUrl: string;
+  estimatedPrice: string;
+  partNumber?: string;
+  datasheet?: string;
+  status: 'suggested' | 'selected' | 'ordered' | 'received';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface Material {
   id: string;
   name?: string;
@@ -108,12 +137,15 @@ export interface Material {
   aiSuggested?: boolean;
   suggestedAlternatives?: SelectedPart[];
   status?: MaterialStatus;
-  productReference?: ProductReference;
+  productReference?: ProductReference; // legacy single reference for backward compatibility
   // New backend structure support
   projectId?: string;
   currentVersionId?: string;
   currentVersion?: CompVersion;
   versions?: CompVersion[];
+  // Normalized fields
+  materialSpec?: MaterialSpec | null;
+  purchaseReferences?: PurchaseReference[];
 }
 
 export interface SelectedPart {

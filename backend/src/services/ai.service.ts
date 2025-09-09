@@ -710,6 +710,76 @@ export class AIService {
   }
 
   /**
+   * Analyze cascading impact on other materials when one component changes
+   */
+  async reviewMaterialImpact(params: { project: any; updatedComponent: any; currentMaterials: any[] }) {
+    const { project, updatedComponent, currentMaterials } = params;
+
+    // Simplify current materials for prompt context
+    const fullMaterials = currentMaterials.map(material => ({
+      id: material.id,
+      type: material.currentVersion?.specs?.type || 'unknown',
+      name: material.currentVersion?.specs?.name || 'unknown',
+      quantity: material.currentVersion?.specs?.quantity || 1,
+      description: material.currentVersion?.specs?.description || '',
+      status: material.currentVersion?.specs?.status || 'suggested',
+      specs: material.currentVersion?.specs?.requirements || {}
+    }));
+
+    // Compose system prompt
+    let systemPrompt = prompts.materialsImpactReview
+      .replace('{{projectName}}', project.name || 'Unnamed Project')
+      .replace('{{projectDescription}}', project.description || '')
+      .replace('{{previousComponent}}', JSON.stringify(updatedComponent.previous || updatedComponent, null, 2))
+      .replace('{{updatedComponent}}', JSON.stringify(updatedComponent, null, 2))
+      .replace('{{currentMaterials}}', JSON.stringify(fullMaterials, null, 2));
+
+    const messages = [
+      { role: 'system', content: systemPrompt }
+    ];
+
+    try {
+      let response: string;
+      if (this.currentProvider.name === 'openai') {
+        const modelConfig = getModelConfig(this.currentProvider.model);
+        if (supportsJsonMode(this.currentProvider.model)) {
+          response = await this.callOpenAIJson(messages, 0.5);
+        } else if (modelConfig?.isReasoningModel) {
+          response = await this.callOpenAIProvider(messages, 0.5);
+        } else {
+          response = await this.callOpenAIProvider(messages, 0.5);
+        }
+      } else {
+        response = await this.callAI(messages, 0.5);
+      }
+
+      const cleanedResponse = this.cleanJsonResponse(response);
+      const parsed = JSON.parse(cleanedResponse);
+      if (!parsed.components || !Array.isArray(parsed.components)) {
+        throw new Error('Invalid impact response');
+      }
+      // Normalize prices inside productReference if present
+      parsed.components = parsed.components.map((component: any) => {
+        if (component.details?.productReference?.estimatedPrice) {
+          const originalPrice = component.details.productReference.estimatedPrice;
+          component.details.productReference.estimatedPrice = this.normalizePriceString(originalPrice);
+        }
+        return component;
+      });
+      return parsed;
+    } catch (error) {
+      console.error('Error in reviewMaterialImpact:', error);
+      return {
+        explanation: {
+          summary: 'Impact analysis failed - fallback',
+          reasoning: 'Could not parse AI response'
+        },
+        components: []
+      };
+    }
+  }
+
+  /**
    * Legacy method: Answers a user question about a project (backward compatibility)
    */
   async answerProjectQuestion(params: { project: any; materials?: any[]; wiring?: any; userQuestion: string }) {
@@ -936,6 +1006,40 @@ export class AIService {
     } catch (error) {
       console.error('Error in analyzeImageForPrompt:', error);
       throw error;
+    }
+  }
+
+  async suggestProductReferences(params: { project: any; component: any }) {
+    const { project, component } = params;
+
+    const requirements = component.currentVersion?.specs?.requirements || {};
+    const systemPrompt = prompts.productReferenceSearch
+      .replace('{{projectName}}', project.name || 'Unnamed Project')
+      .replace('{{projectDescription}}', project.description || '')
+      .replace('{{componentType}}', component.currentVersion?.specs?.type || component.currentVersion?.specs?.name || 'Component')
+      .replace('{{componentName}}', component.currentVersion?.specs?.name || component.currentVersion?.specs?.type || 'Component')
+      .replace('{{requirements}}', JSON.stringify(requirements, null, 2));
+
+    const messages = [{ role: 'system', content: systemPrompt }];
+
+    try {
+      let response: string;
+      if (this.currentProvider.name === 'openai' && supportsJsonMode(this.currentProvider.model)) {
+        response = await this.callOpenAIJson(messages, 0.6);
+      } else {
+        response = await this.callAI(messages, 0.6);
+      }
+      const cleaned = this.cleanJsonResponse(response);
+      const parsed = JSON.parse(cleaned);
+      const refs = Array.isArray(parsed.references) ? parsed.references : [];
+      // Normalize price strings
+      refs.forEach((r: any) => {
+        if (r.estimatedPrice) r.estimatedPrice = this.normalizePriceString(String(r.estimatedPrice));
+      });
+      return refs;
+    } catch (error) {
+      console.error('Error in suggestProductReferences:', error);
+      return [];
     }
   }
 }

@@ -1089,4 +1089,101 @@ List needed electronics components in JSON format:
     - No trailing commas or comments.
     - Do not wrap JSON, do not include backticks.
   `,
+
+  // Impact analysis when a single component's spec changes
+  materialsImpactReview: `
+  ROLE: You are a hardware BOM dependency planner. When one component's specification changes, you evaluate cascading impacts on the rest of the BOM.
+
+  Project: {{projectName}} - {{projectDescription}}
+  Previous component (before change): {{previousComponent}}
+  Updated component (after change): {{updatedComponent}}
+  Current materials (with specs): {{currentMaterials}}
+
+  STRICT POLICY:
+  - ONLY propose changes that are DIRECTLY and CONCRETELY required by the updated component's changed fields.
+  - If no other component must change, return an EMPTY components array (no changes).
+  - Do NOT emit generic text; always specify measurable/technical changes.
+
+  REQUIRED METHOD:
+  1) Compute CHANGED KEYS by diffing previous vs updated component specs (deep compare on spec fields and quantities).
+  2) For each other component, decide if a change is MANDATORY. Only then include it with action="update|new|remove".
+  3) For every included component, provide CONCRETE specsPatch (set/remove) that precisely implements needed compatibility (numbers/units/port counts/connector types/cable counts/wire gauge/PSU wattage, etc.).
+  4) Provide a short, explicit impact reason referencing the CHANGED KEYS.
+
+  HARD RULES:
+  - If you cannot point to specific changed keys (by name) that force a change, do NOT include that component.
+  - HMI/UX or Enclosure changes are allowed ONLY if tied to explicit changed fields (e.g., increased thermal TDP_W requires ventilation area increase; new display_count requires bezel changes with exact dimensions).
+  - Quantities/values MUST be numeric and actionable.
+  - Prefer UPDATE over NEW when an existing component of the same type can be adapted. Use NEW only when no existing part fits. Use REMOVE only if strictly required.
+  - Keep type naming consistent with current materials for updates/removals.
+
+  OUTPUT JSON (STRICT):
+  {
+    "explanation": {
+      "summary": "brief impact summary OR 'no change'",
+      "reasoning": "why these dependencies change (reference CHANGED KEYS)",
+      "changedKeys": ["list", "of", "updated", "spec", "keys"],
+      "noChange": boolean
+    },
+    "components": [
+      {
+        "type": "component category (match existing types for updates)",
+        "details": {
+          "quantity": number,
+          "action": "update|new|remove",
+          "notes": "1 sentence referencing CHANGED KEYS",
+          "specsPatch": {
+            "set": { /* deep-partial to MERGE into existing specs (only changed keys) */ },
+            "remove": [ /* array of dot-paths to delete, e.g., "ports.hdmi" */ ]
+          },
+          "productReference": {
+            "name": "(optional) realistic product name",
+            "manufacturer": "",
+            "purchaseUrl": "",
+            "estimatedPrice": "$0.00",
+            "supplier": "",
+            "partNumber": "",
+            "datasheet": ""
+          }
+        }
+      }
+    ]
+  }
+
+  VALIDATION BEFORE RETURN:
+  - If components.length === 0, set explanation.noChange = true and provide a meaningful summary.
+  - If components.length > 0, ensure EVERY item has at least one numeric/spec field that changed because of specific CHANGED KEYS.
+  - NEVER output generic updates without concrete fields.
+  `,
+
+  productReferenceSearch: `
+  ROLE: You are a sourcing assistant. Given a validated component spec, propose real, purchasable product references that match the technical requirements.
+
+  Project: {{projectName}} - {{projectDescription}}
+  Component: {{componentType}} - {{componentName}}
+  Validated specs (requirements): {{requirements}}
+
+  OUTPUT JSON STRICT ONLY (RETURN 2-3 BEST REFERENCES):
+  {
+    "references": [
+      {
+        "name": "exact product name and model",
+        "manufacturer": "brand/manufacturer name",
+        "purchaseUrl": "https://... absolute URL to product or high-quality vendor search",
+        "estimatedPrice": "$12.34",
+        "supplier": "supplier name",
+        "partNumber": "manufacturer part number if available",
+        "datasheet": "https://... absolute URL to datasheet if available",
+        "compatibilityScore": 0-100,
+        "mismatchNotes": ["optional short notes if partial mismatch"]
+      }
+    ]
+  }
+
+  RULES:
+  - Prefer reputable suppliers and widely available products.
+  - Use ABSOLUTE https URLs only. Never return localhost, relative URLs, or placeholders.
+  - Ensure the reference matches key constraints from requirements (voltage/current/ports/interfaces/dimensions where applicable).
+  - If unsure, include mismatchNotes explaining remaining assumptions.
+  `,
 };

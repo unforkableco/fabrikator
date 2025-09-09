@@ -8,17 +8,22 @@ const transformBackendToMaterial = (backendComponent: any): Material => {
   
   return {
     id: backendComponent.id,
-    name: specs.name || 'Unnamed Component',
-    type: specs.type || 'Component',
-    quantity: specs.quantity || 1,
-    description: specs.description || '',
-    requirements: specs.requirements || {},
+    name: backendComponent.materialSpec?.name ?? specs.name ?? 'Unnamed Component',
+    type: backendComponent.materialSpec?.type ?? specs.type ?? 'Component',
+    quantity: backendComponent.materialSpec?.quantity ?? specs.quantity ?? 1,
+    description: backendComponent.materialSpec?.description ?? specs.description ?? '',
+    requirements: backendComponent.materialSpec?.requirements ?? specs.requirements ?? {},
     status: specs.status || MaterialStatus.SUGGESTED,
     projectId: backendComponent.projectId,
     currentVersionId: backendComponent.currentVersionId,
     currentVersion: backendComponent.currentVersion,
     versions: backendComponent.versions,
     aiSuggested: specs.createdBy === 'AI',
+    // Normalized fields exposed by backend
+    materialSpec: backendComponent.materialSpec ?? null,
+    purchaseReferences: backendComponent.purchaseReferences ?? [],
+    // Legacy single productReference (kept if present in specs)
+    productReference: specs.productReference || undefined,
   };
 };
 
@@ -133,6 +138,19 @@ export const useMaterials = (projectId?: string) => {
     }
   };
 
+  const updateMaterialWithImpact = async (materialId: string, material: Partial<Material>) => {
+    try {
+      const result = await api.projects.updateMaterialAndReviewImpact(materialId, material);
+      await fetchMaterials();
+      setError(null);
+      return result.impactSuggestions;
+    } catch (err) {
+      console.error('Failed to update material with impact:', err);
+      setError('Failed to update material with impact');
+      return null;
+    }
+  };
+
   return {
     materials,
     isGeneratingInsights,
@@ -144,6 +162,7 @@ export const useMaterials = (projectId?: string) => {
     rejectMaterial,
     deleteMaterial,
     updateMaterial,
+    updateMaterialWithImpact,
     refreshMaterials: fetchMaterials,
   };
 }; 

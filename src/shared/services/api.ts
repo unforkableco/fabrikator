@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Project, Material, ProjectRequirements, Message } from '../types/index';
+import { Project, Material, ProjectRequirements, Message, ProductReference } from '../types/index';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -16,7 +16,7 @@ apiClient.interceptors.request.use(
     // Add auth token if available
     const token = localStorage.getItem('authToken');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      (config.headers as any).Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -67,11 +67,24 @@ export const api = {
       return response.data;
     },
 
-    updateMaterial: async (materialId: string, material: Partial<Material>): Promise<Material> => {
+    updateMaterial: async (materialId: string, material: Partial<Material>): Promise<any> => {
       const response = await apiClient.put(`/materials/${materialId}`, {
         action: 'update',
         ...material
       });
+      return response.data;
+    },
+
+    updateMaterialAndReviewImpact: async (materialId: string, material: Partial<Material>): Promise<{ component: Material; impactSuggestions?: any }> => {
+      const response = await apiClient.put(`/materials/${materialId}`, {
+        action: 'update',
+        ...material
+      });
+      return response.data;
+    },
+
+    suggestPurchaseReferences: async (materialId: string): Promise<{ references: ProductReference[] }> => {
+      const response = await apiClient.post(`/materials/${materialId}/references/suggest`);
       return response.data;
     },
 
