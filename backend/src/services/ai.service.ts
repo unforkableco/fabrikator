@@ -1022,6 +1022,60 @@ export class AIService {
 
     const messages = [{ role: 'system', content: systemPrompt }];
 
+    const ensureHttps = (url: string) => {
+      if (!url) return '';
+      try {
+        let u = url.trim();
+        if (u.startsWith('//')) u = 'https:' + u;
+        if (u.startsWith('http://')) u = 'https://' + u.slice(7);
+        if (!u.startsWith('http')) u = 'https://' + u;
+        return u;
+      } catch {
+        return '';
+      }
+    };
+
+    const isDomainAllowed = (u: string) => {
+      try {
+        const allowed = [
+          'amazon.', 'adafruit.', 'sparkfun.', 'aliexpress.', 'mouser.', 'digikey.',
+          'rs-online.', 'farnell.', 'element14.', 'arrow.', 'ti.com', 'st.com', 'analog.com'
+        ];
+        const host = new URL(u).hostname.toLowerCase();
+        if (host.includes('localhost') || host.endsWith('.local')) return false;
+        return allowed.some(d => host.includes(d));
+      } catch {
+        return false;
+      }
+    };
+
+    const buildSearchUrl = (name: string, supplier?: string) => {
+      const q = encodeURIComponent(name || 'electronics component');
+      if (supplier) {
+        const s = supplier.toLowerCase();
+        if (s.includes('mouser')) return `https://www.mouser.com/c/?q=${q}`;
+        if (s.includes('digikey')) return `https://www.digikey.com/en/products/result?keywords=${q}`;
+        if (s.includes('adafruit')) return `https://www.adafruit.com/search?q=${q}`;
+        if (s.includes('sparkfun')) return `https://www.sparkfun.com/search/results?term=${q}`;
+        if (s.includes('amazon')) return `https://www.amazon.com/s?k=${q}`;
+        if (s.includes('aliexpress')) return `https://www.aliexpress.com/wholesale?SearchText=${q}`;
+      }
+      return `https://www.google.com/search?q=${q}+buy+electronics`;
+    };
+
+    const verifyUrl = async (url: string) => {
+      const u = ensureHttps(url);
+      if (!u) return '';
+      if (!isDomainAllowed(u)) return '';
+      try {
+        // Lightweight GET with timeout; treat 2xx/3xx as valid
+        const res = await (await import('axios')).default.get(u, { timeout: 3000, maxRedirects: 3, validateStatus: s => s >= 200 && s < 400 });
+        return res.status >= 200 && res.status < 400 ? u : '';
+      } catch {
+        return '';
+      }
+    };
+
     try {
       let response: string;
       if (this.currentProvider.name === 'openai' && supportsJsonMode(this.currentProvider.model)) {
@@ -1031,12 +1085,37 @@ export class AIService {
       }
       const cleaned = this.cleanJsonResponse(response);
       const parsed = JSON.parse(cleaned);
-      const refs = Array.isArray(parsed.references) ? parsed.references : [];
+      let refs: any[] = Array.isArray(parsed.references) ? parsed.references : [];
       // Normalize price strings
       refs.forEach((r: any) => {
         if (r.estimatedPrice) r.estimatedPrice = this.normalizePriceString(String(r.estimatedPrice));
       });
-      return refs;
+      // Sort by compatibilityScore desc if present
+      refs.sort((a: any, b: any) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0));
+      // Keep top 3
+      refs = refs.slice(0, 3);
+      // Verify URLs and replace bad links with search URLs
+      const verified: any[] = [];
+      for (const r of refs) {
+        const name = r.name || '';
+        const supplier = r.supplier || '';
+        const goodPurchase = await verifyUrl(r.purchaseUrl || '');
+        const goodDatasheet = r.datasheet ? await verifyUrl(r.datasheet) : '';
+        const finalPurchase = goodPurchase || buildSearchUrl(name, supplier);
+        const finalDatasheet = goodDatasheet || '';
+        verified.push({
+          name,
+          manufacturer: r.manufacturer || '',
+          purchaseUrl: finalPurchase,
+          estimatedPrice: r.estimatedPrice || '$0.00',
+          supplier,
+          partNumber: r.partNumber || '',
+          datasheet: finalDatasheet,
+          compatibilityScore: r.compatibilityScore || 0,
+          mismatchNotes: Array.isArray(r.mismatchNotes) ? r.mismatchNotes : []
+        });
+      }
+      return verified;
     } catch (error) {
       console.error('Error in suggestProductReferences:', error);
       return [];

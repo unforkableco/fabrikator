@@ -39,6 +39,7 @@ interface MaterialCardProps {
   onEdit?: (material: Material) => void;
   onApprove?: (materialId: string) => void;
   onReject?: (materialId: string) => void;
+  onDelete?: (materialId: string) => void;
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
 }
@@ -48,6 +49,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
   onEdit,
   onApprove,
   onReject,
+  onDelete,
   expanded,
   onExpandedChange,
 }) => {
@@ -267,7 +269,6 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
   const [isSuggesting, setIsSuggesting] = React.useState(false);
   const [suggestedRefs, setSuggestedRefs] = React.useState<ProductReference[]>([]);
   const [showRefsModal, setShowRefsModal] = React.useState(false);
-  const [applyRefLoading, setApplyRefLoading] = React.useState<string | null>(null);
   const canSuggestRefs = material.status === MaterialStatus.APPROVED;
 
   const handleSuggestReferences = async () => {
@@ -282,17 +283,6 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
       setShowRefsModal(true);
     } finally {
       setIsSuggesting(false);
-    }
-  };
-
-  const handleApplyReference = async (ref: ProductReference) => {
-    try {
-      setApplyRefLoading(ref.name);
-      await api.projects.updateMaterial(material.id, { productReference: ref });
-      setApplyRefLoading(null);
-      setShowRefsModal(false);
-    } catch (e) {
-      setApplyRefLoading(null);
     }
   };
 
@@ -327,13 +317,21 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                 <EditIcon />
               </IconButton>
             )}
-            {onApprove && material.status === MaterialStatus.SUGGESTED && (
-              <IconButton size="small" color="success" onClick={() => onApprove(material.id)} title="Approve">
-                <CheckCircleIcon />
-              </IconButton>
+            {/* Toggle Approve/Disapprove */}
+            {(onApprove || onReject) && (
+              material.status === MaterialStatus.APPROVED ? (
+                <IconButton size="small" color="warning" onClick={() => onReject?.(material.id)} title="Disapprove">
+                  <CheckCircleIcon />
+                </IconButton>
+              ) : (
+                <IconButton size="small" color="success" onClick={() => onApprove?.(material.id)} title="Approve">
+                  <CheckCircleIcon />
+                </IconButton>
+              )
             )}
-            {onReject && (
-              <IconButton size="small" color="error" onClick={() => onReject(material.id)} title={material.status === MaterialStatus.APPROVED ? 'Disapprove' : 'Reject'}>
+            {/* Delete */}
+            {onDelete && (
+              <IconButton size="small" color="error" onClick={() => onDelete(material.id)} title="Delete">
                 <DeleteIcon />
               </IconButton>
             )}

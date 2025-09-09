@@ -84,71 +84,71 @@ List needed electronics components in JSON format:
   `,
 
   materialsSearch: `
-    Project: {{projectName}} - {{projectDescription}}
-    Current materials: {{currentMaterials}}
-    User request: {{userPrompt}}
+  Project: {{projectName}} - {{projectDescription}}
+  Current materials: {{currentMaterials}}
+  User request: {{userPrompt}}
 
-    Analyze and suggest the most elegant, minimal solution.
-    Consider what's truly needed vs what's over-engineered.
+  Analyze and suggest the most elegant, minimal solution.
+  Consider what's truly needed vs what's over-engineered.
 
-    **IMPORTANT ACTIONS LOGIC:**
-    - **"new"**: Create a completely new component that doesn't exist in current materials
-    - **"keep"**: Keep an existing component unchanged (include it in response with same specs)
-    - **"update"**: Modify specifications of an existing component (create new version)
-    - **"remove"**: Remove/delete an existing component from the project (IMPORTANT: when user asks to remove something, use this action)
+  **IMPORTANT ACTIONS LOGIC:**
+  - **"new"**: Create a completely new component that doesn't exist in current materials
+  - **"keep"**: Keep an existing component unchanged (include it in response with same specs)
+  - **"update"**: Modify specifications of an existing component (create new version)
+  - **"remove"**: Remove/delete an existing component from the project (IMPORTANT: when user asks to remove something, use this action)
 
-    **CRITICAL: Respond precisely to user requests:**
-    1. Analyze the user's request to determine what components they want to add, modify, keep, or remove
-    2. For each existing component, decide if it should be kept, updated, or removed based on the user's request
-    3. Include ALL components that need action in your response with the appropriate action
-    4. Provide clear explanations in the notes for each decision made
+  **CRITICAL: Respond precisely to user requests:**
+  1. Analyze the user's request to determine what components they want to add, modify, keep, or remove
+  2. For each existing component, decide if it should be kept, updated, or removed based on the user's request
+  3. Include ALL components that need action in your response with the appropriate action
+  4. Provide clear explanations in the notes for each decision made
 
-    **PRODUCT REFERENCES: For each component (except removed ones), also suggest a specific real product reference that the user could purchase if they prefer not to build from scratch. Include:**
-    - Exact product name and model number (use realistic, commonly available products)
-    - Manufacturer/brand
-    - Purchase link (note: these will be converted to search links, so focus on accurate product names)
-    - Current approximate price range
-    - The technical specifications should match the suggested product reference
-    
+  **PRODUCT REFERENCES: For each component (except removed ones), also suggest a specific real product reference that the user could purchase if they prefer not to build from scratch. Include:**
+  - Exact product name and model number (use realistic, commonly available products)
+  - Manufacturer/brand
+  - Purchase link (note: these will be converted to search links, so focus on accurate product names)
+  - Current approximate price range
+  - The technical specifications should match the suggested product reference
+
     Use specific, searchable product names that exist in the market.
 
-    **OUTPUT JSON:**
-    {
-      "explanation": {
-        "summary": "brief summary of changes made",
-        "reasoning": "detailed rationale behind decisions", 
-        "changes": [{"type": "added|removed|updated|kept", "component": "name", "reason": "why"}],
-        "impact": "overall effect",
-        "nextSteps": "suggested actions"
-      },
-      "components": [
-        {
-          "type": "component category (MUST MATCH exactly the type from current materials for keep/update/remove actions)",
-          "details": {
-            "quantity": number,
+  **OUTPUT JSON:**
+  {
+    "explanation": {
+      "summary": "brief summary of changes made",
+      "reasoning": "detailed rationale behind decisions",
+      "changes": [{"type": "added|removed|updated|kept", "component": "name", "reason": "why"}],
+      "impact": "overall effect",
+      "nextSteps": "suggested actions"
+    },
+    "components": [
+      {
+        "type": "component category (MUST MATCH exactly the type from current materials for keep/update/remove actions)",
+        "details": {
+          "quantity": number,
             "notes": "specific role and function in this project OR reason for removal",
-            "action": "keep|update|new|remove",
-            "technicalSpecs": {
-              // COMPREHENSIVE technical specifications from the suggested product reference
-              // Include ALL applicable: electrical, mechanical, performance, interface, environmental specs
-              // FOR REMOVE actions: can be empty object {} or omitted
-            },
-            "productReference": {
-              "name": "exact product name and model",
-              "manufacturer": "brand/manufacturer name",
+          "action": "keep|update|new|remove",
+          "technicalSpecs": {
+            // COMPREHENSIVE technical specifications from the suggested product reference
+            // Include ALL applicable: electrical, mechanical, performance, interface, environmental specs
+            // FOR REMOVE actions: can be empty object {} or omitted
+          },
+          "productReference": {
+            "name": "exact product name and model",
+            "manufacturer": "brand/manufacturer name",
               "purchaseUrl": "direct link to purchase the product",
-              "estimatedPrice": "price with currency (e.g., $15.99 USD)",
-              "supplier": "supplier name (e.g., Adafruit, SparkFun, Amazon)",
-              "partNumber": "manufacturer part number if available",
-              "datasheet": "link to datasheet if available"
-              // FOR REMOVE actions: this entire object can be omitted
-            }
+            "estimatedPrice": "price with currency (e.g., $15.99 USD)",
+            "supplier": "supplier name (e.g., Adafruit, SparkFun, Amazon)",
+            "partNumber": "manufacturer part number if available",
+            "datasheet": "link to datasheet if available"
+            // FOR REMOVE actions: this entire object can be omitted
           }
         }
-      ]
-    }
+      }
+    ]
+  }
 
-    **GUIDELINES:**
+  **GUIDELINES:**
     - Always respond to user requests by analyzing what they want to change
     - Include components with appropriate actions based on user intent
     - For remove actions, focus on explanation in "notes" field

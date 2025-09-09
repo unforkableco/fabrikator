@@ -645,8 +645,9 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
                 onEdit={handleEditMaterial}
                 onApprove={onApproveSelected}
                 onReject={onRejectSelected}
-              expanded={expandedById[material.id] ?? false}
-              onExpandedChange={(exp) => handleToggleExpanded(material.id, exp)}
+                onDelete={onDeleteMaterial}
+                expanded={expandedById[material.id] ?? false}
+                onExpandedChange={(exp) => handleToggleExpanded(material.id, exp)}
               />
             ))
           )}

@@ -119,6 +119,10 @@ export class MaterialController {
           error: 'Invalid action. Must be one of: approve, reject, update' 
         });
       }
+
+      // Get component BEFORE update for impact analysis
+      const componentBeforeUpdate = await this.materialService.getMaterialById(id);
+      const previousSpecs = componentBeforeUpdate?.currentVersion?.specs || {};
       
       const result = await this.materialService.updateMaterialStatus(id, action, updateData);
       
@@ -136,7 +140,7 @@ export class MaterialController {
           aiSuggested: specs.createdBy === 'AI'
         };
         
-        const responseWithAction = {
+        const responseWithAction: any = {
           ...result,
           component: transformedMaterial,
           action: action === 'update' ? 'modified' : action === 'reject' ? 'remove' : action,
@@ -150,6 +154,44 @@ export class MaterialController {
             previousVersion: action === 'update' ? (result.version?.versionNumber || 1) - 1 : undefined
           }
         };
+
+        // If update, run impact review via AI and attach suggestions
+        if (action === 'update') {
+          try {
+            const project = await prisma.project.findUnique({ where: { id: result.component.projectId } });
+            const currentMaterials = await this.materialService.listMaterials(result.component.projectId);
+            
+            console.log('Impact analysis - Previous specs:', JSON.stringify(previousSpecs, null, 2));
+            console.log('Impact analysis - Updated specs:', JSON.stringify(specs, null, 2));
+            
+            const impact = await this.aiService.reviewMaterialImpact({
+              project: project || { name: '', description: '' },
+              updatedComponent: {
+                id: result.component.id,
+                specs: transformedMaterial,
+                previous: previousSpecs
+              },
+              currentMaterials
+            });
+
+            console.log('Impact analysis result:', JSON.stringify(impact, null, 2));
+
+            // Normalize impact: prefer details.specs over details.technicalSpecs
+            if (impact && Array.isArray(impact.components)) {
+              impact.components = impact.components.map((c: any) => {
+                if (c?.details) {
+                  const specs = c.details.specs || c.details.technicalSpecs || {};
+                  return { ...c, details: { ...c.details, specs } };
+                }
+                return c;
+              });
+            }
+
+            (responseWithAction as any)['impactSuggestions'] = impact;
+          } catch (impactError) {
+            console.warn('Impact review failed:', impactError);
+          }
+        }
         
         res.json(responseWithAction);
       } else {
@@ -193,11 +235,11 @@ export class MaterialController {
         userPrompt: prompt || '',
         currentMaterials
       });
-
+      
       if (!suggestions || !Array.isArray(suggestions.components)) {
         return res.status(500).json({ error: 'Failed to generate material suggestions' });
       }
-
+      
       const processedMaterials: any[] = [];
       for (const component of suggestions.components) {
         const action = component.details?.action || 'new';
@@ -244,7 +286,7 @@ export class MaterialController {
           }
         }
       }
-
+      
       res.status(201).json(processedMaterials);
     } catch (error) {
       console.error('Error generating material suggestions:', error);
@@ -259,7 +301,7 @@ export class MaterialController {
     try {
       const { projectId } = req.params;
       const { prompt } = req.body;
-
+      
       const project = await prisma.project.findUnique({ where: { id: projectId } });
       if (!project) return res.status(404).json({ error: 'Project not found' });
 
@@ -270,11 +312,11 @@ export class MaterialController {
         userPrompt: prompt || '',
         currentMaterials
       });
-
+      
       if (!suggestions || !Array.isArray(suggestions.components)) {
         return res.status(500).json({ error: 'Failed to generate material suggestions preview' });
       }
-
+      
       res.json(suggestions);
     } catch (error) {
       console.error('Error previewing material suggestions:', error);
@@ -289,12 +331,12 @@ export class MaterialController {
     try {
       const { projectId } = req.params;
       const { suggestion } = req.body;
-
+      
       if (!suggestion) return res.status(400).json({ error: 'Invalid suggestion data' });
-
+      
       const action = suggestion.action || 'new';
       const currentMaterials = await this.materialService.listMaterials(projectId);
-
+      
       if (action === 'new') {
         const baseSpecs = suggestion.details?.specs || suggestion.details?.technicalSpecs || {};
         const materialData = {
@@ -406,7 +448,7 @@ export class MaterialController {
         } else {
           mergedRequirements = { ...mergedRequirements, ...incomingSpecs };
         }
-
+        
         const updateData = {
           name: suggestion.type || suggestion.title,
           type: suggestion.type || suggestion.title,

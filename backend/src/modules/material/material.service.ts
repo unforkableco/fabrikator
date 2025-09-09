@@ -4,7 +4,7 @@ import { MaterialStatus } from '../../types';
 
 export class MaterialService {
   /**
-   * Liste tous les matériaux d'un projet (exclut les matériaux rejetés)
+   * Liste tous les matériaux d'un projet (renvoie tous les statuts)
    */
   async listMaterials(projectId: string) {
     try {
@@ -16,13 +16,8 @@ export class MaterialService {
         }
       });
       
-      // Filter rejected materials
-      const activeComponents = components.filter(component => {
-        const specs = component.currentVersion?.specs as any;
-        return specs?.status !== MaterialStatus.REJECTED;
-      });
-      
-      return activeComponents;
+      // Ne filtre plus les REJECTED: on retourne tout
+      return components;
     } catch (error) {
       console.error('Error in listMaterials:', error);
       throw error;
