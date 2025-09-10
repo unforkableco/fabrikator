@@ -2,7 +2,7 @@ import { WiringComponent, WiringPin } from '../../../shared/types';
 
 export const useComponentMapper = () => {
   /**
-   * Extrait les broches depuis les spécifications techniques d'un matériau
+   * Extract pins from a material's technical specifications
    */
   const extractPinsFromTechnicalSpecs = (material: any): WiringPin[] => {
     const specs = material.currentVersion?.specs || {};
@@ -19,12 +19,12 @@ export const useComponentMapper = () => {
       productReference: productReference.name
     });
     
-    // 1. Analyser les spécifications techniques pour extraire les informations de broches
+    // 1. Analyze technical specifications to extract pin information
     Object.entries(technicalSpecs).forEach(([key, value]) => {
       const keyLower = key.toLowerCase();
       const valueStr = String(value).toLowerCase();
       
-      // Chercher des patterns de broches dans les spécifications
+      // Search for pin patterns in specifications
       if (keyLower.includes('pin') || keyLower.includes('broche') || keyLower.includes('gpio')) {
         const digitalPins = valueStr.match(/(\d+)\s*digital/i);
         const analogPins = valueStr.match(/(\d+)\s*analog/i);
@@ -70,7 +70,7 @@ export const useComponentMapper = () => {
         }
       }
       
-      // Interfaces de communication
+      // Communication interfaces
       if (keyLower.includes('interface') || keyLower.includes('communication')) {
         if (valueStr.includes('i2c') || valueStr.includes('iic')) {
           pins.push(
@@ -94,7 +94,7 @@ export const useComponentMapper = () => {
         }
       }
       
-      // Voltage et alimentation
+      // Voltage and power
       if (keyLower.includes('voltage') || keyLower.includes('power') || keyLower.includes('supply')) {
         const voltage3v3 = valueStr.includes('3.3v') || valueStr.includes('3v3');
         const voltage5v = valueStr.includes('5v');
@@ -111,7 +111,7 @@ export const useComponentMapper = () => {
       }
     });
     
-    // 2. Générer des broches spécifiques basées sur le type de composant et références produit
+    // 2. Generate specific pins based on component type and product references
     if (componentType.includes('arduino') || productReference.name?.toLowerCase().includes('arduino')) {
       // Arduino Uno R3 standard pinout
       if (!pins.some(p => p.name.startsWith('D'))) {
@@ -136,7 +136,7 @@ export const useComponentMapper = () => {
           });
         }
       }
-      // Broches d'alimentation et contrôle
+      // Power and control pins
       if (!pins.some(p => p.id === 'vcc')) {
         pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -25 }, connected: false, voltage: 5.0 });
         pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 25 }, connected: false });
@@ -164,7 +164,7 @@ export const useComponentMapper = () => {
         pins.push({ id: 'en', name: 'EN', type: 'digital', position: { x: -40, y: 0 }, connected: false });
       }
     } else if (componentType.includes('sensor')) {
-      // Capteurs génériques
+      // Generic sensors
       if (!pins.some(p => p.id === 'vcc')) {
         pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -20 }, connected: false, voltage: 3.3 });
         pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 20 }, connected: false });
@@ -178,19 +178,19 @@ export const useComponentMapper = () => {
         }
       }
     } else if (componentType.includes('display') || componentType.includes('oled') || componentType.includes('lcd')) {
-      // Écrans
+      // Displays
       if (!pins.some(p => p.id === 'vcc')) {
         pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -30 }, connected: false, voltage: 3.3 });
         pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 30 }, connected: false });
         
-        // Par défaut I2C
+        // Default I2C
         if (!pins.some(p => p.id === 'sda')) {
           pins.push({ id: 'sda', name: 'SDA', type: 'digital', position: { x: 40, y: -20 }, connected: false });
           pins.push({ id: 'scl', name: 'SCL', type: 'digital', position: { x: 40, y: 20 }, connected: false });
         }
       }
     } else if (componentType.includes('relay')) {
-      // Relais
+      // Relays
       if (!pins.some(p => p.id === 'vcc')) {
         pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -20 }, connected: false, voltage: 5.0 });
         pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 20 }, connected: false });
@@ -199,14 +199,14 @@ export const useComponentMapper = () => {
         pins.push({ id: 'no', name: 'NO', type: 'power', position: { x: 30, y: 15 }, connected: false });
       }
     } else if (componentType.includes('battery') || componentType.includes('power')) {
-      // Batteries et alimentations
+      // Batteries and power supplies
       if (!pins.some(p => p.id === 'positive')) {
         pins.push({ id: 'positive', name: '+', type: 'power', position: { x: 0, y: -25 }, connected: false, voltage: 12 });
         pins.push({ id: 'negative', name: '-', type: 'ground', position: { x: 0, y: 25 }, connected: false });
       }
     }
     
-    // 3. Broches génériques si aucune trouvée
+    // 3. Generic pins if none found
     if (pins.length === 0) {
       pins.push(
         { id: 'vcc', name: 'VCC', type: 'power', position: { x: -25, y: -15 }, connected: false, voltage: 3.3 },
@@ -227,10 +227,10 @@ export const useComponentMapper = () => {
     
     console.log('🔧 useComponentMapper - Creating component from material with technical specs:', material);
     
-    // Utiliser les spécifications techniques réelles pour générer les broches
+    // Use real technical specifications to generate pins
     const pins = extractPinsFromTechnicalSpecs(material);
     
-    // Disposition en grille compacte
+    // Compact grid layout
     const componentsPerRow = 3;
     const componentSpacingX = 150;
     const componentSpacingY = 100;

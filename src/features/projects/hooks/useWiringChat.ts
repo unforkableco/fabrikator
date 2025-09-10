@@ -14,13 +14,22 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
+  const detectLanguage = (input: string): 'fr' | 'en' => {
+    try {
+      const byLocale = typeof navigator !== 'undefined' && navigator.language && navigator.language.toLowerCase().startsWith('fr');
+      const hasAccent = /[éèêàùçîïôû]/i.test(input);
+      const frenchWords = /(\b|_)(bonjour|merci|svp|stp|s\'il|voudrais|puissance|mettre|plus|de|le|la|les|un|une|des|et|ou|est|vous|nous|je|tu)(\b|_)/i;
+      return (byLocale || hasAccent || frenchWords.test(input)) ? 'fr' : 'en';
+    } catch { return 'en'; }
+  };
+
   // Load chat messages on startup
   const loadChatMessages = useCallback(async () => {
     if (!projectId) return;
     
     try {
       setIsLoadingMessages(true);
-      const dbMessages = await api.projects.getChatMessages(projectId, 'wiring', 10);
+      const dbMessages = await api.projects.getChatMessages(projectId, 'wiring', 100);
       
       // Convert DB messages to ChatMessage format
       const chatMessages: ChatMessage[] = dbMessages.map(msg => ({
@@ -108,8 +117,9 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
       if (mode === 'ask') {
         // Ask mode - Answer questions about wiring
         try {
-          const response = await api.projects.askQuestion(projectId, `[WIRING CONTEXT] ${message}`);
-          aiResponse = response.answer;
+          const inferredLang = detectLanguage(message);
+          const askRes = await api.projects.askQuestion(projectId, `[WIRING CONTEXT] ${message}`, 'wiring', 'ai', inferredLang);
+          aiResponse = askRes.answer;
         } catch (error) {
           console.error('Error asking wiring question:', error);
           aiResponse = `Sorry, I encountered an error analyzing your wiring question. Could you rephrase it?`;
@@ -121,7 +131,8 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
         try {
           // Use wiring-specific API endpoint for suggestions
           // ✅ Transmettre le diagramme actuel à l'IA pour analyse des connexions existantes
-          const response = await api.wiring.generateWiringSuggestions(projectId, message, diagram);
+          const inferredLang = detectLanguage(message);
+          const response = await api.wiring.generateWiringSuggestions(projectId, message, diagram, inferredLang);
           console.log('Wiring agent response:', response);
           
           if (response && response.suggestions && Array.isArray(response.suggestions)) {
@@ -165,13 +176,20 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
             });
             
             chatSuggestions = suggestions;
-            aiResponse = `I generated ${suggestions.length} connection suggestions for your circuit.`;
+            aiResponse = inferredLang === 'fr'
+              ? `J'ai généré ${suggestions.length} suggestions de connexions pour votre circuit.`
+              : `I generated ${suggestions.length} connection suggestions for your circuit.`;
           } else {
-            aiResponse = 'I understood your wiring request. I am working on analyzing the appropriate connections.';
+            aiResponse = inferredLang === 'fr'
+              ? `J'ai compris votre demande de câblage. J'analyse les connexions appropriées.`
+              : 'I understood your wiring request. I am working on analyzing the appropriate connections.';
           }
         } catch (error) {
           console.error('Error with wiring agent:', error);
-          aiResponse = 'Sorry, I encountered an error analyzing your wiring request. Please try again.';
+          const inferredLang = detectLanguage(message);
+          aiResponse = inferredLang === 'fr'
+            ? `Désolé, une erreur est survenue lors de l'analyse de votre demande de câblage. Veuillez réessayer.`
+            : 'Sorry, I encountered an error analyzing your wiring request. Please try again.';
         }
       }
 
@@ -186,13 +204,14 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
       };
       setMessages(prev => [...prev, aiMessage]);
 
-      // Save the AI message and get real UUID
-      const savedAiMessage = await saveChatMessage(aiMessage);
-      if (savedAiMessage) {
-        // Update the message with the real UUID from database
-        setMessages(prev => prev.map(msg => 
-          msg.id === aiMessage.id ? savedAiMessage : msg
-        ));
+      // Persist AI message only when not Ask (Ask AI message is persisted by backend)
+      if (mode !== 'ask') {
+        const savedAiMessage = await saveChatMessage(aiMessage);
+        if (savedAiMessage) {
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessage.id ? savedAiMessage : msg
+          ));
+        }
       }
 
     } catch (error) {

@@ -56,7 +56,7 @@ export const useComponentManager = ({
       onDiagramUpdate(finalDiagram);
     }
     
-    // Sauvegarder le diagramme après ajout de composant
+    // Save diagram after component add
     try {
       console.log('💾 Saving diagram after component add...');
       await saveWiringDiagram(finalDiagram);
@@ -76,10 +76,10 @@ export const useComponentManager = ({
     let finalDiagram: WiringDiagram;
     
     if (!diagram) {
-      // Créer un nouveau diagramme en utilisant TOUS les matériaux disponibles
+      // Create a new diagram using ALL available materials
       const allComponents: WiringComponent[] = [];
       
-      // Créer des composants pour TOUS les matériaux disponibles
+      // Create components for ALL available materials
       materials.forEach((material, index) => {
         const component = createComponentFromMaterial(material, index);
         allComponents.push(component);
@@ -87,7 +87,7 @@ export const useComponentManager = ({
       
       console.log('Created all available components:', allComponents);
       
-      // Mapper les broches de la connexion avant de l'ajouter
+      // Map connection pins before adding
       const fromComponent = allComponents.find(c => c.id === connection.fromComponent);
       const toComponent = allComponents.find(c => c.id === connection.toComponent);
       
@@ -104,7 +104,7 @@ export const useComponentManager = ({
         mapped: { fromPin: mappedConnection.fromPin, toPin: mappedConnection.toPin }
       });
       
-      // Créer le nouveau diagramme avec tous les composants
+      // Create the new diagram with all components
       finalDiagram = {
         id: `diagram-${Date.now()}`,
         components: allComponents,
@@ -120,13 +120,13 @@ export const useComponentManager = ({
       console.log('Created new diagram with all materials:', finalDiagram);
       onDiagramUpdate(finalDiagram);
     } else {
-      // Vérifier si les composants de la connexion existent déjà
+      // Check if connection components already exist
       const fromExists = diagram.components.find(c => c.id === connection.fromComponent);
       const toExists = diagram.components.find(c => c.id === connection.toComponent);
       
       let updatedComponents = [...diagram.components];
       
-      // Créer SEULEMENT les composants manquants (ne devrait pas arriver si on utilise tous les matériaux)
+      // Create ONLY missing components (should not happen if using all materials)
       if (!fromExists) {
         const material = materials.find(m => m.id === connection.fromComponent);
         if (material) {
@@ -145,7 +145,7 @@ export const useComponentManager = ({
         }
       }
       
-      // Mapper les broches de la connexion
+      // Map connection pins
       const fromComponent = updatedComponents.find(c => c.id === connection.fromComponent);
       const toComponent = updatedComponents.find(c => c.id === connection.toComponent);
       
@@ -162,7 +162,7 @@ export const useComponentManager = ({
         mapped: { fromPin: mappedConnection.fromPin, toPin: mappedConnection.toPin }
       });
       
-      // Ajouter la connexion
+      // Add the connection
       finalDiagram = {
         ...diagram,
         components: updatedComponents,
@@ -177,7 +177,7 @@ export const useComponentManager = ({
       onDiagramUpdate(finalDiagram);
     }
     
-    // Sauvegarder le diagramme après ajout de connexion manuelle
+    // Save diagram after manual connection add
     try {
       console.log('💾 Saving diagram after manual connection add...');
       await saveWiringDiagram(finalDiagram);
@@ -207,7 +207,7 @@ export const useComponentManager = ({
       
       onDiagramUpdate(updatedDiagram);
       
-      // Sauvegarder le diagramme après mise à jour
+      // Save diagram after update
       try {
         console.log('💾 Saving diagram after connection update...');
         await saveWiringDiagram(updatedDiagram);
@@ -237,7 +237,7 @@ export const useComponentManager = ({
       console.log('🔄 Updated diagram after deletion:', updatedDiagram.connections.length, 'connections remaining');
       onDiagramUpdate(updatedDiagram);
       
-      // Sauvegarder le diagramme après suppression
+      // Save diagram after deletion
       try {
         console.log('💾 Saving diagram after connection deletion...');
         await saveWiringDiagram(updatedDiagram);
@@ -260,7 +260,7 @@ export const useComponentManager = ({
       console.log('🗑️ Deleting component:', componentToDelete?.name);
       console.log('🗑️ This will also delete', connectionsToDelete.length, 'connections');
       
-      // Supprimer le composant et toutes ses connexions
+      // Delete component and all its connections
       const updatedDiagram = {
         ...diagram,
         components: diagram.components.filter(comp => comp.id !== componentId),
@@ -276,7 +276,7 @@ export const useComponentManager = ({
       console.log('🔄 Updated diagram after component deletion:', updatedDiagram.components.length, 'components,', updatedDiagram.connections.length, 'connections');
       onDiagramUpdate(updatedDiagram);
       
-      // Sauvegarder le diagramme après suppression
+      // Save diagram after deletion
       try {
         console.log('💾 Saving diagram after component deletion...');
         await saveWiringDiagram(updatedDiagram);

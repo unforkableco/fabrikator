@@ -19,6 +19,7 @@ interface Chat3DParams {
   context: string;
   sceneState?: any;
   selectedComponents?: string[];
+  language?: string;
 }
 
 export class ChatService {
@@ -33,14 +34,14 @@ export class ChatService {
   }
 
   async handle3DDesignChat(params: Chat3DParams) {
-    const { message, projectId, sceneState, selectedComponents } = params;
+    const { message, projectId, sceneState, selectedComponents, language } = params;
 
     try {
       // Build context for the AI
       const contextInfo = await this.build3DContext(projectId, sceneState, selectedComponents);
       
       // Generate AI response with component suggestions
-      const aiResponse = await this.generate3DResponse(message, contextInfo);
+      const aiResponse = await this.generate3DResponse(message, contextInfo, language);
       
       return {
         id: `ai_${Date.now()}`,
@@ -94,15 +95,21 @@ export class ChatService {
     return context;
   }
 
-  private async generate3DResponse(message: string, context: string) {
+  private async generate3DResponse(message: string, context: string, language?: string) {
     console.log('=== GENERATE 3D RESPONSE START ===');
     console.log('Message:', message);
     console.log('Context:', context);
     
     // Build the system prompt using the configured template
-    const systemPrompt = prompts.design3DChat
+    const basePrompt = prompts.design3DChat
       .replace('{{context}}', context)
       .replace('{{message}}', message);
+    const languageInstruction = language === 'fr'
+      ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide the conversational explanation in French. KEEP ALL JSON suggestion fields strictly in ENGLISH (keys and values).' 
+      : language === 'en'
+        ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide the conversational explanation in English. KEEP ALL JSON suggestion fields strictly in ENGLISH.'
+        : '';
+    const systemPrompt = basePrompt + languageInstruction;
 
     const messages = [
       {

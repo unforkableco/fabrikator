@@ -45,7 +45,7 @@ export class MaterialController {
   }
 
   /**
-   * Récupère l'historique des versions d'un matériau
+   * Get the version history of a material
    */
   async getMaterialVersions(req: Request, res: Response) {
     try {
@@ -59,7 +59,7 @@ export class MaterialController {
   }
 
   /**
-   * Crée un nouveau matériau avec sa première version
+   * Create a new material with its first version
    */
   async createMaterial(req: Request, res: Response) {
     try {
@@ -74,7 +74,7 @@ export class MaterialController {
   }
 
   /**
-   * Récupère un matériau par son ID
+   * Get a material by its ID
    */
   async getMaterialById(req: Request, res: Response) {
     try {
@@ -85,7 +85,7 @@ export class MaterialController {
         return res.status(404).json({ error: 'Material not found' });
       }
       
-      // Transformer le composant en matériau (legacy)
+      // Transform component to material (legacy)
       const specs = component.currentVersion?.specs as any || {};
       const material = {
         ...component,
@@ -107,7 +107,7 @@ export class MaterialController {
   }
 
   /**
-   * Met à jour, approuve ou rejette un matériau
+   * Update, approve or reject a material
    */
   async updateMaterialStatus(req: Request, res: Response) {
     try {
@@ -204,7 +204,7 @@ export class MaterialController {
   }
 
   /**
-   * Supprime un matériau
+   * Delete a material
    */
   async deleteMaterial(req: Request, res: Response) {
     try {
@@ -295,22 +295,36 @@ export class MaterialController {
   }
 
   /**
-   * Prévisualise les suggestions de matériaux sans les appliquer
+   * Preview material suggestions without applying them
    */
   async previewSuggestions(req: Request, res: Response) {
     try {
       const { projectId } = req.params;
-      const { prompt } = req.body;
+      const { prompt, language } = req.body;
       
       const project = await prisma.project.findUnique({ where: { id: projectId } });
       if (!project) return res.status(404).json({ error: 'Project not found' });
 
       const currentMaterials = await this.materialService.listMaterials(projectId);
+
+      // Retrieve recent chat history for materials context
+      const history = await prisma.message.findMany({
+        where: { projectId, context: 'materials' },
+        orderBy: { createdAt: 'asc' },
+        take: 20,
+      });
+      const chatHistory = history.map((m: any): { role: 'user' | 'assistant'; content: string } => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: String(m.content || ''),
+      }));
+
       const suggestions = await this.aiService.suggestMaterials({
         name: project.name || 'Unnamed Project',
         description: project.description || '',
         userPrompt: prompt || '',
-        currentMaterials
+        currentMaterials,
+        language,
+        chatHistory
       });
       
       if (!suggestions || !Array.isArray(suggestions.components)) {
@@ -505,13 +519,17 @@ export class MaterialController {
       const component = await this.materialService.getMaterialById(id);
       if (!component) return res.status(404).json({ error: 'Material not found' });
 
-      // Optionally enforce only for APPROVED materials
+      // Optional: only for APPROVED
       const specs = component.currentVersion?.specs as any || {};
       if (specs.status !== 'approved') {
         return res.status(400).json({ error: 'Material must be approved before suggesting references' });
       }
 
-      const project = await prisma.project.findUnique({ where: { id: component.projectId } });
+      // Load the project with all materials for full context
+      const project = await prisma.project.findUnique({ 
+        where: { id: component.projectId },
+        include: { components: { include: { currentVersion: true } } }
+      });
       if (!project) return res.status(404).json({ error: 'Project not found' });
 
       const refs = await this.aiService.suggestProductReferences({ project, component });

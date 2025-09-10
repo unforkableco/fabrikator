@@ -271,6 +271,13 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
   const [showRefsModal, setShowRefsModal] = React.useState(false);
   const canSuggestRefs = material.status === MaterialStatus.APPROVED;
 
+  React.useEffect(() => {
+    if (!canSuggestRefs && showRefsModal) {
+      setShowRefsModal(false);
+      setSuggestedRefs([]);
+    }
+  }, [canSuggestRefs, showRefsModal]);
+
   const handleSuggestReferences = async () => {
     if (!canSuggestRefs) return;
     try {
@@ -314,7 +321,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
           <Box sx={{ display: 'flex', gap: 1 }}>
             {onEdit && (
               <IconButton size="small" onClick={() => onEdit(material)} title="Edit">
-                <EditIcon />
+              <EditIcon />
               </IconButton>
             )}
             {/* Toggle Approve/Disapprove */}
@@ -332,8 +339,8 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
             {/* Delete */}
             {onDelete && (
               <IconButton size="small" color="error" onClick={() => onDelete(material.id)} title="Delete">
-                <DeleteIcon />
-              </IconButton>
+              <DeleteIcon />
+            </IconButton>
             )}
           </Box>
         </Box>
@@ -343,7 +350,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
           <Box sx={{ mb: 2, display: 'flex', gap: 1 }}>
             <Button variant="outlined" size="small" onClick={handleSuggestReferences} disabled={isSuggesting}>
               {isSuggesting ? 'Searching…' : 'Suggest references'}
-            </Button>
+                </Button>
           </Box>
         )}
 

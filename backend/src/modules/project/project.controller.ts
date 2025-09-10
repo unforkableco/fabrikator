@@ -208,7 +208,7 @@ export class ProjectController {
   async askProjectQuestion(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { question } = req.body;
+      const { question, context: reqContext, persist, language } = req.body;
       
       if (!question) {
         return res.status(400).json({ error: 'Question is required' });
@@ -237,14 +237,57 @@ export class ProjectController {
         console.warn('No wiring found for project:', id);
       }
       
+      const context = typeof reqContext === 'string' && reqContext.trim() ? reqContext : 'materials';
+
+      // Retrieve recent chat history for Ask context
+      const history = await this.projectService.getProjectMessages(id, context, 20);
+      const chatHistory = history
+        .reverse() // oldest first
+        .map((m: any): { role: 'user' | 'assistant'; content: string } => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: String(m.content || '')
+        }));
+      
       // Ask AI to answer the question with complete context
       const answer = await this.aiService.answerProjectQuestion({
         project: project,
         materials: materials,
         wiring: wiring,
-        userQuestion: question
+        userQuestion: question,
+        language,
+        chatHistory
       });
       
+      // Optional persistence of Ask conversation
+      // persist can be 'ai' or 'both'; context defaults to 'materials' if not provided
+      if (persist === 'both') {
+        try {
+          await this.projectService.addMessageToProject(id, {
+            context,
+            content: question,
+            sender: 'user',
+            mode: 'ask',
+            suggestions: null
+          });
+        } catch (e) {
+          console.warn('Failed to persist user Ask message:', e);
+        }
+      }
+
+      if (persist === 'ai' || persist === 'both') {
+        try {
+          await this.projectService.addMessageToProject(id, {
+            context,
+            content: answer,
+            sender: 'ai',
+            mode: 'ask',
+            suggestions: null
+          });
+        } catch (e) {
+          console.warn('Failed to persist AI Ask message:', e);
+        }
+      }
+
       res.json({ answer });
     } catch (error) {
       console.error('Error answering project question:', error);

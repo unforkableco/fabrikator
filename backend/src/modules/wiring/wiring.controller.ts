@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import { WiringService } from './wiring.service';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export class WiringController {
   private wiringService: WiringService;
@@ -9,7 +12,7 @@ export class WiringController {
   }
 
   /**
-   * Récupère le plan de câblage pour un projet
+   * Get wiring plan for a project
    */
   async getWiringForProject(req: Request, res: Response) {
     try {
@@ -23,7 +26,7 @@ export class WiringController {
   }
 
   /**
-   * Crée un nouveau plan de câblage pour un projet
+   * Create a new wiring plan for a project
    */
   async createWiring(req: Request, res: Response) {
     try {
@@ -38,7 +41,7 @@ export class WiringController {
   }
 
   /**
-   * Récupère un plan de câblage par son ID
+   * Get a wiring plan by its ID
    */
   async getWiringById(req: Request, res: Response) {
     try {
@@ -57,7 +60,7 @@ export class WiringController {
   }
 
   /**
-   * Ajoute une nouvelle version à un plan de câblage existant
+   * Add a new version to an existing wiring plan
    */
   async addVersion(req: Request, res: Response) {
     try {
@@ -72,7 +75,7 @@ export class WiringController {
   }
 
   /**
-   * Récupère les versions d'un plan de câblage
+   * Get versions of a wiring plan
    */
   async getWiringVersions(req: Request, res: Response) {
     try {
@@ -91,14 +94,25 @@ export class WiringController {
   }
 
   /**
-   * Génère des suggestions de câblage avec l'IA
+   * Generate wiring suggestions with AI
    */
   async generateWiringSuggestions(req: Request, res: Response) {
     try {
       const { projectId } = req.params;
-      const { prompt, currentDiagram } = req.body;
+      const { prompt, currentDiagram, language } = req.body;
       
-      const suggestions = await this.wiringService.generateWiringSuggestions(projectId, prompt, currentDiagram);
+      // Retrieve recent chat history for wiring context
+      const history = await prisma.message.findMany({
+        where: { projectId, context: 'wiring' },
+        orderBy: { createdAt: 'asc' },
+        take: 20,
+      });
+      const chatHistory = history.map((m: any): { role: 'user' | 'assistant'; content: string } => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: String(m.content || ''),
+      }));
+
+      const suggestions = await this.wiringService.generateWiringSuggestions(projectId, prompt, currentDiagram, language, chatHistory);
       res.json(suggestions);
     } catch (error) {
       console.error('Error generating wiring suggestions:', error);
@@ -107,7 +121,7 @@ export class WiringController {
   }
 
   /**
-   * Valide un schéma de câblage
+   * Validate a wiring diagram
    */
   async validateWiring(req: Request, res: Response) {
     try {

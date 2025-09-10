@@ -492,10 +492,19 @@ export class AIService {
 
     // Use wiringOptimalCircuit for complex wiring analysis (legacy support)
     if (contextData?.materials && contextData.materials.length > 0 && contextData?.currentDiagram) {
-      let systemPrompt = prompts.wiringOptimalCircuit
+      const languageInstruction = contextData?.language === 'fr'
+        ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide the conversational explanation in French. KEEP ALL JSON suggestion fields (action/title/description/connectionData/componentData) strictly in ENGLISH; do not translate enums, keys, or values.'
+        : contextData?.language === 'en'
+          ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide the conversational explanation in English. KEEP ALL JSON suggestion fields strictly in ENGLISH.'
+          : '';
+      const historyArr = Array.isArray(contextData?.chatHistory) ? contextData.chatHistory as Array<{role: string; content: string}> : [];
+      const historyText = historyArr.length > 0
+        ? '\n\nConversation History (latest messages):\n' + historyArr.slice(-10).map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')
+        : '';
+      let systemPrompt = (prompts.wiringOptimalCircuit
         .replace('{{materials}}', JSON.stringify(contextData.materials, null, 2))
         .replace('{{currentDiagram}}', JSON.stringify(contextData.currentDiagram, null, 2))
-        .replace('{{prompt}}', prompt);
+        .replace('{{prompt}}', prompt)) + languageInstruction + historyText;
       
       const messages = [
         {
@@ -538,10 +547,18 @@ export class AIService {
         };
       }
     } else {
-      // Use simple wiring suggestions for new API
-      const systemPrompt = prompts.wiringSuggestions
+      const languageInstruction = contextData?.language === 'fr'
+        ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide the conversational explanation in French. KEEP ALL JSON suggestion fields (action/title/description/connectionData/componentData) strictly in ENGLISH; do not translate enums, keys, or values.'
+        : contextData?.language === 'en'
+          ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide the conversational explanation in English. KEEP ALL JSON suggestion fields strictly in ENGLISH.'
+          : '';
+      const historyArr = Array.isArray(contextData?.chatHistory) ? contextData.chatHistory as Array<{role: string; content: string}> : [];
+      const historyText = historyArr.length > 0
+        ? '\n\nConversation History (latest messages):\n' + historyArr.slice(-10).map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')
+        : '';
+      const systemPrompt = (prompts.wiringSuggestions
         .replace('{{prompt}}', prompt)
-        .replace('{{context}}', contextData ? JSON.stringify(contextData) : '');
+        .replace('{{context}}', contextData ? JSON.stringify(contextData) : '')) + languageInstruction + historyText;
       
       const messages = [
         {
@@ -593,17 +610,18 @@ export class AIService {
   /**
    * Legacy method: Suggests hardware components for a project (backward compatibility)
    */
-  async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[] }) {
-    const { name, description, userPrompt = '', previousComponents = [], currentMaterials = [] } = params;
+  async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[]; language?: string; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) {
+    const { name, description, userPrompt = '', previousComponents = [], currentMaterials = [], language, chatHistory = [] } = params;
     
-    // Simplify current materials first
+    // Simplify current materials first (now includes requirements for precision)
     const simplifiedMaterials = currentMaterials.map(material => ({
       id: material.id,
       type: material.currentVersion?.specs?.type || 'unknown',
       name: material.currentVersion?.specs?.name || 'unknown', 
       quantity: material.currentVersion?.specs?.quantity || 1,
       description: material.currentVersion?.specs?.description || '',
-      status: material.currentVersion?.specs?.status || 'suggested'
+      status: material.currentVersion?.specs?.status || 'suggested',
+      requirements: (material.currentVersion?.specs as any)?.requirements || {}
     }));
     
     // Build the system prompt by replacing variables
@@ -618,6 +636,19 @@ export class AIService {
       .replace('{{projectName}}', name)
       .replace('{{projectDescription}}', description)
       .replace('{{userPrompt}}', userPrompt);
+
+    // Language instruction appended
+    const languageInstruction = language === 'fr'
+      ? '\n\nIMPORTANT (LANGUAGE POLICY): The narrative/explanations must be in French. However, KEEP ALL JSON suggestion fields strictly in ENGLISH, including keys and values inside components[]. Do NOT translate action/type/title/description/details or any enum/keyword.'
+      : language === 'en'
+        ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide narrative/explanations in English. Keep ALL JSON suggestion fields strictly in ENGLISH as well.'
+        : '';
+
+    // Append recent chat history for context
+    const truncatedHistory = chatHistory.slice(-10);
+    const historyText = truncatedHistory.length > 0
+      ? '\n\nConversation History (latest messages):\n' + truncatedHistory.map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')
+      : '';
     
     // Replace all placeholders  
     const currentMaterialsJson = simplifiedMaterials.length > 0 
@@ -627,10 +658,22 @@ export class AIService {
     const previousCompJson = previousComponents.length > 0 
       ? JSON.stringify(previousComponents.slice(0, 3))
       : '[]';
+
+    // Build full specs payload for prompt (include entire specs object per material)
+    const fullMaterialsSpecs = currentMaterials.map(material => ({
+      id: material.id,
+      specs: (material.currentVersion?.specs as any) || {}
+    }));
+    const fullMaterialsSpecsJson = fullMaterialsSpecs.length > 0
+      ? JSON.stringify(fullMaterialsSpecs, null, 2)
+      : '[]';
     
     systemPrompt = systemPrompt
       .replace('{{currentMaterials}}', currentMaterialsJson)
-      .replace('{{previousComponents}}', previousCompJson);
+      .replace('{{previousComponents}}', previousCompJson)
+      .replace('{{currentMaterialsFullSpecs}}', fullMaterialsSpecsJson)
+      + languageInstruction
+      + historyText;
     
     const messages = [
       {
@@ -683,6 +726,120 @@ export class AIService {
           console.log(`Price normalized: "${originalPrice}" -> "${normalizedPrice}"`);
         }
         return component;
+      });
+
+      // Post-filter: Evaluate compatibility against existing requirements
+      const flattenObject = (obj: any, prefix = ''): Record<string, any> => {
+        const result: Record<string, any> = {};
+        if (!obj || typeof obj !== 'object') return result;
+        for (const key of Object.keys(obj)) {
+          const value = obj[key];
+          const path = prefix ? `${prefix}.${key}` : key;
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            Object.assign(result, flattenObject(value, path));
+          } else {
+            result[path] = value;
+          }
+        }
+        return result;
+      };
+
+      const toNumber = (val: any): number | null => {
+        if (typeof val === 'number') return val;
+        if (typeof val === 'string') {
+          const match = val.match(/([0-9]+(?:\.[0-9]+)?)/);
+          if (match) return parseFloat(match[1]);
+        }
+        return null;
+      };
+
+      const includesAll = (needle: any, hay: any): boolean => {
+        if (Array.isArray(needle)) {
+          if (Array.isArray(hay)) return needle.every(n => hay.includes(n));
+          if (typeof hay === 'string') return needle.every(n => hay.toLowerCase().includes(String(n).toLowerCase()));
+          return false;
+        }
+        if (typeof needle === 'string') {
+          if (Array.isArray(hay)) return hay.map(h => String(h).toLowerCase()).includes(needle.toLowerCase());
+          if (typeof hay === 'string') return hay.toLowerCase().includes(needle.toLowerCase());
+        }
+        if (typeof needle === 'boolean') return needle === Boolean(hay);
+        return true;
+      };
+
+      const compareRequirements = (requirements: any, technicalSpecs: any) => {
+        const reqFlat = flattenObject(requirements || {});
+        const specFlat = flattenObject(technicalSpecs || {});
+        const mismatches: string[] = [];
+        for (const key of Object.keys(reqFlat)) {
+          const reqVal = reqFlat[key];
+          const specVal = specFlat[key];
+          if (specVal === undefined || specVal === null) {
+            mismatches.push(`Missing key: ${key}`);
+            continue;
+          }
+          if (typeof reqVal === 'number') {
+            const specNum = toNumber(specVal);
+            if (specNum === null || specNum < reqVal) {
+              mismatches.push(`Key ${key}: ${specNum ?? 'N/A'} < required ${reqVal}`);
+            }
+            continue;
+          }
+          if (Array.isArray(reqVal)) {
+            if (!includesAll(reqVal, specVal)) {
+              mismatches.push(`Key ${key}: does not include required values`);
+            }
+            continue;
+          }
+          if (typeof reqVal === 'string') {
+            // Try numeric compare if string contains number, else substring match
+            const reqNum = toNumber(reqVal);
+            if (reqNum !== null) {
+              const specNum = toNumber(specVal);
+              if (specNum === null || specNum < reqNum) {
+                mismatches.push(`Key ${key}: ${specNum ?? 'N/A'} < required ${reqNum}`);
+              }
+            } else if (!includesAll(reqVal, specVal)) {
+              mismatches.push(`Key ${key}: value not satisfied`);
+            }
+            continue;
+          }
+          if (typeof reqVal === 'boolean') {
+            if (Boolean(specVal) !== reqVal) {
+              mismatches.push(`Key ${key}: expected ${reqVal}`);
+            }
+          }
+        }
+        const score = mismatches.length === 0 ? 1 : Math.max(0, 1 - mismatches.length * 0.2);
+        return { score, mismatches };
+      };
+
+      const findExistingByTypeOrName = (typeOrName: string) => {
+        return currentMaterials.find((m: any) => {
+          const specs = (m.currentVersion?.specs as any) || {};
+          return specs?.type === typeOrName || specs?.name === typeOrName;
+        });
+      };
+
+      parsedResponse.components = parsedResponse.components.map((component: any) => {
+        try {
+          const existing = findExistingByTypeOrName(component.type);
+          const requirements = existing ? ((existing.currentVersion?.specs as any)?.requirements || {}) : {};
+          const technicalSpecs = component.details?.technicalSpecs || {};
+          const { score, mismatches } = compareRequirements(requirements, technicalSpecs);
+          component.details = component.details || {};
+          component.details.compatibilityScore = score;
+          if (mismatches.length > 0) component.details.mismatchNotes = mismatches;
+        } catch (e) {
+          console.warn('Compatibility evaluation failed for component', component?.type, e);
+        }
+        return component;
+      });
+
+      // Strict filtering: keep only 100% compatible suggestions
+      parsedResponse.components = parsedResponse.components.filter((c: any) => {
+        const score = c?.details?.compatibilityScore;
+        return typeof score === 'number' ? score >= 1 : true; // default keep if not computed
       });
       
       return parsedResponse;
@@ -782,8 +939,8 @@ export class AIService {
   /**
    * Legacy method: Answers a user question about a project (backward compatibility)
    */
-  async answerProjectQuestion(params: { project: any; materials?: any[]; wiring?: any; userQuestion: string }) {
-    const { project, materials = [], wiring = null, userQuestion } = params;
+  async answerProjectQuestion(params: { project: any; materials?: any[]; wiring?: any; userQuestion: string; language?: string; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) {
+    const { project, materials = [], wiring = null, userQuestion, language, chatHistory = [] } = params;
     
     // Build complete project context
     let projectContext = `Name: ${project.name || 'Unnamed project'}\nDescription: ${project.description || 'No description available'}\nStatus: ${project.status || 'In progress'}`;
@@ -820,11 +977,19 @@ export class AIService {
     const systemPrompt = prompts.userPrompt
       .replace('{{project}}', projectContext)
       .replace('{{userInput}}', userQuestion);
+    const languageInstruction = language === 'fr'
+      ? '\n\nIMPORTANT: Réponds en français.\n'
+      : language === 'en'
+        ? '\n\nIMPORTANT: Answer in English.\n'
+        : '';
+    const historyText = chatHistory.length > 0
+      ? '\n\nConversation History (latest messages):\n' + chatHistory.slice(-10).map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n') + '\n'
+      : '';
     
     const messages = [
       {
         role: 'system',
-        content: systemPrompt
+        content: systemPrompt + languageInstruction + historyText
       }
     ];
 
@@ -1013,12 +1178,34 @@ export class AIService {
     const { project, component } = params;
 
     const requirements = component.currentVersion?.specs?.requirements || {};
+
+    // Build broader project context to improve coherence of references
+    const projectMaterials = (project as any)?.components || undefined; // fallback if preloaded
+
+    // If not present on project, we can still inject the single component context only; controller may pass others later
+    const simplifiedMaterials = Array.isArray(projectMaterials) ? projectMaterials.map((m: any) => ({
+      id: m.id,
+      type: m.currentVersion?.specs?.type || 'unknown',
+      name: m.currentVersion?.specs?.name || 'unknown',
+      quantity: m.currentVersion?.specs?.quantity || 1,
+      description: m.currentVersion?.specs?.description || '',
+      status: m.currentVersion?.specs?.status || 'unknown',
+      requirements: (m.currentVersion?.specs as any)?.requirements || {}
+    })) : [];
+
+    const fullMaterialsSpecs = Array.isArray(projectMaterials) ? projectMaterials.map((m: any) => ({
+      id: m.id,
+      specs: (m.currentVersion?.specs as any) || {}
+    })) : [];
+
     const systemPrompt = prompts.productReferenceSearch
       .replace('{{projectName}}', project.name || 'Unnamed Project')
       .replace('{{projectDescription}}', project.description || '')
       .replace('{{componentType}}', component.currentVersion?.specs?.type || component.currentVersion?.specs?.name || 'Component')
       .replace('{{componentName}}', component.currentVersion?.specs?.name || component.currentVersion?.specs?.type || 'Component')
-      .replace('{{requirements}}', JSON.stringify(requirements, null, 2));
+      .replace('{{requirements}}', JSON.stringify(requirements, null, 2))
+      .replace('{{currentMaterials}}', JSON.stringify(simplifiedMaterials, null, 2))
+      .replace('{{currentMaterialsFullSpecs}}', JSON.stringify(fullMaterialsSpecs, null, 2));
 
     const messages = [{ role: 'system', content: systemPrompt }];
 

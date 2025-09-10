@@ -60,14 +60,14 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
-  // État pour suivre les quantités utilisées de chaque matériau
+  // State to track used quantities for each material
   const [usedQuantities, setUsedQuantities] = useState<Record<string, number>>({});
 
-  // Système de routage intelligent pour éviter les croisements
+  // Intelligent routing system to avoid crossings
   const routingGrid = useRef<Map<string, Set<string>>>(new Map());
   const connectionPaths = useRef<Map<string, { x: number, y: number }[]>>(new Map());
 
-  // Fonction helper pour obtenir la taille d'un composant
+  // Helper to get component size
   const getComponentSize = (type: string) => {
     const typeStr = type.toLowerCase();
     if (typeStr.includes('microcontroller') || typeStr.includes('arduino')) {
@@ -82,21 +82,21 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     return { width: 90, height: 60 };
   };
 
-  // Fonction pour calculer une clé de grille
+  // Compute a grid key
   const getGridKey = (x: number, y: number, gridSize: number = 20): string => {
     const gridX = Math.floor(x / gridSize);
     const gridY = Math.floor(y / gridSize);
     return `${gridX},${gridY}`;
   };
 
-  // Fonction pour marquer/libérer des cellules de grille
+  // Mark/unmark grid cells
   const markGridCells = useCallback((path: { x: number, y: number }[], connectionId: string, mark: boolean = true) => {
     const gridSize = 20;
     path.forEach((point, index) => {
       if (index === 0) return; // Skip start point
       const prevPoint = path[index - 1];
       
-      // Marquer tous les points entre prevPoint et point
+      // Mark all points between prevPoint and point
       const steps = Math.max(Math.abs(point.x - prevPoint.x), Math.abs(point.y - prevPoint.y)) / gridSize;
       for (let step = 0; step <= steps; step++) {
         const t = steps === 0 ? 0 : step / steps;
@@ -122,13 +122,13 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     });
   }, []);
 
-  // Nettoyer le cache de routage quand le diagramme change
+  // Clean routing cache when diagram changes
   useEffect(() => {
     if (diagram) {
-      // Nettoyer les connexions supprimées du cache
+      // Clean removed connections from cache
       const currentConnectionIds = new Set(diagram.connections.map(c => c.id));
       
-      // Convertir les clés en array pour éviter les problèmes TypeScript
+      // Convert keys to array to avoid TS issues
       const cachedConnectionIds = Array.from(connectionPaths.current.keys());
       
       for (const connectionId of cachedConnectionIds) {
@@ -143,7 +143,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     }
   }, [diagram, markGridCells]);
 
-  // Fonction pour vérifier si un chemin est libre
+  // Check if a path is clear
   const isPathClear = (path: { x: number, y: number }[], connectionId: string, gridSize: number = 20): boolean => {
     for (let i = 1; i < path.length; i++) {
       const prevPoint = path[i - 1];
@@ -165,7 +165,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     return true;
   };
 
-  // Fonction pour créer un path SVG orthogonal intelligent qui évite les croisements
+  // Create a smart orthogonal path that avoids crossings
   const createSmartOrthogonalPath = (
     fromX: number, 
     fromY: number, 
@@ -178,13 +178,13 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     connectionId: string,
     allConnections: WiringConnection[]
   ): string => {
-    // Libérer l'ancien chemin s'il existe
+    // Release previous path if any
     const oldPath = connectionPaths.current.get(connectionId);
     if (oldPath) {
       markGridCells(oldPath, connectionId, false);
     }
 
-    // Déterminer la direction de sortie de chaque pin
+    // Determine exit direction for each pin
     const getConnectionDirection = (pin: WiringPin, component: WiringComponent) => {
       const componentSize = getComponentSize(component.type);
       const pinPosX = pin.position.x;
@@ -209,36 +209,36 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       
       return Object.entries(distances).reduce((a, b) => distances[a[0] as keyof typeof distances] < distances[b[0] as keyof typeof distances] ? a : b)[0] as 'left' | 'right' | 'top' | 'bottom';
     };
-    
+
     const fromDirection = getConnectionDirection(fromPin, fromComponent);
     const toDirection = getConnectionDirection(toPin, toComponent);
-    
-    // Distance de base pour éviter les composants
+
+    // Base distance to avoid components
     const baseDistance = 30;
-    
-    // Calculer plusieurs chemins possibles et choisir le meilleur
+
+    // Generate multiple path options and choose the best
     const generatePathOptions = (): { x: number, y: number }[][] => {
       const options: { x: number, y: number }[][] = [];
       
-      // Option 1: Chemin direct avec offset minimal
+      // Option 1: Direct path with minimal offset
       const directPath = generateDirectPath(fromX, fromY, toX, toY, fromDirection, toDirection, baseDistance);
       options.push(directPath);
       
-      // Option 2: Chemin avec détour horizontal
+      // Option 2: Horizontal detour
       if (Math.abs(toX - fromX) > 60) {
         const midX = fromX + (toX - fromX) * 0.3;
         const horizontalPath = generateHorizontalDetourPath(fromX, fromY, toX, toY, midX, fromDirection, toDirection, baseDistance);
         options.push(horizontalPath);
       }
       
-      // Option 3: Chemin avec détour vertical
+      // Option 3: Vertical detour
       if (Math.abs(toY - fromY) > 60) {
         const midY = fromY + (toY - fromY) * 0.3;
         const verticalPath = generateVerticalDetourPath(fromX, fromY, toX, toY, midY, fromDirection, toDirection, baseDistance);
         options.push(verticalPath);
       }
       
-      // Option 4: Chemin externe (contourne largement)
+      // Option 4: Outer path (wide contour)
       const externalPath = generateExternalPath(fromX, fromY, toX, toY, fromDirection, toDirection, baseDistance * 2);
       options.push(externalPath);
       
@@ -248,7 +248,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const generateDirectPath = (fx: number, fy: number, tx: number, ty: number, fromDir: string, toDir: string, dist: number): { x: number, y: number }[] => {
       const path = [{ x: fx, y: fy }];
       
-      // Sortir du composant
+      // Exit from component
       switch (fromDir) {
         case 'left': path.push({ x: fx - dist, y: fy }); break;
         case 'right': path.push({ x: fx + dist, y: fy }); break;
@@ -258,7 +258,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       
       const lastPoint = path[path.length - 1];
       
-      // Aller vers la destination
+      // Go to destination
       if (fromDir === 'left' || fromDir === 'right') {
         if (toDir === 'left' || toDir === 'right') {
           const midY = (lastPoint.y + ty) / 2;
@@ -286,7 +286,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const generateHorizontalDetourPath = (fx: number, fy: number, tx: number, ty: number, midX: number, fromDir: string, toDir: string, dist: number): { x: number, y: number }[] => {
       const path = [{ x: fx, y: fy }];
       
-      // Sortir du composant source
+      // Exit from component source
       switch (fromDir) {
         case 'left': path.push({ x: fx - dist, y: fy }); break;
         case 'right': path.push({ x: fx + dist, y: fy }); break;
@@ -296,7 +296,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       
       const startPoint = path[path.length - 1];
       
-      // Aller au point de détour horizontal
+      // Go to horizontal detour point
       path.push({ x: midX, y: startPoint.y });
       path.push({ x: midX, y: ty });
       path.push({ x: tx, y: ty });
@@ -307,7 +307,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const generateVerticalDetourPath = (fx: number, fy: number, tx: number, ty: number, midY: number, fromDir: string, toDir: string, dist: number): { x: number, y: number }[] => {
       const path = [{ x: fx, y: fy }];
       
-      // Sortir du composant source
+      // Exit from component source
       switch (fromDir) {
         case 'left': path.push({ x: fx - dist, y: fy }); break;
         case 'right': path.push({ x: fx + dist, y: fy }); break;
@@ -317,7 +317,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       
       const startPoint = path[path.length - 1];
       
-      // Aller au point de détour vertical
+      // Go to vertical detour point
       path.push({ x: startPoint.x, y: midY });
       path.push({ x: tx, y: midY });
       path.push({ x: tx, y: ty });
@@ -328,7 +328,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const generateExternalPath = (fx: number, fy: number, tx: number, ty: number, fromDir: string, toDir: string, dist: number): { x: number, y: number }[] => {
       const path = [{ x: fx, y: fy }];
       
-      // Sortir largement du composant
+      // Exit widely from component
       switch (fromDir) {
         case 'left': path.push({ x: fx - dist, y: fy }); break;
         case 'right': path.push({ x: fx + dist, y: fy }); break;
@@ -338,7 +338,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       
       const startPoint = path[path.length - 1];
       
-      // Contourner largement
+      // Wide contour
       const margin = 50;
       const minX = Math.min(fx, tx) - margin;
       const maxX = Math.max(fx, tx) + margin;
@@ -359,23 +359,23 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       return path;
     };
     
-    // Générer les options de chemin
+    // Generate path options
     const pathOptions = generatePathOptions();
     
-    // Évaluer chaque option et choisir la meilleure
+    // Evaluate each option and choose the best
     let bestPath = pathOptions[0];
     let bestScore = Infinity;
     
     for (const pathOption of pathOptions) {
       if (isPathClear(pathOption, connectionId)) {
-        // Calculer un score basé sur la longueur et la complexité
+        // Calculate score based on length and complexity
         const length = pathOption.reduce((sum, point, i) => {
           if (i === 0) return 0;
           const prev = pathOption[i - 1];
           return sum + Math.sqrt((point.x - prev.x) ** 2 + (point.y - prev.y) ** 2);
         }, 0);
         
-        const complexity = pathOption.length; // Plus de points = plus complexe
+        const complexity = pathOption.length; // More points = more complex
         const score = length + complexity * 20;
         
         if (score < bestScore) {
@@ -385,11 +385,11 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       }
     }
     
-    // Marquer le chemin choisi dans la grille
+    // Mark chosen path in grid
     markGridCells(bestPath, connectionId, true);
     connectionPaths.current.set(connectionId, bestPath);
     
-    // Construire le path SVG
+    // Build path SVG
     let pathString = `M ${bestPath[0].x} ${bestPath[0].y}`;
     for (let i = 1; i < bestPath.length; i++) {
       pathString += ` L ${bestPath[i].x} ${bestPath[i].y}`;
@@ -398,42 +398,42 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     return pathString;
   };
 
-  // Fonction pour mapper intelligemment les noms de broches
+  // Function to map pin names intelligently
   const mapPinName = (suggestedPin: string, availablePins: WiringPin[]): string => {
     console.log('mapPinName - Suggested pin:', suggestedPin, 'Available pins:', availablePins.map(p => ({ id: p.id, name: p.name, type: p.type })));
     
-    // Correspondance exacte d'abord
+    // Exact match first
     const exactMatch = availablePins.find(pin => pin.id === suggestedPin || pin.name === suggestedPin);
     if (exactMatch) {
       console.log('Found exact match:', exactMatch.id);
       return exactMatch.id;
     }
 
-    // Mapping intelligent basé sur les types et noms courants
+    // Intelligent mapping based on current types and names
     const pinMappings: { [key: string]: string[] } = {
-      // Alimentation - plus de variations
+      // Power supply - more variations
       'vcc': ['vcc', 'power', '3v3', '5v', 'vin', 'v+', '+', 'positive', '3.3v'],
       'gnd': ['gnd', 'ground', '-', 'v-', 'negative', 'masse'],
       'positive': ['positive', '+', 'vcc', 'power', 'vin', 'v+'],
       'negative': ['negative', '-', 'gnd', 'ground', 'v-'],
       
-      // Communication I2C
+      // I2C communication
       'sda': ['sda', 'data', 'i2c_sda', 'serial_data'],
       'scl': ['scl', 'clock', 'i2c_scl', 'serial_clock'],
       
-      // GPIO et signaux - plus de variations
+      // GPIO and signals - more variations
       'gpio1': ['gpio1', 'pin1', 'd1', 'digital1', 'io1', 'd0', 'gpio0'],
       'gpio2': ['gpio2', 'pin2', 'd2', 'digital2', 'io2', 'd1'],
       'gpio3': ['gpio3', 'pin3', 'd3', 'digital3', 'io3', 'd2'],
       'gpio4': ['gpio4', 'pin4', 'd4', 'digital4', 'io4', 'd3'],
       'data': ['data', 'signal', 'out', 'output', 'analog', 'sensor'],
       
-      // Broches génériques - plus de variations
+      // Generic pins - more variations
       'pin1': ['pin1', 'p1', '1', 'input1', 'input', 'in'],
       'pin2': ['pin2', 'p2', '2', 'output1', 'output', 'out']
     };
 
-    // Chercher une correspondance dans les mappings avec plus de tolérance
+    // Search for a match in mappings with more tolerance
     for (const [pinId, aliases] of Object.entries(pinMappings)) {
       const pinExists = availablePins.find(pin => pin.id === pinId);
       if (pinExists) {
@@ -443,7 +443,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           return suggestedLower === aliasLower || 
                  suggestedLower.includes(aliasLower) || 
                  aliasLower.includes(suggestedLower) ||
-                 // Correspondance partielle pour les noms composés
+                 // Partial match for compound names
                  (suggestedLower.includes(aliasLower.split('_')[0]) && aliasLower.includes('_')) ||
                  (aliasLower.includes(suggestedLower.split('_')[0]) && suggestedLower.includes('_'));
         });
@@ -455,10 +455,10 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       }
     }
 
-    // Si aucune correspondance, essayer de trouver par type avec plus de flexibilité
+    // If no match, try finding by type with more flexibility
     const suggestedLower = suggestedPin.toLowerCase();
     
-    // Alimentation
+    // Power supply
     if (suggestedLower.includes('power') || suggestedLower.includes('vcc') || 
         suggestedLower.includes('3v') || suggestedLower.includes('5v') || 
         suggestedLower.includes('positive') || suggestedLower.includes('+') ||
@@ -470,7 +470,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       }
     }
     
-    // Masse
+    // Ground
     if (suggestedLower.includes('gnd') || suggestedLower.includes('ground') || 
         suggestedLower.includes('negative') || suggestedLower.includes('-') ||
         suggestedLower.includes('masse') || suggestedLower.includes('v-')) {
@@ -481,7 +481,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       }
     }
 
-    // Données/Signaux
+    // Data/Signals
     if (suggestedLower.includes('data') || suggestedLower.includes('signal') || 
         suggestedLower.includes('analog') || suggestedLower.includes('sensor') ||
         suggestedLower.includes('out') || suggestedLower.includes('output')) {
@@ -502,22 +502,22 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       }
     }
 
-    // En dernier recours, utiliser la première broche disponible appropriée
+    // As a last resort, use the first available pin of the appropriate type
     console.log('No specific match found, using fallback logic for:', suggestedPin);
     
-    // Essayer de trouver une broche par priorité de type
-    let fallbackPin = availablePins.find(pin => pin.type === 'power') || // Priorité aux broches d'alimentation
-                      availablePins.find(pin => pin.type === 'ground') || // Puis masse
-                      availablePins.find(pin => pin.type === 'digital') || // Puis digital
-                      availablePins.find(pin => pin.type === 'analog') || // Puis analog
-                      availablePins[0]; // En dernier recours, la première
+    // Try to find a pin by type priority
+    let fallbackPin = availablePins.find(pin => pin.type === 'power') || // Prioritize power pins
+                      availablePins.find(pin => pin.type === 'ground') || // Then ground
+                      availablePins.find(pin => pin.type === 'digital') || // Then digital
+                      availablePins.find(pin => pin.type === 'analog') || // Then analog
+                      availablePins[0]; // As a last resort, the first available
 
     const result = fallbackPin ? fallbackPin.id : suggestedPin;
     console.log('Final result for', suggestedPin, ':', result);
     return result;
   };
 
-  // Fonctions de zoom et navigation
+  // Zoom and navigation functions
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev * 1.2, 5));
   };
@@ -531,7 +531,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     setPan({ x: 0, y: 0 });
   };
 
-  // Fonctions pour redimensionner la zone de dessin
+  // Functions to resize drawing area
   const handleExpandWidth = () => {
     setSvgSize(prev => ({ ...prev, width: prev.width + 200 }));
   };
@@ -548,12 +548,12 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     setSvgSize(prev => ({ ...prev, height: Math.max(300, prev.height - 150) }));
   };
 
-  // Calculer les quantités utilisées à partir du diagramme
+  // Calculate used quantities from diagram
   useEffect(() => {
     if (diagram) {
       const quantities: Record<string, number> = {};
       diagram.components.forEach(component => {
-        // Utiliser materialId si disponible, sinon utiliser l'id du composant
+        // Use materialId if available, otherwise use component id
         const materialId = component.materialId || component.id;
         if (materialId) {
           quantities[materialId] = (quantities[materialId] || 0) + 1;
@@ -566,7 +566,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     }
   }, [diagram]);
 
-  // Gestion des raccourcis clavier pour le zoom et la suppression
+  // Keyboard shortcuts for zoom and deletion
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) {
@@ -586,7 +586,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
             break;
         }
       } else {
-        // Gestion de la touche Supprimer pour supprimer l'élément sélectionné
+        // Handle delete key for deleting selected element
         switch (e.key) {
           case 'Delete':
           case 'Backspace':
@@ -605,22 +605,22 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedComponent, selectedConnection]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Désactiver le scroll de la page quand la souris est dans la zone de dessin
+  // Disable page scroll when mouse is in drawing area
   const [isMouseInCanvas, setIsMouseInCanvas] = useState(false);
 
   const handleMouseEnter = () => {
     setIsMouseInCanvas(true);
-    // Désactiver le scroll de la page
+    // Disable page scroll
     document.body.style.overflow = 'hidden';
   };
 
   const handleMouseLeave = () => {
     setIsMouseInCanvas(false);
-    // Réactiver le scroll de la page
+    // Re-enable page scroll
     document.body.style.overflow = 'auto';
   };
 
-  // Empêcher le scroll de la page quand on est dans le canvas
+  // Prevent page scroll when in canvas
   useEffect(() => {
     const handleGlobalWheel = (e: WheelEvent) => {
       if (isMouseInCanvas) {
@@ -628,12 +628,12 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       }
     };
 
-    // Ajouter l'événement avec passive: false pour pouvoir utiliser preventDefault
+    // Add event with passive: false for using preventDefault
     document.addEventListener('wheel', handleGlobalWheel, { passive: false });
     
     return () => {
       document.removeEventListener('wheel', handleGlobalWheel);
-      // Restaurer le scroll au démontage du composant
+      // Restore scroll on component unmount
       document.body.style.overflow = 'auto';
     };
   }, [isMouseInCanvas]);
@@ -658,7 +658,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
   }, []);
 
   /**
-   * Extrait les broches depuis les spécifications techniques d'un matériau
+   * Extract pins from technical specifications of a material
    */
   const extractPinsFromTechnicalSpecs = (material: any): WiringPin[] => {
     const specs = material.currentVersion?.specs || {};
@@ -675,12 +675,12 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       productReference: productReference.name
     });
     
-    // 1. Analyser les spécifications techniques pour extraire les informations de broches
+    // 1. Analyze technical specifications to extract pin information
     Object.entries(technicalSpecs).forEach(([key, value]) => {
       const keyLower = key.toLowerCase();
       const valueStr = String(value).toLowerCase();
       
-      // Chercher des patterns de broches dans les spécifications
+      // Search for pin patterns in specifications
       if (keyLower.includes('pin') || keyLower.includes('broche') || keyLower.includes('gpio')) {
         const digitalPins = valueStr.match(/(\d+)\s*digital/i);
         const analogPins = valueStr.match(/(\d+)\s*analog/i);
@@ -726,7 +726,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
         }
       }
       
-      // Interfaces de communication
+      // Communication interfaces
       if (keyLower.includes('interface') || keyLower.includes('communication')) {
         if (valueStr.includes('i2c') || valueStr.includes('iic')) {
       pins.push(
@@ -750,7 +750,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
         }
       }
       
-      // Voltage et alimentation
+      // Voltage and power supply
       if (keyLower.includes('voltage') || keyLower.includes('power') || keyLower.includes('supply')) {
         const voltage3v3 = valueStr.includes('3.3v') || valueStr.includes('3v3');
         const voltage5v = valueStr.includes('5v');
@@ -767,7 +767,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
       }
     });
     
-    // 2. Générer des broches spécifiques basées sur le type de composant et références produit
+    // 2. Generate specific pins based on component type and product reference
     if (componentType.includes('arduino') || productReference.name?.toLowerCase().includes('arduino')) {
       // Arduino Uno R3 standard pinout
       if (!pins.some(p => p.name.startsWith('D'))) {
@@ -792,7 +792,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           });
         }
       }
-      // Broches d'alimentation et contrôle
+      // Power and control pins
       if (!pins.some(p => p.id === 'vcc')) {
         pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -25 }, connected: false, voltage: 5.0 });
         pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 25 }, connected: false });
@@ -820,7 +820,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
         pins.push({ id: 'en', name: 'EN', type: 'digital', position: { x: -40, y: 0 }, connected: false });
       }
     } else if (componentType.includes('sensor')) {
-      // Capteurs génériques
+      // Generic sensors
       if (!pins.some(p => p.id === 'vcc')) {
         pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -20 }, connected: false, voltage: 3.3 });
         pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 20 }, connected: false });
@@ -834,19 +834,19 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
         }
       }
     } else if (componentType.includes('display') || componentType.includes('oled') || componentType.includes('lcd')) {
-      // Écrans
+      // Screens
       if (!pins.some(p => p.id === 'vcc')) {
         pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -30 }, connected: false, voltage: 3.3 });
         pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 30 }, connected: false });
         
-        // Par défaut I2C
+        // Default I2C
         if (!pins.some(p => p.id === 'sda')) {
           pins.push({ id: 'sda', name: 'SDA', type: 'digital', position: { x: 40, y: -20 }, connected: false });
           pins.push({ id: 'scl', name: 'SCL', type: 'digital', position: { x: 40, y: 20 }, connected: false });
         }
       }
     } else if (componentType.includes('relay')) {
-      // Relais
+      // Relays
       if (!pins.some(p => p.id === 'vcc')) {
         pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -20 }, connected: false, voltage: 5.0 });
         pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 20 }, connected: false });
@@ -855,14 +855,14 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
         pins.push({ id: 'no', name: 'NO', type: 'power', position: { x: 30, y: 15 }, connected: false });
       }
     } else if (componentType.includes('battery') || componentType.includes('power')) {
-      // Batteries et alimentations
+      // Batteries and power supplies
       if (!pins.some(p => p.id === 'positive')) {
         pins.push({ id: 'positive', name: '+', type: 'power', position: { x: 0, y: -25 }, connected: false, voltage: 12 });
         pins.push({ id: 'negative', name: '-', type: 'ground', position: { x: 0, y: 25 }, connected: false });
       }
     }
     
-    // 3. Broches génériques si aucune trouvée
+    // 3. Generic pins if none found
     if (pins.length === 0) {
       pins.push(
         { id: 'vcc', name: 'VCC', type: 'power', position: { x: -25, y: -15 }, connected: false, voltage: 3.3 },
@@ -884,7 +884,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const materialName = material.name || specs.name || 'Component';
     const materialType = specs.type || material.type || material.category || 'Component';
     
-    // Utiliser les spécifications techniques réelles pour générer les broches
+    // Use actual technical specifications to generate pins
     const pins = extractPinsFromTechnicalSpecs(material);
 
     const componentName = materialName.length > 15 ? materialName.substring(0, 12) + '...' : materialName;
@@ -899,16 +899,16 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
   };
 
   const handleAddComponent = (material: any) => {
-    // Vérifier si nous avons atteint la quantité limite pour ce matériau
+    // Check if we've reached the limit for this material
     const currentlyUsed = usedQuantities[material.id] || 0;
-    const availableQuantity = material.quantity || 1; // Par défaut 1 si pas de quantité spécifiée
+    const availableQuantity = material.quantity || 1; // Default 1 if no quantity specified
     
     if (currentlyUsed >= availableQuantity) {
       console.warn(`Maximum quantity reached for ${material.name}: ${availableQuantity}`);
       return;
     }
 
-    // Calculer une position organisée pour le nouveau composant
+    // Calculate an organized position for the new component
     const existingComponents = diagram?.components.length || 0;
     const componentsPerRow = 3;
     const componentSpacingX = 150;
@@ -955,7 +955,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     if (onComponentDelete) {
       onComponentDelete(componentId);
     }
-    // Nettoyer également toutes les connexions associées à ce composant
+    // Also clear all connections associated with this component
     if (diagram) {
       const connectionsToDelete = diagram.connections.filter(
         conn => conn.fromComponent === componentId || conn.toComponent === componentId
@@ -1029,7 +1029,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     }
   };
 
-  // Gestion de la molette pour le zoom
+  // Handle scroll wheel for zooming
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const rect = svgRef.current?.getBoundingClientRect();
@@ -1041,7 +1041,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
     const newZoom = Math.max(0.1, Math.min(5, zoom * zoomFactor));
     
-    // Zoom vers la position de la souris
+    // Zoom towards mouse position
     const zoomRatio = newZoom / zoom;
     setPan(prevPan => ({
       x: mouseX - (mouseX - prevPan.x) * zoomRatio,
@@ -1090,10 +1090,10 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const isSelected = selectedComponent === component.id;
     const isDragging = draggedComponent?.id === component.id;
     
-    // Determine component size based on type - Tailles agrandies pour éviter le débordement de texte
+    // Determine component size based on type - Larger sizes to prevent text overflow
     const size = getComponentSize(component.type);
     
-    // Couleurs basées sur le type de composant pour une meilleure identification
+    // Colors based on component type for better identification
     const getComponentColor = (type: string) => {
       const typeStr = type.toLowerCase();
       if (typeStr.includes('microcontroller') || typeStr.includes('arduino')) {
@@ -1114,7 +1114,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     
     return (
       <g key={component.id}>
-        {/* Ombre pour donner de la profondeur */}
+        {/* Shadow for depth */}
         <rect
           x={component.position.x + 2}
           y={component.position.y + 2}
@@ -1140,7 +1140,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           />
         )}
         
-        {/* Gradient pour le corps du composant */}
+        {/* Gradient for component body */}
         <defs>
           <linearGradient id={`gradient-${component.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor={mainColor} />
@@ -1165,7 +1165,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           }}
         />
         
-        {/* Component label - Amélioration de la lisibilité */}
+        {/* Component label - Improved readability */}
         <text
           x={component.position.x + size.width / 2}
           y={component.position.y + size.height / 2 - 8}
@@ -1181,7 +1181,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           {component.name}
         </text>
         
-        {/* Component type label - Police agrandie */}
+        {/* Component type label - Larger font */}
         <text
           x={component.position.x + size.width / 2}
           y={component.position.y + size.height / 2 + 10}
@@ -1198,11 +1198,11 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
 
         {/* Pins */}
         {component.pins.map((pin) => {
-          // Positionner les broches à l'intérieur du composant
+          // Position pins inside the component
           const pinX = component.position.x + size.width / 2 + pin.position.x;
           const pinY = component.position.y + size.height / 2 + pin.position.y;
           
-          // Couleurs des broches selon leur type
+          // Colors of pins based on their type
           const getPinColor = (pinType: string) => {
             switch (pinType) {
               case 'power': return { fill: '#f44336', stroke: '#d32f2f' };
@@ -1218,7 +1218,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           
           return (
             <g key={`${component.id}-${pin.id}`}>
-              {/* Ombre de la broche */}
+              {/* Shadow of the pin */}
               <circle
                 cx={pinX + 1}
                 cy={pinY + 1}
@@ -1226,7 +1226,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
                 fill="rgba(0,0,0,0.2)"
               />
               
-              {/* Corps de la broche */}
+              {/* Body of the pin */}
               <circle
                 cx={pinX}
                 cy={pinY}
@@ -1244,7 +1244,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
                 }}
               />
               
-              {/* Indicateur de connexion */}
+              {/* Connection indicator */}
               {isConnected && (
                 <circle
                   cx={pinX}
@@ -1254,7 +1254,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
                 />
               )}
               
-              {/* Label de la broche avec fond */}
+              {/* Label of the pin with background */}
               <g style={{ pointerEvents: 'none' }}>
                 <rect
                   x={pinX + (pin.position.x > 0 ? 10 : -10 - pin.name.length * 4)}
@@ -1311,7 +1311,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     
     if (!fromComponent || !toComponent) return null;
     
-    // Utiliser le mapping intelligent pour trouver les broches
+    // Use intelligent mapping to find pins
     const mappedFromPin = mapPinName(connection.fromPin, fromComponent.pins);
     const mappedToPin = mapPinName(connection.toPin, toComponent.pins);
     
@@ -1319,7 +1319,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const toPin = toComponent.pins.find(p => p.id === mappedToPin);
     
     if (!fromPin || !toPin) {
-      console.warn(`Connexion invalide: ${connection.fromPin} -> ${connection.toPin}`, {
+      console.warn(`Invalid connection: ${connection.fromPin} -> ${connection.toPin}`, {
         fromComponent: fromComponent.name,
         toComponent: toComponent.name,
         availableFromPins: fromComponent.pins.map(p => p.id),
@@ -1342,7 +1342,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const wireColor = connection.wireColor || '#666';
     const hasError = connection.error;
     
-          // Créer le path orthogonal intelligent
+          // Create smart orthogonal path
       let pathData: string;
       try {
         pathData = createSmartOrthogonalPath(
@@ -1352,14 +1352,14 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           connection.id, diagram.connections
         );
       } catch (error) {
-        console.warn('Erreur lors de la création du chemin intelligent, utilisation du chemin simple:', error);
-        // Fallback vers un chemin simple
+        console.warn('Error creating smart path, falling back to simple path:', error);
+        // Fallback to simple path
         pathData = `M ${fromX} ${fromY} L ${toX} ${toY}`;
       }
     
     return (
       <g key={connection.id}>
-        {/* Ombre pour donner de la profondeur */}
+        {/* Shadow for depth */}
         <path
           d={pathData}
           stroke="rgba(0,0,0,0.1)"
@@ -1367,7 +1367,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           fill="none"
           transform="translate(1,1)"
         />
-        {/* Connexion principale */}
+        {/* Main connection */}
         <path
           d={pathData}
           stroke={hasError ? '#f44336' : isSelected ? '#1976d2' : wireColor}
@@ -1381,7 +1381,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
             strokeLinejoin: 'round'
           }}
         />
-        {/* Points de connexion */}
+        {/* Connection points */}
         <circle
           cx={fromX}
           cy={fromY}
@@ -1398,7 +1398,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           stroke="white"
           strokeWidth={1}
         />
-        {/* Label de la connexion si sélectionnée */}
+        {/* Label of the connection if selected */}
         {isSelected && (
           <text
             x={(fromX + toX) / 2}
@@ -1419,26 +1419,26 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
   const renderConnectionInProgress = () => {
     if (!connectionInProgress) return null;
     
-    // Créer un path orthogonal temporaire pour la connexion en cours
+    // Create a temporary orthogonal path for the ongoing connection
     const fromX = connectionInProgress.fromX;
     const fromY = connectionInProgress.fromY;
     const toX = connectionInProgress.currentX;
     const toY = connectionInProgress.currentY;
     
-    // Path simple orthogonal pour la connexion temporaire
+    // Simple orthogonal path for temporary connection
     let path = `M ${fromX} ${fromY}`;
     
-    // Si la distance est suffisante, créer un chemin orthogonal
+    // If distance is sufficient, create an orthogonal path
     const deltaX = Math.abs(toX - fromX);
     const deltaY = Math.abs(toY - fromY);
     
     if (deltaX > 20 || deltaY > 20) {
       if (deltaX > deltaY) {
-        // Mouvement principalement horizontal
+        // Mainly horizontal movement
         const midX = fromX + (toX - fromX) * 0.7;
         path += ` L ${midX} ${fromY} L ${midX} ${toY}`;
       } else {
-        // Mouvement principalement vertical
+        // Mainly vertical movement
         const midY = fromY + (toY - fromY) * 0.7;
         path += ` L ${fromX} ${midY} L ${toX} ${midY}`;
       }
@@ -1448,7 +1448,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     
     return (
       <g>
-        {/* Ombre pour la connexion temporaire */}
+        {/* Shadow for temporary connection */}
         <path
           d={path}
           stroke="rgba(25, 118, 210, 0.3)"
@@ -1456,7 +1456,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           fill="none"
           transform="translate(1,1)"
         />
-        {/* Connexion temporaire */}
+        {/* Temporary connection */}
         <path
           d={path}
           stroke="#1976d2"
@@ -1468,7 +1468,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
             strokeLinejoin: 'round'
           }}
         />
-        {/* Point de début */}
+        {/* Start point */}
         <circle
           cx={fromX}
           cy={fromY}
@@ -1477,7 +1477,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
           stroke="white"
           strokeWidth={2}
         />
-        {/* Point de fin (curseur) */}
+        {/* End point (cursor) */}
         <circle
           cx={toX}
           cy={toY}
@@ -1515,7 +1515,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
               const availableQuantity = material.quantity || 1;
               const isMaxedOut = currentlyUsed >= availableQuantity;
               
-              // Tronquer le nom s'il est trop long et afficher le nom complet au survol
+              // Truncate name if it's too long and show full name on hover
               const displayName = material.name || 'Component';
               const truncatedName = displayName.length > 15 
                 ? `${displayName.substring(0, 15)}...` 
@@ -1535,7 +1535,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
                   sx={{ 
                     opacity: isMaxedOut ? 0.5 : 1,
                     cursor: isMaxedOut ? 'not-allowed' : 'pointer',
-                    maxWidth: 200, // Largeur maximale pour éviter les chips trop larges
+                    maxWidth: 200, // Maximum width to prevent chips from being too wide
                     '& .MuiChip-label': {
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',

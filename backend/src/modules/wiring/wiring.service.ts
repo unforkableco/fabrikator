@@ -12,7 +12,7 @@ export class WiringService {
   }
 
   /**
-   * Récupère le plan de câblage pour un projet
+   * Get wiring plan for a project
    */
   async getWiringForProject(projectId: string) {
     try {
@@ -29,12 +29,12 @@ export class WiringService {
   }
 
   /**
-   * Crée un nouveau plan de câblage pour un projet
+   * Create a new wiring plan for a project
    */
   async createWiring(projectId: string, wiringData: any) {
     try {
       return await prisma.$transaction(async (tx) => {
-        // Créer le schéma de câblage
+        // Create the wiring schema
         const wiringSchema = await tx.wiringSchema.create({
           data: { 
             id: uuidv4(),
@@ -42,7 +42,7 @@ export class WiringService {
           }
         });
         
-        // Créer la première version
+        // Create the first version
         const version = await tx.wireVersion.create({
           data: {
             id: uuidv4(),
@@ -58,13 +58,13 @@ export class WiringService {
           }
         });
         
-        // Mettre à jour le schéma pour pointer vers cette version
+        // Update schema to point to this version
         await tx.wiringSchema.update({
           where: { id: wiringSchema.id },
           data: { currentVersionId: version.id }
         });
         
-        // Créer une entrée de changelog
+        // Create a changelog entry
         await tx.changeLog.create({
           data: {
             id: uuidv4(),
@@ -95,7 +95,7 @@ export class WiringService {
   }
 
   /**
-   * Récupère un plan de câblage par son ID
+   * Get a wiring plan by ID
    */
   async getWiringById(id: string) {
     try {
@@ -112,7 +112,7 @@ export class WiringService {
   }
 
   /**
-   * Ajoute une nouvelle version à un plan de câblage existant
+   * Add a new version to an existing wiring plan
    */
   async addVersion(wiringSchemaId: string, versionData: any) {
     try {
@@ -135,26 +135,26 @@ export class WiringService {
       for (let attempts = 0; attempts < maxAttempts; attempts++) {
         try {
           return await prisma.$transaction(async (tx) => {
-            // Obtenir toutes les versions existantes pour ce schéma
+            // Get all existing versions for this schema
             const existingVersions = await tx.wireVersion.findMany({
               where: { wiringSchemaId },
               select: { versionNumber: true },
               orderBy: { versionNumber: 'desc' }
             });
             
-            // Calculer le prochain numéro de version disponible
+            // Compute next available version number
             let nextVersionNumber = 1;
             if (existingVersions.length > 0) {
               const usedNumbers = existingVersions.map(v => v.versionNumber).sort((a, b) => a - b);
               nextVersionNumber = usedNumbers[usedNumbers.length - 1] + 1;
             }
             
-            // Ajouter l'offset des tentatives pour éviter les collisions
+            // Add attempt offset to avoid collisions
             nextVersionNumber += attempts;
             
             console.log(`Creating version ${nextVersionNumber} for schema ${wiringSchemaId}`);
             
-            // Créer une nouvelle version
+            // Create new version
             const version = await tx.wireVersion.create({
               data: {
                 id: uuidv4(),
@@ -170,13 +170,13 @@ export class WiringService {
               }
             });
             
-            // Mettre à jour le schéma pour pointer vers cette version
+            // Update schema to point to this version
             await tx.wiringSchema.update({
               where: { id: wiringSchemaId },
               data: { currentVersionId: version.id }
             });
             
-            // Créer une entrée de changelog
+            // Create a changelog entry
             await tx.changeLog.create({
               data: {
                 id: uuidv4(),
@@ -208,7 +208,7 @@ export class WiringService {
           });
         } catch (error: any) {
           if (error.code === 'P2002' && attempts < maxAttempts - 1) {
-            // Unique constraint violation, try with next attempt
+            // Unique constraint violation, try next attempt
             console.log(`Version conflict on attempt ${attempts + 1}, retrying...`);
             continue;
           } else {
@@ -225,7 +225,7 @@ export class WiringService {
   }
 
   /**
-   * Récupère les versions d'un plan de câblage
+   * Get versions of a wiring plan
    */
   async getWiringVersions(wiringSchemaId: string) {
     try {
@@ -245,24 +245,24 @@ export class WiringService {
   }
 
   /**
-   * Génère des suggestions de câblage avec l'IA
+   * Generate wiring suggestions with AI
    */
-  async generateWiringSuggestions(projectId: string, prompt: string, currentDiagram: any) {
+  async generateWiringSuggestions(projectId: string, prompt: string, currentDiagram: any, language?: string, chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>) {
     try {
       console.log('WiringService - Generating AI suggestions for:', prompt);
       
-      // Récupérer les matériaux du projet depuis la base de données
+      // Fetch project materials from database
       const materials = await prisma.component.findMany({
         where: { projectId },
         include: { currentVersion: true }
       });
 
-      // Transformer les matériaux en format simple pour l'IA
+      // Transform materials to a simplified format for AI
       const simplifiedMaterials = materials.map(material => {
         const specs = material.currentVersion?.specs as any || {};
         return {
           id: material.id,
-          name: specs.name || 'Composant',
+          name: specs.name || 'Component',
           type: specs.type || 'unknown',
           quantity: specs.quantity || 1,
           description: specs.description || '',
@@ -272,12 +272,12 @@ export class WiringService {
 
       console.log('WiringService - Available materials:', simplifiedMaterials.length);
       
-      // Analyser les connexions existantes
+      // Analyze existing connections
       const existingConnections = currentDiagram?.connections || [];
       console.log('WiringService - Existing connections:', existingConnections.length);
       console.log('WiringService - Current diagram:', JSON.stringify(currentDiagram, null, 2));
       
-      // Créer un mapping des connexions existantes pour l'IA
+      // Build mapping of existing connections for AI
       const existingConnectionsForAI = existingConnections.map((conn: any) => ({
         id: conn.id,
         fromComponent: conn.fromComponent,
@@ -288,28 +288,24 @@ export class WiringService {
         wireColor: conn.wireColor
       }));
 
-      // Utiliser l'IA pour générer les suggestions
-      const aiResponse = await this.aiService.generateWiringSuggestions({
+      // Use AI to generate suggestions
+      const aiResponse = await this.aiService.generateWiringSuggestions(
         prompt,
-        materials: simplifiedMaterials,
-        currentDiagram: {
-          ...currentDiagram,
-          existingConnections: existingConnectionsForAI
-        }
-      });
+        { materials: simplifiedMaterials, currentDiagram, existingConnections: existingConnectionsForAI, language, chatHistory }
+      );
 
       console.log('WiringService - AI response received:', aiResponse);
 
-      // Transformer la réponse IA en format attendu par le frontend
+      // Transform AI response into frontend format
       const suggestions = aiResponse.suggestions?.map((suggestion: any, index: number) => {
-        // Pour les actions "remove", connectionData peut être null
+        // For "remove" actions, connectionData can be null
         if (suggestion.action === 'remove') {
           if (!suggestion.existingConnectionId) {
             console.warn('Remove action without existingConnectionId:', suggestion);
             return null;
           }
           
-          // Trouver la connexion existante à supprimer
+          // Find the existing connection to remove
           const connectionToRemove = existingConnections.find((conn: any) => conn.id === suggestion.existingConnectionId);
           if (!connectionToRemove) {
             console.warn('Existing connection not found for removal:', suggestion.existingConnectionId);
@@ -317,7 +313,7 @@ export class WiringService {
           }
           
           return {
-            id: `remove-suggestion-${uuidv4()}`, // ✅ TOUJOURS générer un UUID unique
+            id: `remove-suggestion-${uuidv4()}`, // Always generate a unique UUID
             title: suggestion.type || `Remove connection`,
             description: suggestion.description || `Remove connection ${connectionToRemove.fromComponent} → ${connectionToRemove.toComponent}`,
             action: 'remove',
@@ -329,7 +325,7 @@ export class WiringService {
           };
         }
         
-        // Pour les actions "add" et "update", vérifier que la suggestion a les données de connexion nécessaires
+        // For "add" and "update", ensure suggestion has the required connection data
         if (!suggestion.connectionData) {
           console.warn('Suggestion without connectionData:', suggestion);
           return null;
@@ -337,7 +333,7 @@ export class WiringService {
 
         const connectionData = suggestion.connectionData;
         
-        // Vérifier si cette connexion existe déjà pour les actions 'add'
+        // Check duplicates for 'add' actions
         if (suggestion.action === 'add') {
           const isDuplicate = existingConnections.some((existing: any) => 
             (existing.fromComponent === connectionData.fromComponent && 
@@ -351,7 +347,7 @@ export class WiringService {
           );
           
           if (isDuplicate) {
-            console.log('⚠️ Skipping duplicate connection:', {
+            console.log('Skipping duplicate connection:', {
               from: connectionData.fromComponent,
               to: connectionData.toComponent,
               fromPin: connectionData.fromPin,
@@ -361,12 +357,12 @@ export class WiringService {
           }
         }
         
-        // VALIDATION CRITIQUE: Vérifier que les composants référencés existent
+        // CRITICAL VALIDATION: Ensure referenced components exist
         const fromComponentExists = materials.find(m => m.id === connectionData.fromComponent);
         const toComponentExists = materials.find(m => m.id === connectionData.toComponent);
         
         if (!fromComponentExists || !toComponentExists) {
-          console.error('❌ CONNEXION REJETÉE - Composants inexistants:', {
+          console.error('Rejected connection - components do not exist:', {
             fromComponent: connectionData.fromComponent,
             toComponent: connectionData.toComponent,
             availableComponents: materials.map(m => {
@@ -377,7 +373,7 @@ export class WiringService {
           return null;
         }
 
-        // VALIDATION: Vérifier que les broches sont appropriées basées sur les spécifications techniques
+        // VALIDATION: Ensure pins are appropriate based on technical specifications
         const validFromPins = this.getValidPinsForComponent(fromComponentExists);
         const validToPins = this.getValidPinsForComponent(toComponentExists);
         
@@ -385,7 +381,7 @@ export class WiringService {
           const fromSpecs = fromComponentExists.currentVersion?.specs as any || {};
           const toSpecs = toComponentExists.currentVersion?.specs as any || {};
           
-          console.warn('⚠️ BROCHES INVALIDES - Connexion ajustée (basée sur spécifications techniques):', {
+          console.warn('Invalid pins - Adjusted connection (based on technical specifications):', {
             from: `${fromSpecs.name || 'Unknown'}(${fromSpecs.type || 'Unknown'}).${connectionData.fromPin}`,
             to: `${toSpecs.name || 'Unknown'}(${toSpecs.type || 'Unknown'}).${connectionData.toPin}`,
             validFromPins: validFromPins,
@@ -394,20 +390,20 @@ export class WiringService {
             toComponentSpecs: toSpecs.requirements || {}
           });
           
-          // Ajuster les broches si nécessaire en privilégiant les broches appropriées
+          // Adjust pins if needed, preferring appropriate pins
           if (!validFromPins.includes(connectionData.fromPin)) {
-            // Choisir une broche appropriée selon le type de connexion
+            // Choose an appropriate pin based on the wire type
             if (connectionData.wireType === 'power') {
               connectionData.fromPin = validFromPins.find(p => ['VCC', '5V', '3V3', 'POSITIVE', 'OUT+'].includes(p)) || validFromPins[0];
             } else if (connectionData.wireType === 'ground') {
               connectionData.fromPin = validFromPins.find(p => ['GND', 'NEGATIVE', 'OUT-'].includes(p)) || validFromPins[0];
             } else {
               connectionData.fromPin = validFromPins.find(p => !['VCC', 'GND', '5V', '3V3'].includes(p)) || validFromPins[0];
-          }
+            }
           }
           
           if (!validToPins.includes(connectionData.toPin)) {
-            // Choisir une broche appropriée selon le type de connexion
+            // Choose an appropriate pin based on the wire type
             if (connectionData.wireType === 'power') {
               connectionData.toPin = validToPins.find(p => ['VCC', '5V', '3V3', 'POSITIVE'].includes(p)) || validToPins[0];
             } else if (connectionData.wireType === 'ground') {
@@ -417,22 +413,22 @@ export class WiringService {
             }
           }
           
-          console.log('🔧 BROCHES AJUSTÉES:', {
+          console.log('Adjusted pins:', {
             fromPin: connectionData.fromPin,
             toPin: connectionData.toPin
           });
-          }
+        }
 
         const fromSpecs = fromComponentExists.currentVersion?.specs as any || {};
         const toSpecs = toComponentExists.currentVersion?.specs as any || {};
 
         return {
-          id: `wiring-suggestion-${uuidv4()}`, // ✅ TOUJOURS générer un UUID unique au backend
+          id: `wiring-suggestion-${uuidv4()}`, // Always generate a unique UUID in the backend
           title: suggestion.type || `${suggestion.action || 'add'} ${fromSpecs.name || 'Unknown'} → ${toSpecs.name || 'Unknown'}`,
           description: suggestion.description || this.getActionDescription(suggestion.action, fromSpecs.name || 'Unknown', toSpecs.name || 'Unknown', connectionData.fromPin, connectionData.toPin),
           action: suggestion.action || 'add',
           connectionData: {
-            // ✅ TOUJOURS générer un UUID unique pour connectionData
+            // Always generate a unique UUID for connectionData
             id: `conn-${uuidv4()}`,
             fromComponent: connectionData.fromComponent,
             toComponent: connectionData.toComponent,
@@ -440,7 +436,7 @@ export class WiringService {
             toPin: connectionData.toPin,
             wireType: this.normalizeWireType(connectionData.wireType),
             wireColor: connectionData.wireColor || '#0000ff'
-            // ✅ NE PAS inclure 'validated' ici - c'est au niveau de la suggestion
+            // Do NOT include 'validated' here - it belongs at the suggestion level
           },
           existingConnectionId: suggestion.existingConnectionId,
           componentData: suggestion.componentData,
@@ -448,7 +444,7 @@ export class WiringService {
           validated: false,
           confidence: suggestion.confidence || 0.8
         };
-      }).filter(Boolean) || []; // Filtrer les suggestions nulles
+      }).filter(Boolean) || [];
 
       console.log('WiringService - Processed suggestions:', suggestions.length);
       console.log('WiringService - Valid suggestions:', suggestions.map((s: any) => ({
@@ -474,34 +470,34 @@ export class WiringService {
   }
 
   /**
-   * Extrait les broches depuis les spécifications techniques d'un composant
+   * Extract pins from a component's technical specifications
    */
   private extractPinsFromTechnicalSpecs(component: any): string[] {
     const specs = component.currentVersion?.specs || {};
     const technicalSpecs = specs.requirements || {};
     const productReference = specs.productReference || {};
     
-    console.log(`🔍 Extracting pins for component: ${specs.type || component.type}`);
-    console.log(`📋 Technical specs:`, technicalSpecs);
+    console.log(`Extracting pins for component: ${specs.type || component.type}`);
+    console.log(`Technical specs:`, technicalSpecs);
     
-    // Collecter toutes les broches mentionnées dans les spécifications
+    // Collect all pins mentioned in the specifications
     const pins: string[] = [];
     
-    // 1. Chercher dans les spécifications techniques pour des mentions de broches/pins
+    // 1. Search specs for mentions of pins
     Object.entries(technicalSpecs).forEach(([key, value]) => {
       const keyLower = key.toLowerCase();
       const valueStr = String(value).toLowerCase();
       
-      // Broches communes
+      // Common pins
       if (keyLower.includes('pin') || keyLower.includes('broche') || keyLower.includes('gpio')) {
-        // Extraire des patterns comme "14 digital pins", "6 analog pins"
+        // Extract patterns like "14 digital pins", "6 analog pins"
         const digitalPins = valueStr.match(/(\d+)\s*digital/i);
         const analogPins = valueStr.match(/(\d+)\s*analog/i);
         const gpioPins = valueStr.match(/(\d+)\s*gpio/i);
         
         if (digitalPins) {
           const count = parseInt(digitalPins[1]);
-          // Pas de limitation artificielle - utiliser le vrai nombre de broches
+          // No artificial limitation - use actual number of pins
           for (let i = 0; i < Math.min(count, 60); i++) { // Reasonable limit to avoid errors
             pins.push(`D${i}`);
           }
@@ -509,7 +505,7 @@ export class WiringService {
         
         if (analogPins) {
           const count = parseInt(analogPins[1]);
-          // Pas de limitation artificielle - utiliser le vrai nombre de broches
+          // No artificial limitation - use actual number of pins
           for (let i = 0; i < Math.min(count, 20); i++) { // Reasonable limit to avoid errors
             pins.push(`A${i}`);
           }
@@ -517,14 +513,14 @@ export class WiringService {
         
         if (gpioPins) {
           const count = parseInt(gpioPins[1]);
-          // Pas de limitation artificielle - utiliser le vrai nombre de broches
+          // No artificial limitation - use actual number of pins
           for (let i = 0; i < Math.min(count, 40); i++) { // Reasonable limit to avoid errors
             pins.push(`GPIO${i}`);
           }
         }
       }
       
-      // Interfaces de communication
+      // Communication interfaces
       if (keyLower.includes('interface') || keyLower.includes('communication')) {
         if (valueStr.includes('i2c') || valueStr.includes('iic')) {
           pins.push('SDA', 'SCL');
@@ -537,7 +533,7 @@ export class WiringService {
         }
       }
       
-      // Voltage et alimentation
+      // Voltage and power
       if (keyLower.includes('voltage') || keyLower.includes('power') || keyLower.includes('supply')) {
         pins.push('VCC', 'GND');
         if (valueStr.includes('3.3v') || valueStr.includes('3v3')) {
@@ -549,15 +545,15 @@ export class WiringService {
       }
     });
     
-    // 2. Détecter le type de composant et ajouter des broches spécifiques
+    // 2. Detect component type and add specific pins
     const componentType = (specs.type || component.type || '').toLowerCase();
     
     if (componentType.includes('arduino') || componentType.includes('microcontroller')) {
-      // Arduino pinout - détecter le modèle pour ajuster les broches
+      // Arduino pinout - detect model to adjust pins
       pins.push('VCC', 'GND', '3V3', '5V', 'VIN', 'RESET');
       
       if (componentType.includes('mega') || technicalSpecs['Digital I/O Pins']?.toString().includes('54')) {
-        // Arduino Mega - 54 broches numériques, 16 analogiques
+        // Arduino Mega - 54 digital, 16 analog
         if (!pins.some(p => p.startsWith('D'))) {
           for (let i = 0; i <= 53; i++) pins.push(`D${i}`);
         }
@@ -565,7 +561,7 @@ export class WiringService {
           for (let i = 0; i <= 15; i++) pins.push(`A${i}`);
         }
       } else {
-        // Arduino Uno/Nano standard - 14 broches numériques, 6 analogiques
+        // Arduino Uno/Nano standard - 14 digital, 6 analog
         if (!pins.some(p => p.startsWith('D'))) {
           for (let i = 0; i <= 13; i++) pins.push(`D${i}`);
         }
@@ -574,19 +570,19 @@ export class WiringService {
         }
       }
     } else if (componentType.includes('esp32')) {
-      // ESP32 specific pins - Utiliser les vraies broches disponibles
+      // ESP32 specific pins - use real available pins
       pins.push('VCC', 'GND', '3V3', 'EN', 'VP', 'VN');
-      // ESP32 a 36 GPIO (0-39 mais certaines sont réservées)
+      // ESP32 has 36 GPIOs (0-39 but some are reserved)
       const esp32Pins = [0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39];
       esp32Pins.forEach(i => pins.push(`GPIO${i}`));
-      // Ajouter aussi les broches analogiques spécifiques
+      // Also add specific analog pins
       [36, 39, 34, 35, 32, 33, 25, 26, 27, 14, 12, 13, 4, 0, 2, 15].forEach(i => pins.push(`A${esp32Pins.indexOf(i) >= 0 ? esp32Pins.indexOf(i) : i}`));
     } else if (componentType.includes('esp8266')) {
       pins.push('VCC', 'GND', '3V3', 'RST', 'CH_PD', 'A0');
-      // ESP8266 broches utilisables
+      // ESP8266 usable pins
       [0, 2, 4, 5, 12, 13, 14, 15, 16].forEach(i => pins.push(`GPIO${i}`));
     } else if (componentType.includes('sensor')) {
-      // Capteurs génériques
+      // Generic sensors
       pins.push('VCC', 'GND', 'DATA', 'SIGNAL', 'OUT');
       if (componentType.includes('analog') || componentType.includes('analogue')) {
         pins.push('AOUT', 'ANALOG');
@@ -604,28 +600,28 @@ export class WiringService {
       pins.push('POSITIVE', 'NEGATIVE', 'VCC', 'GND', 'OUT+', 'OUT-');
     }
     
-    // 3. Si aucune broche n'a été trouvée, utiliser des broches génériques
+    // 3. If nothing found, use generic pins
     if (pins.length === 0) {
       pins.push('VCC', 'GND', 'SIGNAL', 'DATA');
     }
     
-    // 4. Retourner les broches uniques, triées
+    // 4. Return unique, sorted pins
     const uniquePins = [...new Set(pins)];
-    console.log(`📌 Extracted pins for ${specs.type || component.type}:`, uniquePins);
+    console.log(`Extracted pins for ${specs.type || component.type}:`, uniquePins);
     return uniquePins.sort();
   }
 
   /**
-   * Retourne les broches valides pour un composant donné (basé sur ses spécifications techniques)
+   * Return valid pins for a component (based on its technical specs)
    */
   private getValidPinsForComponent(component: any): string[] {
-    // Utiliser les spécifications techniques réelles du composant
+    // Use the component's real technical specifications
     return this.extractPinsFromTechnicalSpecs(component);
   }
 
   /**
-   * DEPRECATED: Ancienne fonction gardée pour compatibilité
-   * Utiliser getValidPinsForComponent() à la place
+   * DEPRECATED: Old function kept for compatibility
+   * Use getValidPinsForComponent() instead
    */
   private getValidPinsForComponentType(componentType: string): string[] {
     console.warn('getValidPinsForComponentType() is deprecated. Use getValidPinsForComponent() instead.');
@@ -662,7 +658,7 @@ export class WiringService {
   }
 
   /**
-   * Normalise les types de fils pour correspondre aux types attendus
+   * Normalize wire types to expected categories
    */
   private normalizeWireType(wireType: string): 'data' | 'power' | 'ground' | 'analog' | 'digital' {
     const type = wireType?.toLowerCase() || 'data';
@@ -681,14 +677,14 @@ export class WiringService {
   }
 
   /**
-   * Valide un schéma de câblage
+   * Validate a wiring diagram
    */
   async validateWiring(projectId: string, diagram: any) {
     try {
       const errors: any[] = [];
       const warnings: any[] = [];
 
-      // Validation basique - à étendre avec une logique de validation plus sophistiquée
+      // Basic validation - extend with more sophisticated rules
       if (diagram.components && diagram.connections) {
         for (const connection of diagram.connections) {
           const fromComponent = diagram.components.find((c: any) => c.id === connection.fromComponent);
@@ -698,13 +694,13 @@ export class WiringService {
             errors.push({
               id: `error-${connection.id}`,
               type: 'invalid_connection',
-              message: `Connexion invalide: composant manquant pour ${connection.id}`,
+              message: `Invalid connection: missing component for ${connection.id}`,
               connectionId: connection.id,
               severity: 'error'
             });
           }
 
-          // Vérifier les incompatibilités de tension
+          // Check voltage mismatch
           const fromPin = fromComponent?.pins?.find((p: any) => p.id === connection.fromPin);
           const toPin = toComponent?.pins?.find((p: any) => p.id === connection.toPin);
 
@@ -712,8 +708,8 @@ export class WiringService {
             warnings.push({
               id: `warning-${connection.id}`,
               type: 'voltage_mismatch',
-              message: `Différence de tension détectée: ${fromPin.voltage}V vs ${toPin.voltage}V`,
-              suggestion: 'Vérifiez la compatibilité des tensions ou ajoutez un convertisseur.'
+              message: `Voltage mismatch detected: ${fromPin.voltage}V vs ${toPin.voltage}V`,
+              suggestion: 'Check voltage compatibility or add a converter.'
             });
           }
         }

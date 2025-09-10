@@ -4,7 +4,7 @@ import { MaterialStatus } from '../../types';
 
 export class MaterialService {
   /**
-   * Liste tous les matériaux d'un projet (renvoie tous les statuts)
+   * List all materials of a project (returns all statuses)
    */
   async listMaterials(projectId: string) {
     try {
@@ -16,7 +16,7 @@ export class MaterialService {
         }
       });
       
-      // Ne filtre plus les REJECTED: on retourne tout
+      // Do not filter REJECTED anymore; return everything
       return components;
     } catch (error) {
       console.error('Error in listMaterials:', error);
@@ -25,7 +25,7 @@ export class MaterialService {
   }
 
   /**
-   * Récupère l'historique des versions d'un matériau
+   * Get the version history of a material
    */
   async getMaterialVersions(componentId: string) {
     try {
@@ -40,7 +40,7 @@ export class MaterialService {
   }
 
   /**
-   * Crée un nouveau matériau avec sa première version
+   * Create a new material with its first version
    */
   async createMaterial(projectId: string, materialData: any) {
     try {
@@ -117,7 +117,7 @@ export class MaterialService {
   }
 
   /**
-   * Récupère un matériau par son ID
+   * Get a material by its ID
    */
   async getMaterialById(id: string) {
     try {
@@ -134,7 +134,7 @@ export class MaterialService {
   }
 
   /**
-   * Approuve, rejette ou met à jour un matériau
+   * Approve, reject, or update a material
    */
   async updateMaterialStatus(componentId: string, action: 'approve' | 'reject' | 'update', updateData?: any) {
     try {
@@ -170,13 +170,13 @@ export class MaterialService {
           }
         });
         
-        // Mettre à jour le composant pour pointer vers cette version
+        // Update the component to point to this version
         await tx.component.update({
           where: { id: componentId },
           data: { currentVersionId: version.id }
         });
         
-        // Créer une entrée de changelog
+        // Create a changelog entry
         await tx.changeLog.create({
           data: {
             entity: 'CompVersion',
@@ -206,7 +206,7 @@ export class MaterialService {
   }
 
   /**
-   * Ajoute une nouvelle version à un matériau existant
+   * Add a new version to an existing material
    */
   private async addVersion(componentId: string, versionData: any) {
     try {
@@ -261,13 +261,13 @@ export class MaterialService {
           }
         });
         
-        // Mettre à jour le composant pour pointer vers cette version
+        // Update the component to point to this version
         await tx.component.update({
           where: { id: componentId },
           data: { currentVersionId: version.id }
         });
         
-        // Créer une entrée de changelog
+        // Create a changelog entry
         await tx.changeLog.create({
           data: {
             entity: 'CompVersion',
@@ -299,7 +299,7 @@ export class MaterialService {
   }
 
   /**
-   * Supprimer un matériau et toutes ses versions
+   * Delete a material and all its versions
    */
   async deleteMaterial(componentId: string) {
     try {

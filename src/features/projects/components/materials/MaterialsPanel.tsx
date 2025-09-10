@@ -29,6 +29,14 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   onRejectSelected,
   onMaterialsUpdated,
 }) => {
+  const detectLanguage = (input: string): 'fr' | 'en' => {
+    try {
+      const byLocale = typeof navigator !== 'undefined' && navigator.language && navigator.language.toLowerCase().startsWith('fr');
+      const hasAccent = /[éèêàùçîïôû]/i.test(input);
+      const frenchWords = /(\b|_)(bonjour|merci|svp|stp|s\'il|voudrais|puissance|mettre|plus|de|le|la|les|un|une|des|et|ou|est|vous|nous|je|tu)(\b|_)/i;
+      return (byLocale || hasAccent || frenchWords.test(input)) ? 'fr' : 'en';
+    } catch { return 'en'; }
+  };
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
@@ -85,7 +93,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     try {
       setIsLoadingMessages(true);
       console.log('Loading chat messages for project:', projectId);
-      const dbMessages = await api.projects.getChatMessages(projectId, 'materials', 10);
+      const dbMessages = await api.projects.getChatMessages(projectId, 'materials', 100);
       
       console.log('Raw DB messages:', dbMessages);
       
@@ -312,8 +320,9 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         console.log('Sending ask question:', message);
         
         try {
-          const response = await api.projects.askQuestion(projectId, message);
-          aiResponse = response.answer;
+          const inferredLang = detectLanguage(message);
+          const askRes = await api.projects.askQuestion(projectId, message, 'materials', 'ai', inferredLang);
+          aiResponse = askRes.answer;
         } catch (error) {
           console.error('Error asking question:', error);
           aiResponse = `Sorry, I encountered an error trying to answer your question. Could you rephrase or try again?`;
@@ -323,13 +332,14 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         console.log('Sending agent message:', message);
         
         // First retrieve suggestions without applying them
-        const response = await api.projects.previewMaterialSuggestions(projectId, message);
-        console.log('Agent response:', response);
+        const inferredLang2 = detectLanguage(message);
+        const agentPreview = await api.projects.previewMaterialSuggestions(projectId, message, inferredLang2);
+        console.log('Agent response:', agentPreview);
         
-        if (response && response.components && Array.isArray(response.components)) {
-          const responseWithExplanation = response as any; // Type assertion pour accéder à explanation
+        if (agentPreview && agentPreview.components && Array.isArray(agentPreview.components)) {
+          const responseWithExplanation = agentPreview as any; // Type assertion pour accéder à explanation
           // Transform suggestions for the diff
-          const suggestions = response.components.map((component: any) => ({
+          const suggestions = agentPreview.components.map((component: any) => ({
             action: component.details?.action || 'new',
             type: component.type,
             details: component.details,
@@ -396,7 +406,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
             }
             
             if (responseWithExplanation.explanation.changes && responseWithExplanation.explanation.changes.length > 0) {
-              explanationText += 'Changes made:\n';
+              explanationText += (inferredLang2 === 'fr' ? 'Modifications proposées:\n' : 'Changes made:\n');
               responseWithExplanation.explanation.changes.forEach((change: any, index: number) => {
                 const emoji = change.type === 'added' ? '✅' : 
                             change.type === 'removed' ? '❌' : 
@@ -407,21 +417,26 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
             }
             
             if (responseWithExplanation.explanation.impact) {
-              explanationText += `Impact: ${responseWithExplanation.explanation.impact}\n\n`;
+              explanationText += `${inferredLang2 === 'fr' ? 'Impact' : 'Impact'}: ${responseWithExplanation.explanation.impact}\n\n`;
             }
             
             if (responseWithExplanation.explanation.nextSteps) {
-              explanationText += `Recommendations: ${responseWithExplanation.explanation.nextSteps}`;
+              explanationText += `${inferredLang2 === 'fr' ? 'Recommandations' : 'Recommendations'}: ${responseWithExplanation.explanation.nextSteps}`;
             }
             
             aiResponse = explanationText;
           } else {
             // Fallback to generic message if no detailed explanation
-          const materialCount = suggestions.length;
-          aiResponse = `I have analyzed your request and prepared ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} for modifications. Please review the proposed changes below and choose to accept or reject the modifications.`;
+            const materialCount = suggestions.length;
+            aiResponse = inferredLang2 === 'fr'
+              ? `J'ai analysé votre demande et préparé ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} de modifications. Veuillez examiner les propositions ci‑dessous et accepter ou refuser les modifications.`
+              : `I have analyzed your request and prepared ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} for modifications. Please review the proposed changes below and choose to accept or reject the modifications.`;
           }
         } else {
-                      aiResponse = 'I understand your component modification request. I am working on analyzing your needs and will suggest appropriate components.';
+          const inferredLang2 = detectLanguage(message);
+          aiResponse = inferredLang2 === 'fr'
+            ? `J'ai compris votre demande de modification des composants. J'analyse vos besoins et je proposerai des composants adaptés.`
+            : 'I understand your component modification request. I am working on analyzing your needs and will suggest appropriate components.';
         }
       }
 
@@ -490,13 +505,14 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
 
       setMessages(prev => [...prev, aiMessage]);
       
-      // Save AI message to database and get the real ID
-      const savedAiMessage = await saveChatMessage(aiMessage);
-      if (savedAiMessage) {
-        // Update the message with the database ID
-        setMessages(prev => prev.map(msg => 
-          msg.id === aiMessage.id ? savedAiMessage : msg
-        ));
+      // Persist AI message only when not Ask (Ask AI message is persisted by backend)
+      if (mode !== 'ask') {
+        const savedAiMessage = await saveChatMessage(aiMessage);
+        if (savedAiMessage) {
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessage.id ? savedAiMessage : msg
+          ));
+        }
       }
     } catch (error) {
       console.error('Error sending chat message:', error);
@@ -662,6 +678,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           onAcceptSuggestion={handleAcceptSuggestion}
           onRejectSuggestion={handleRejectSuggestion}
           isGenerating={isGenerating || isLoadingMessages}
+          context="materials"
           projectId={projectId}
         />
         

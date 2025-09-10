@@ -86,6 +86,7 @@ List needed electronics components in JSON format:
   materialsSearch: `
   Project: {{projectName}} - {{projectDescription}}
   Current materials: {{currentMaterials}}
+  Current materials (full specs): {{currentMaterialsFullSpecs}}
   User request: {{userPrompt}}
 
   Analyze and suggest the most elegant, minimal solution.
@@ -102,6 +103,12 @@ List needed electronics components in JSON format:
   2. For each existing component, decide if it should be kept, updated, or removed based on the user's request
   3. Include ALL components that need action in your response with the appropriate action
   4. Provide clear explanations in the notes for each decision made
+
+  **TECHNICAL CONSTRAINTS (MUST MATCH):**
+  - Align ALL suggested technical specs with the corresponding "requirements" fields found in Current materials.
+  - Use explicit, measurable values with units (e.g., 5V, 2A, 1080p, 60Hz, 100x50x20 mm).
+  - If a requirement key exists (e.g., ports.hdmi.count, power.total_W, interfaces.usb.type, dimensions.width_mm), your technicalSpecs MUST include that key with a compatible or greater value.
+  - If a requirement cannot be satisfied, set the component action to "remove" or propose an "update" to another component that unlocks feasibility, and explain explicitly why.
 
   **PRODUCT REFERENCES: For each component (except removed ones), also suggest a specific real product reference that the user could purchase if they prefer not to build from scratch. Include:**
   - Exact product name and model number (use realistic, commonly available products)
@@ -129,9 +136,8 @@ List needed electronics components in JSON format:
             "notes": "specific role and function in this project OR reason for removal",
           "action": "keep|update|new|remove",
           "technicalSpecs": {
-            // COMPREHENSIVE technical specifications from the suggested product reference
-            // Include ALL applicable: electrical, mechanical, performance, interface, environmental specs
-            // FOR REMOVE actions: can be empty object {} or omitted
+            // COMPREHENSIVE technical specifications, using measurable fields and units
+            // MUST satisfy corresponding requirements keys from current materials when present
           },
           "productReference": {
             "name": "exact product name and model",
@@ -161,6 +167,7 @@ List needed electronics components in JSON format:
     - Be thorough in component selection and specifications
     - Prefer products that are widely available and well-documented
     - Include datasheet links when possible for technical reference
+    - Use explicit numeric comparisons (>=, ==) when mapping to requirement keys and state these in notes
 `,
 
   wiringOptimalCircuit: `
@@ -1162,6 +1169,13 @@ List needed electronics components in JSON format:
   Project: {{projectName}} - {{projectDescription}}
   Component: {{componentType}} - {{componentName}}
   Validated specs (requirements): {{requirements}}
+  Full project context (materials simplified): {{currentMaterials}}
+  Full project context (materials full specs): {{currentMaterialsFullSpecs}}
+
+  NAMING RULES (ENGLISH):
+  - Use precise, standardized component names without vendor references (e.g., "DC-DC step-down converter 5V 3A" not "LM2596 module").
+  - Include key measurable attributes in name when relevant (e.g., voltage, current, ports, interfaces, size): "Microcontroller board, 3.3V, 32-bit, 48 GPIO, 2x I2C, 3x UART".
+  - Avoid ambiguous terms; prefer exact denominations commonly used in electronics.
 
   OUTPUT JSON STRICT ONLY (RETURN 2-3 BEST REFERENCES):
   {
@@ -1183,7 +1197,7 @@ List needed electronics components in JSON format:
   RULES:
   - Prefer reputable suppliers and widely available products.
   - Use ABSOLUTE https URLs only. Never return localhost, relative URLs, or placeholders.
-  - Ensure the reference matches key constraints from requirements (voltage/current/ports/interfaces/dimensions where applicable).
+  - Ensure the reference matches key constraints from requirements and relevant project context (power budget, interfaces, ports, physical constraints) where applicable.
   - If unsure, include mismatchNotes explaining remaining assumptions.
   `,
 };
