@@ -86,10 +86,9 @@ export const Design3DChat: React.FC<Design3DChatProps> = ({ projectId }) => {
 
   const detectLanguage = (text: string): 'fr' | 'en' => {
     try {
-      const byLocale = typeof navigator !== 'undefined' && navigator.language && navigator.language.toLowerCase().startsWith('fr');
       const hasAccent = /[éèêàùçîïôû]/i.test(text);
-      const frenchWords = /(\b|_)(bonjour|merci|svp|stp|s\'il|voudrais|puissance|mettre|plus|de|le|la|les|un|une|des|et|ou|est|vous|nous|je|tu)(\b|_)/i;
-      return (byLocale || hasAccent || frenchWords.test(text)) ? 'fr' : 'en';
+      const frenchWords = /(\b|_)(bonjour|merci|svp|stp|s['’]il|voudrais|puissance|mettre|plus|de|le|la|les|un|une|des|et|ou|est|vous|nous|je|tu)(\b|_)/i;
+      return (hasAccent || frenchWords.test(text)) ? 'fr' : 'en';
     } catch { return 'en'; }
   };
 
@@ -222,7 +221,7 @@ export const Design3DChat: React.FC<Design3DChatProps> = ({ projectId }) => {
 
       case 'generate':
         // TODO: Trigger parametric or AI generation
-        console.log('Generate component:', suggestion);
+        // generate action triggered
         break;
 
       case 'modify':

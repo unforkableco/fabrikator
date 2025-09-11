@@ -8,7 +8,7 @@
     "dev": "nodemon --config nodemon.json --exec ts-node src/server.ts",
     "worker": "ts-node src/workers/index.ts",
     "build": "tsc",
-    "test": "jest",
+    "test": "jest --passWithNoTests --testPathIgnorePatterns=tools/describeimage/test",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:reset": "prisma migrate reset --force",

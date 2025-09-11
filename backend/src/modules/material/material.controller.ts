@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { MaterialService } from './material.service';
 import { AIService } from '../../services/ai.service';
 import { prisma } from '../../prisma/prisma.service';
-import { prompts } from '../../config/prompts';
 
 export class MaterialController {
   private materialService: MaterialService;
@@ -161,8 +160,7 @@ export class MaterialController {
             const project = await prisma.project.findUnique({ where: { id: result.component.projectId } });
             const currentMaterials = await this.materialService.listMaterials(result.component.projectId);
             
-            console.log('Impact analysis - Previous specs:', JSON.stringify(previousSpecs, null, 2));
-            console.log('Impact analysis - Updated specs:', JSON.stringify(specs, null, 2));
+            // console logs removed (impact analysis details)
             
             const impact = await this.aiService.reviewMaterialImpact({
               project: project || { name: '', description: '' },
@@ -174,7 +172,7 @@ export class MaterialController {
               currentMaterials
             });
 
-            console.log('Impact analysis result:', JSON.stringify(impact, null, 2));
+            // console log removed (impact analysis result)
 
             // Normalize impact: prefer details.specs over details.technicalSpecs
             if (impact && Array.isArray(impact.components)) {

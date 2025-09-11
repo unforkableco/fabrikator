@@ -12,12 +12,7 @@ export const useComponentMapper = () => {
     const pins: WiringPin[] = [];
     const componentType = (specs.type || material.type || '').toLowerCase();
     
-    console.log('🔧 useComponentMapper - Extracting pins from technical specs:', {
-      materialName: specs.name || material.name,
-      componentType,
-      technicalSpecs,
-      productReference: productReference.name
-    });
+    // debug logs removed
     
     // 1. Analyze technical specifications to extract pin information
     Object.entries(technicalSpecs).forEach(([key, value]) => {
@@ -215,8 +210,6 @@ export const useComponentMapper = () => {
       );
     }
     
-    console.log('🔧 useComponentMapper - Generated pins from technical specs:', pins.map(p => ({ id: p.id, name: p.name, type: p.type })));
-    
     return pins;
   };
 
@@ -225,7 +218,7 @@ export const useComponentMapper = () => {
     const specs = material.currentVersion?.specs || {};
     const componentType = specs.type?.toLowerCase() || 'unknown';
     
-    console.log('🔧 useComponentMapper - Creating component from material with technical specs:', material);
+
     
     // Use real technical specifications to generate pins
     const pins = extractPinsFromTechnicalSpecs(material);

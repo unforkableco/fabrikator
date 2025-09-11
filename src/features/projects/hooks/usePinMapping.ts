@@ -3,12 +3,12 @@ import { WiringPin } from '../../../shared/types';
 export const usePinMapping = () => {
   // Fonction pour mapper intelligemment les noms de broches
   const mapPinName = (suggestedPin: string, availablePins: WiringPin[]): string => {
-    console.log('usePinMapping - Suggested pin:', suggestedPin, 'Available pins:', availablePins.map(p => ({ id: p.id, name: p.name, type: p.type })));
+
     
     // Correspondance exacte d'abord
     const exactMatch = availablePins.find(pin => pin.id === suggestedPin || pin.name === suggestedPin);
     if (exactMatch) {
-      console.log('Found exact match:', exactMatch.id);
+
       return exactMatch.id;
     }
 
@@ -52,7 +52,7 @@ export const usePinMapping = () => {
         });
         
         if (isMatch) {
-          console.log('Found mapping match:', pinId, 'for suggested:', suggestedPin);
+
           return pinId;
         }
       }
@@ -68,7 +68,7 @@ export const usePinMapping = () => {
         suggestedLower.includes('vin') || suggestedLower.includes('v+')) {
       const powerPin = availablePins.find(pin => pin.type === 'power');
       if (powerPin) {
-        console.log('Found power pin by type:', powerPin.id);
+
         return powerPin.id;
       }
     }
@@ -79,7 +79,7 @@ export const usePinMapping = () => {
         suggestedLower.includes('masse') || suggestedLower.includes('v-')) {
       const groundPin = availablePins.find(pin => pin.type === 'ground');
       if (groundPin) {
-        console.log('Found ground pin by type:', groundPin.id);
+
         return groundPin.id;
       }
     }
@@ -90,7 +90,7 @@ export const usePinMapping = () => {
         suggestedLower.includes('out') || suggestedLower.includes('output')) {
       const dataPin = availablePins.find(pin => pin.type === 'analog' || pin.type === 'input' || pin.type === 'output');
       if (dataPin) {
-        console.log('Found data/signal pin by type:', dataPin.id);
+
         return dataPin.id;
       }
     }
@@ -100,13 +100,13 @@ export const usePinMapping = () => {
         suggestedLower.includes('control') || suggestedLower.includes('pin')) {
       const digitalPin = availablePins.find(pin => pin.type === 'digital');
       if (digitalPin) {
-        console.log('Found digital pin by type:', digitalPin.id);
+
         return digitalPin.id;
       }
     }
 
     // En dernier recours, utiliser la première broche disponible appropriée
-    console.log('No specific match found, using fallback logic for:', suggestedPin);
+
     
     // Essayer de trouver une broche par priorité de type
     let fallbackPin = availablePins.find(pin => pin.type === 'power') || // Priorité aux broches d'alimentation
@@ -116,7 +116,6 @@ export const usePinMapping = () => {
                       availablePins[0]; // En dernier recours, la première
 
     const result = fallbackPin ? fallbackPin.id : suggestedPin;
-    console.log('Final result for', suggestedPin, ':', result);
     return result;
   };
 

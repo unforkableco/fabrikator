@@ -16,10 +16,9 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
 
   const detectLanguage = (input: string): 'fr' | 'en' => {
     try {
-      const byLocale = typeof navigator !== 'undefined' && navigator.language && navigator.language.toLowerCase().startsWith('fr');
       const hasAccent = /[éèêàùçîïôû]/i.test(input);
-      const frenchWords = /(\b|_)(bonjour|merci|svp|stp|s\'il|voudrais|puissance|mettre|plus|de|le|la|les|un|une|des|et|ou|est|vous|nous|je|tu)(\b|_)/i;
-      return (byLocale || hasAccent || frenchWords.test(input)) ? 'fr' : 'en';
+      const frenchWords = /(\b|_)(bonjour|merci|svp|stp|s['’]il|voudrais|puissance|mettre|plus|de|le|la|les|un|une|des|et|ou|est|vous|nous|je|tu)(\b|_)/i;
+      return (hasAccent || frenchWords.test(input)) ? 'fr' : 'en';
     } catch { return 'en'; }
   };
 
@@ -126,14 +125,12 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
         }
       } else {
         // Agent mode - Generate wiring suggestions and modifications
-        console.log('Sending wiring agent message:', message);
         
         try {
           // Use wiring-specific API endpoint for suggestions
           // ✅ Transmettre le diagramme actuel à l'IA pour analyse des connexions existantes
           const inferredLang = detectLanguage(message);
           const response = await api.wiring.generateWiringSuggestions(projectId, message, diagram, inferredLang);
-          console.log('Wiring agent response:', response);
           
           if (response && response.suggestions && Array.isArray(response.suggestions)) {
             // Adapt suggestions to handle old and new formats

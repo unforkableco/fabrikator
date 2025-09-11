@@ -145,7 +145,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       
       // Nettoyer seulement si c'est le bon projet et contexte
       if (eventProjectId === projectId && eventContext === context) {
-        console.log('🧹 Force clearing all suggestion states for new generation');
+        // cleared suggestion states
         
         // ✅ Nettoyage complet et agressif
         setSuggestionStates({}); // Completely clear the state
@@ -161,11 +161,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         
         possibleKeys.forEach(key => {
           localStorage.removeItem(key);
-          console.log(`🧹 Cleared localStorage key: ${key}`);
         });
         
         // ✅ Forcer le re-render pour éviter la contamination
-        console.log('🧹 All suggestion states cleared successfully');
       }
     };
 
@@ -255,21 +253,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     const isAccepted = suggestionState === 'accepted';
     const isRejected = suggestionState === 'rejected';
     
-    // Debug - check suggestions state
-    console.log('🔍 Rendering suggestion:', {
-      id: suggestion.id,
-      title: suggestion.title,
-      status: suggestion.status, // ✅ Utiliser status au lieu de validated
-      suggestionState,
-      isAccepted,
-      isRejected,
-      shouldShowButtons: !isAccepted && !isRejected
-    });
+    // Debug removed
     
     // DEBUG TEMPORARY - Clean localStorage if necessary
     if (suggestion.id.includes('debug-clear')) {
       localStorage.removeItem(storageKey);
-      console.log('🧹 Cleared localStorage for:', storageKey);
     }
     
     return (

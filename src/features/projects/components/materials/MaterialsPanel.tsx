@@ -29,14 +29,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   onRejectSelected,
   onMaterialsUpdated,
 }) => {
-  const detectLanguage = (input: string): 'fr' | 'en' => {
-    try {
-      const byLocale = typeof navigator !== 'undefined' && navigator.language && navigator.language.toLowerCase().startsWith('fr');
-      const hasAccent = /[éèêàùçîïôû]/i.test(input);
-      const frenchWords = /(\b|_)(bonjour|merci|svp|stp|s\'il|voudrais|puissance|mettre|plus|de|le|la|les|un|une|des|et|ou|est|vous|nous|je|tu)(\b|_)/i;
-      return (byLocale || hasAccent || frenchWords.test(input)) ? 'fr' : 'en';
-    } catch { return 'en'; }
-  };
+  // Language handling is fully delegated to the backend/AI. No frontend detection.
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
@@ -320,8 +313,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         console.log('Sending ask question:', message);
         
         try {
-          const inferredLang = detectLanguage(message);
-          const askRes = await api.projects.askQuestion(projectId, message, 'materials', 'ai', inferredLang);
+          const askRes = await api.projects.askQuestion(projectId, message, 'materials', 'ai');
           aiResponse = askRes.answer;
         } catch (error) {
           console.error('Error asking question:', error);
@@ -332,8 +324,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         console.log('Sending agent message:', message);
         
         // First retrieve suggestions without applying them
-        const inferredLang2 = detectLanguage(message);
-        const agentPreview = await api.projects.previewMaterialSuggestions(projectId, message, inferredLang2);
+        const agentPreview = await api.projects.previewMaterialSuggestions(projectId, message);
         console.log('Agent response:', agentPreview);
         
         if (agentPreview && agentPreview.components && Array.isArray(agentPreview.components)) {
@@ -358,29 +349,9 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           const filteredSuggestions = suggestions.filter(s => s.action !== 'keep');
           
           const newChatSuggestions = filteredSuggestions.map((suggestion, index) => {
-            // Create an informative title with action and details
-            let title = suggestion.type;
-            let description = '';
-            
-            if (suggestion.action === 'new') {
-              title = `➕ Add ${suggestion.type}`;
-              description = suggestion.details?.notes || `New component: ${suggestion.type}`;
-              if (suggestion.details?.quantity) {
-                description += ` (Qty: ${suggestion.details.quantity})`;
-              }
-            } else if (suggestion.action === 'update') {
-              title = `🔄 Update ${suggestion.type}`;
-              description = suggestion.details?.notes || `Modify existing: ${suggestion.type}`;
-              if (suggestion.currentMaterial?.name) {
-                description += ` (Current: ${suggestion.currentMaterial.name})`;
-              }
-            } else if (suggestion.action === 'remove') {
-              title = `❌ Remove ${suggestion.type}`;
-              description = suggestion.details?.notes || `Remove component: ${suggestion.type}`;
-              if (suggestion.currentMaterial?.name) {
-                description += ` (${suggestion.currentMaterial.name})`;
-              }
-            }
+            // Use raw AI data for title/description (no localization)
+            const title = suggestion.type;
+            const description = suggestion.details?.description || suggestion.details?.notes || '';
             
             return {
               id: `suggestion-${Date.now()}-${index}`,
@@ -399,44 +370,31 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           
           // Use detailed AI explanation if available
           if (responseWithExplanation.explanation) {
-            let explanationText = `${responseWithExplanation.explanation.summary}\n\n`;
-            
+            let explanationText = `${responseWithExplanation.explanation.summary || ''}\n\n`;
             if (responseWithExplanation.explanation.reasoning) {
               explanationText += `${responseWithExplanation.explanation.reasoning}\n\n`;
             }
-            
             if (responseWithExplanation.explanation.changes && responseWithExplanation.explanation.changes.length > 0) {
-              explanationText += (inferredLang2 === 'fr' ? 'Modifications proposées:\n' : 'Changes made:\n');
-              responseWithExplanation.explanation.changes.forEach((change: any, index: number) => {
-                const emoji = change.type === 'added' ? '✅' : 
-                            change.type === 'removed' ? '❌' : 
-                            change.type === 'updated' ? '🔄' : '⚪';
+              explanationText += 'Changes:\n';
+              responseWithExplanation.explanation.changes.forEach((change: any) => {
+                const emoji = change.type === 'added' ? '✅' : change.type === 'removed' ? '❌' : change.type === 'updated' ? '🔄' : '⚪';
                 explanationText += `${emoji} ${change.component} - ${change.reason}\n`;
               });
               explanationText += '\n';
             }
-            
             if (responseWithExplanation.explanation.impact) {
-              explanationText += `${inferredLang2 === 'fr' ? 'Impact' : 'Impact'}: ${responseWithExplanation.explanation.impact}\n\n`;
+              explanationText += `Impact: ${responseWithExplanation.explanation.impact}\n\n`;
             }
-            
             if (responseWithExplanation.explanation.nextSteps) {
-              explanationText += `${inferredLang2 === 'fr' ? 'Recommandations' : 'Recommendations'}: ${responseWithExplanation.explanation.nextSteps}`;
+              explanationText += `Recommendations: ${responseWithExplanation.explanation.nextSteps}`;
             }
-            
-            aiResponse = explanationText;
+            aiResponse = explanationText.trim();
           } else {
-            // Fallback to generic message if no detailed explanation
             const materialCount = suggestions.length;
-            aiResponse = inferredLang2 === 'fr'
-              ? `J'ai analysé votre demande et préparé ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} de modifications. Veuillez examiner les propositions ci‑dessous et accepter ou refuser les modifications.`
-              : `I have analyzed your request and prepared ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} for modifications. Please review the proposed changes below and choose to accept or reject the modifications.`;
+            aiResponse = `I have prepared ${materialCount} suggestion(s). Please review below.`;
           }
         } else {
-          const inferredLang2 = detectLanguage(message);
-          aiResponse = inferredLang2 === 'fr'
-            ? `J'ai compris votre demande de modification des composants. J'analyse vos besoins et je proposerai des composants adaptés.`
-            : 'I understand your component modification request. I am working on analyzing your needs and will suggest appropriate components.';
+          aiResponse = 'Working on analyzing your request and suggestions.';
         }
       }
 
@@ -455,30 +413,8 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         const filteredPendingSuggestions = pendingSuggestions.filter(s => s.action !== 'keep');
         
         chatSuggestions = filteredPendingSuggestions.map((suggestion, index) => {
-          // Create an informative title with action and details (same logic as above)
-          let title = suggestion.type;
-          let description = '';
-          
-          if (suggestion.action === 'new') {
-            title = `➕ Add ${suggestion.type}`;
-            description = suggestion.details?.notes || `New component: ${suggestion.type}`;
-            if (suggestion.details?.quantity) {
-              description += ` (Qty: ${suggestion.details.quantity})`;
-            }
-          } else if (suggestion.action === 'update') {
-            title = `🔄 Update ${suggestion.type}`;
-            description = suggestion.details?.notes || `Modify existing: ${suggestion.type}`;
-            if (suggestion.currentMaterial?.name) {
-              description += ` (Current: ${suggestion.currentMaterial.name})`;
-            }
-          } else if (suggestion.action === 'remove') {
-            title = `❌ Remove ${suggestion.type}`;
-            description = suggestion.details?.notes || `Remove component: ${suggestion.type}`;
-            if (suggestion.currentMaterial?.name) {
-              description += ` (${suggestion.currentMaterial.name})`;
-            }
-          }
-          
+          const title = suggestion.type;
+          const description = suggestion.details?.description || suggestion.details?.notes || '';
           return {
             id: `suggestion-${Date.now()}-${index}`,
             title,
