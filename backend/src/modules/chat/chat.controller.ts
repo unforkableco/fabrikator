@@ -13,7 +13,7 @@ export class ChatController {
 
   async handle3DChat(req: Request, res: Response) {
     try {
-      const { message, projectId, context, sceneState, selectedComponents, language } = req.body;
+      const { message, projectId, context, sceneState, selectedComponents } = req.body;
 
       if (!message?.trim()) {
         return res.status(400).json({ error: 'Message is required' });
@@ -41,8 +41,7 @@ export class ChatController {
         projectId,
         context: context || '3d',
         sceneState,
-        selectedComponents: selectedComponents || [],
-        language
+        selectedComponents: selectedComponents || []
       });
 
       // Persist AI response (Agent in 3D context). Include suggestions if available

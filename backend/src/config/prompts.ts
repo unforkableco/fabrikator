@@ -3,7 +3,7 @@ export const prompts = {
   materialsSearchSimple: `For project "{{projectName}}" ({{projectDescription}}), user wants: {{userPrompt}}
 
 List needed electronics components in JSON format:
-{"explanation": {"summary": "brief", "reasoning": "why"}, "components": [{"type": "name", "details": {"quantity": 1, "notes": "use", "action": "new", "technicalSpecs": {}, "productReference": {"name": "product", "manufacturer": "brand", "estimatedPrice": "$0"}}}]}`,
+{"explanation": {"summary": "brief", "reasoning": "why"}, "components": [{"type": "name", "details": {"quantity": 1, "notes": "use", "action": "new", "technicalSpecs": {}}}]}`,
   projectAnalysis: `
   Analyze the following project description and provide a comprehensive analysis in both structured and human-readable format:
   {{description}}
@@ -11,6 +11,16 @@ List needed electronics components in JSON format:
   Generate only:
   1. A concise, impactful "name" for the project
   2. A detailed "description" that rephrases and enriches the provided description
+
+  **LANGUAGE REQUIREMENT (MANDATORY):**
+  - Use English only for ALL output fields (name, description, analysis).
+  - No other language is allowed anywhere in the JSON or text.
+
+  **DIY-FIRST POLICY (MANDATORY):**
+  - This project must be approached as DIY (do-it-yourself). Prefer self-built, modular solutions over buying pre-assembled kits.
+  - Do NOT recommend pre-assembled kits or pre-built chassis/frames for any product category (e.g., RC cars, drones, robots). Instead, outline modular subassemblies and commodity parts (e.g., motors, ESCs, servos, bearings, springs, shafts, fasteners, aluminum extrusions, sheets, rods).
+  - Assume 3D-printable parts (mounts, brackets, enclosures, plates) will be designed and printed; exclude them from sourcing recommendations unless they are not realistically 3D-printable at required strength/tolerance.
+  - Only include metal load-bearing structures when strictly necessary and not 3D-printable (e.g., coil springs, steel shafts, bearings, aluminum profiles). Justify necessity clearly.
 
   **Your response must be strictly a JSON object**:
   {
@@ -92,6 +102,15 @@ List needed electronics components in JSON format:
   Analyze and suggest the most elegant, minimal solution.
   Consider what's truly needed vs what's over-engineered.
 
+  **LANGUAGE REQUIREMENT (MANDATORY):**
+  - Use English only for ALL output. No other language is allowed.
+  - All JSON fields, values, and prose inside the JSON must be in English.
+
+  **DIY-FIRST POLICY (MANDATORY):**
+  - Do NOT include pre-assembled kits or pre-built chassis/frames (across all product types, e.g., RC cars, drones, robots). Break them down into modular, commodity parts instead (motors, ESCs, servos, bearings, springs, shafts, fasteners, aluminum extrusions, rods, sheets).
+  - Prefer self-built structures. Assume 3D-printable mounts, brackets, plates, and enclosures will be designed and printed later (exclude from materials).
+  - Include metal load-bearing elements only when not realistically 3D-printable at required strength/tolerance (e.g., coil springs, steel shafts, bearings, aluminum profiles). Justify necessity in notes.
+
   **IMPORTANT ACTIONS LOGIC:**
   - **"new"**: Create a completely new component that doesn't exist in current materials
   - **"keep"**: Keep an existing component unchanged (include it in response with same specs)
@@ -110,14 +129,16 @@ List needed electronics components in JSON format:
   - If a requirement key exists (e.g., ports.hdmi.count, power.total_W, interfaces.usb.type, dimensions.width_mm), your technicalSpecs MUST include that key with a compatible or greater value.
   - If a requirement cannot be satisfied, set the component action to "remove" or propose an "update" to another component that unlocks feasibility, and explain explicitly why.
 
-  **PRODUCT REFERENCES: For each component (except removed ones), also suggest a specific real product reference that the user could purchase if they prefer not to build from scratch. Include:**
-  - Exact product name and model number (use realistic, commonly available products)
-  - Manufacturer/brand
-  - Purchase link (note: these will be converted to search links, so focus on accurate product names)
-  - Current approximate price range
-  - The technical specifications should match the suggested product reference
+  (Product reference suggestions are handled by a dedicated sourcing step; do not include purchasing info here.)
 
-    Use specific, searchable product names that exist in the market.
+  **STRICTLY FORBIDDEN IN technicalSpecs:**
+  - Any URLs or links (purchase, manual, datasheet, documentation) and any fields named or containing: link, links, url, purchase, buy, manual, datasheet.
+  - Do NOT embed purchase information inside technicalSpecs. Keep technicalSpecs purely technical.
+
+  **3D PRINTING POLICY (MANDATORY):**
+  - Do NOT add 3D-printable mechanical parts to materials (e.g., base/stand/socle, mounts, brackets, spacers, plates, frames, enclosures/housings, cable guides, knobs, cosmetic covers). These belong to the 3D design and printing phase, not sourcing.
+  - Exception: Include metal chassis or load-bearing structural parts that are not realistically 3D-printed at the required strength/tolerances. Prefer standard profiles (e.g., aluminum extrusions) or steel parts only when strictly necessary.
+  - When a support/mount/enclosure is needed, assume it will be designed and 3D-printed; do not list it as a material component.
 
   **OUTPUT JSON:**
   {
@@ -138,16 +159,8 @@ List needed electronics components in JSON format:
           "technicalSpecs": {
             // COMPREHENSIVE technical specifications, using measurable fields and units
             // MUST satisfy corresponding requirements keys from current materials when present
-          },
-          "productReference": {
-            "name": "exact product name and model",
-            "manufacturer": "brand/manufacturer name",
-              "purchaseUrl": "direct link to purchase the product",
-            "estimatedPrice": "price with currency (e.g., $15.99 USD)",
-            "supplier": "supplier name (e.g., Adafruit, SparkFun, Amazon)",
-            "partNumber": "manufacturer part number if available",
-            "datasheet": "link to datasheet if available"
-            // FOR REMOVE actions: this entire object can be omitted
+            // Must be one key and one value for each requirement key from current materials
+            // No URLs/links or purchasing info allowed here
           }
         }
       }
@@ -160,13 +173,11 @@ List needed electronics components in JSON format:
     - For remove actions, focus on explanation in "notes" field
     - Provide EXHAUSTIVE technical specifications matching the suggested product reference (except for removed items)
     - Include electrical, mechanical, performance, connectivity, and environmental specs when relevant
-    - Always include a real product reference with valid purchase information (except for removed items)
-    - Use reputable electronics suppliers for purchase links
+    - Do NOT include purchase links or datasheet/manual URLs in technicalSpecs
     - Don't duplicate existing components unless upgrading
     - Always include meaningful usage notes
     - Be thorough in component selection and specifications
     - Prefer products that are widely available and well-documented
-    - Include datasheet links when possible for technical reference
     - Use explicit numeric comparisons (>=, ==) when mapping to requirement keys and state these in notes
 `,
 
@@ -240,11 +251,11 @@ List needed electronics components in JSON format:
        - UART/Serial → TX, RX pins
     4. **Power Pins**: Look for voltage specs → VCC, GND, 3V3, 5V, VIN
     5. **Component-Specific Pins**:
-       - Arduino Uno: 14 digital pins (D0-D13), 6 analog pins (A0-A5), VCC, GND, 3V3, 5V
+       - Arduino Uno: D0-D13, A0-A5, VCC, GND, 3V3, 5V
        - ESP32: GPIO0-GPIO39 (excluding flash pins 6-11), VCC, GND, 3V3, EN
        - Sensors: Usually VCC, GND, DATA/SIGNAL/OUT
        - Displays: VCC, GND, plus communication pins (SDA/SCL for I2C, or SPI pins)
-       - Relays: VCC, GND, IN/SIGNAL, COM, NO, NC
+       - Relays: VCC, GND, IN, COM, NO, NC
     
     **EXAMPLE ANALYSIS:**
     - If specs show "14 digital I/O pins" → Use D0, D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11, D12, D13
@@ -350,18 +361,6 @@ List needed electronics components in JSON format:
     - **ADD**: Missing essential connections (power, control, data)
     - **REMOVE**: Redundant, incorrect, or conflicting connections
     - **UPDATE**: Connections with wrong pins or wire types
-    
-    **EXAMPLES OF WHEN TO REMOVE CONNECTIONS:**
-    - Duplicate power connections to the same component
-    - Sensors connected to wrong pin types (digital sensor on analog pin)
-    - Multiple components sharing the same GPIO pin incorrectly
-    - Unnecessary ground loops
-    - Wrong wire types (data wire used for power)
-    
-    **EXAMPLES OF WHEN TO UPDATE CONNECTIONS:**
-    - Change analog sensor from digital pin to analog pin
-    - Fix incorrect wire colors or types
-    - Optimize pin assignments for better organization
   `,
   
   userPrompt: `

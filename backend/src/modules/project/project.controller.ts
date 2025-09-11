@@ -208,7 +208,7 @@ export class ProjectController {
   async askProjectQuestion(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { question, context: reqContext, persist, language } = req.body;
+      const { question, context: reqContext, persist } = req.body;
       
       if (!question) {
         return res.status(400).json({ error: 'Question is required' });
@@ -254,7 +254,6 @@ export class ProjectController {
         materials: materials,
         wiring: wiring,
         userQuestion: question,
-        language,
         chatHistory
       });
       

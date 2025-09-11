@@ -492,11 +492,6 @@ export class AIService {
 
     // Use wiringOptimalCircuit for complex wiring analysis (legacy support)
     if (contextData?.materials && contextData.materials.length > 0 && contextData?.currentDiagram) {
-      const languageInstruction = contextData?.language === 'fr'
-        ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide the conversational explanation in French. KEEP ALL JSON suggestion fields (action/title/description/connectionData/componentData) strictly in ENGLISH; do not translate enums, keys, or values.'
-        : contextData?.language === 'en'
-          ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide the conversational explanation in English. KEEP ALL JSON suggestion fields strictly in ENGLISH.'
-          : '';
       const historyArr = Array.isArray(contextData?.chatHistory) ? contextData.chatHistory as Array<{role: string; content: string}> : [];
       const historyText = historyArr.length > 0
         ? '\n\nConversation History (latest messages):\n' + historyArr.slice(-10).map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')
@@ -504,7 +499,7 @@ export class AIService {
       let systemPrompt = (prompts.wiringOptimalCircuit
         .replace('{{materials}}', JSON.stringify(contextData.materials, null, 2))
         .replace('{{currentDiagram}}', JSON.stringify(contextData.currentDiagram, null, 2))
-        .replace('{{prompt}}', prompt)) + languageInstruction + historyText;
+        .replace('{{prompt}}', prompt)) + historyText;
       
       const messages = [
         {
@@ -547,18 +542,13 @@ export class AIService {
         };
       }
     } else {
-      const languageInstruction = contextData?.language === 'fr'
-        ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide the conversational explanation in French. KEEP ALL JSON suggestion fields (action/title/description/connectionData/componentData) strictly in ENGLISH; do not translate enums, keys, or values.'
-        : contextData?.language === 'en'
-          ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide the conversational explanation in English. KEEP ALL JSON suggestion fields strictly in ENGLISH.'
-          : '';
       const historyArr = Array.isArray(contextData?.chatHistory) ? contextData.chatHistory as Array<{role: string; content: string}> : [];
       const historyText = historyArr.length > 0
         ? '\n\nConversation History (latest messages):\n' + historyArr.slice(-10).map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')
         : '';
       const systemPrompt = (prompts.wiringSuggestions
         .replace('{{prompt}}', prompt)
-        .replace('{{context}}', contextData ? JSON.stringify(contextData) : '')) + languageInstruction + historyText;
+        .replace('{{context}}', contextData ? JSON.stringify(contextData) : '')) + historyText;
       
       const messages = [
         {
@@ -610,8 +600,8 @@ export class AIService {
   /**
    * Legacy method: Suggests hardware components for a project (backward compatibility)
    */
-  async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[]; language?: string; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) {
-    const { name, description, userPrompt = '', previousComponents = [], currentMaterials = [], language, chatHistory = [] } = params;
+  async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[]; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) {
+    const { name, description, userPrompt = '', previousComponents = [], currentMaterials = [], chatHistory = [] } = params;
     
     // Simplify current materials first (now includes requirements for precision)
     const simplifiedMaterials = currentMaterials.map(material => ({
@@ -636,13 +626,6 @@ export class AIService {
       .replace('{{projectName}}', name)
       .replace('{{projectDescription}}', description)
       .replace('{{userPrompt}}', userPrompt);
-
-    // Language instruction appended
-    const languageInstruction = language === 'fr'
-      ? '\n\nIMPORTANT (LANGUAGE POLICY): The narrative/explanations must be in French. However, KEEP ALL JSON suggestion fields strictly in ENGLISH, including keys and values inside components[]. Do NOT translate action/type/title/description/details or any enum/keyword.'
-      : language === 'en'
-        ? '\n\nIMPORTANT (LANGUAGE POLICY): Provide narrative/explanations in English. Keep ALL JSON suggestion fields strictly in ENGLISH as well.'
-        : '';
 
     // Append recent chat history for context
     const truncatedHistory = chatHistory.slice(-10);
@@ -672,7 +655,6 @@ export class AIService {
       .replace('{{currentMaterials}}', currentMaterialsJson)
       .replace('{{previousComponents}}', previousCompJson)
       .replace('{{currentMaterialsFullSpecs}}', fullMaterialsSpecsJson)
-      + languageInstruction
       + historyText;
     
     const messages = [
@@ -939,8 +921,8 @@ export class AIService {
   /**
    * Legacy method: Answers a user question about a project (backward compatibility)
    */
-  async answerProjectQuestion(params: { project: any; materials?: any[]; wiring?: any; userQuestion: string; language?: string; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) {
-    const { project, materials = [], wiring = null, userQuestion, language, chatHistory = [] } = params;
+  async answerProjectQuestion(params: { project: any; materials?: any[]; wiring?: any; userQuestion: string; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) {
+    const { project, materials = [], wiring = null, userQuestion, chatHistory = [] } = params;
     
     // Build complete project context
     let projectContext = `Name: ${project.name || 'Unnamed project'}\nDescription: ${project.description || 'No description available'}\nStatus: ${project.status || 'In progress'}`;
@@ -977,11 +959,7 @@ export class AIService {
     const systemPrompt = prompts.userPrompt
       .replace('{{project}}', projectContext)
       .replace('{{userInput}}', userQuestion);
-    const languageInstruction = language === 'fr'
-      ? '\n\nIMPORTANT: Réponds en français.\n'
-      : language === 'en'
-        ? '\n\nIMPORTANT: Answer in English.\n'
-        : '';
+    
     const historyText = chatHistory.length > 0
       ? '\n\nConversation History (latest messages):\n' + chatHistory.slice(-10).map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n') + '\n'
       : '';
@@ -989,7 +967,7 @@ export class AIService {
     const messages = [
       {
         role: 'system',
-        content: systemPrompt + languageInstruction + historyText
+        content: systemPrompt + historyText
       }
     ];
 

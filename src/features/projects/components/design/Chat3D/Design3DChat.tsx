@@ -84,13 +84,7 @@ export const Design3DChat: React.FC<Design3DChatProps> = ({ projectId }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scene3D = useScene3D(projectId);
 
-  const detectLanguage = (text: string): 'fr' | 'en' => {
-    try {
-      const hasAccent = /[éèêàùçîïôû]/i.test(text);
-      const frenchWords = /(\b|_)(bonjour|merci|svp|stp|s['’]il|voudrais|puissance|mettre|plus|de|le|la|les|un|une|des|et|ou|est|vous|nous|je|tu)(\b|_)/i;
-      return (hasAccent || frenchWords.test(text)) ? 'fr' : 'en';
-    } catch { return 'en'; }
-  };
+  // No language detection on frontend
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -127,14 +121,12 @@ export const Design3DChat: React.FC<Design3DChatProps> = ({ projectId }) => {
     setIsLoading(true);
 
     try {
-      const inferredLang = detectLanguage(input);
       const response = await apiCall('/api/chat/3d', 'POST', {
         message: input.trim(),
         projectId,
         context: '3d',
         sceneState: scene3D.sceneGraph,
-        selectedComponents: scene3D.selectedNodes,
-        language: inferredLang
+        selectedComponents: scene3D.selectedNodes
       });
 
       const aiMessage: Design3DMessage = {

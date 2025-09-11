@@ -247,7 +247,7 @@ export class WiringService {
   /**
    * Generate wiring suggestions with AI
    */
-  async generateWiringSuggestions(projectId: string, prompt: string, currentDiagram: any, language?: string, chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>) {
+  async generateWiringSuggestions(projectId: string, prompt: string, currentDiagram: any, chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>) {
     try {
       console.log('WiringService - Generating AI suggestions for:', prompt);
       
@@ -291,7 +291,7 @@ export class WiringService {
       // Use AI to generate suggestions
       const aiResponse = await this.aiService.generateWiringSuggestions(
         prompt,
-        { materials: simplifiedMaterials, currentDiagram, existingConnections: existingConnectionsForAI, language, chatHistory }
+        { materials: simplifiedMaterials, currentDiagram, existingConnections: existingConnectionsForAI, chatHistory }
       );
 
       console.log('WiringService - AI response received:', aiResponse);

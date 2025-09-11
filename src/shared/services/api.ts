@@ -95,10 +95,9 @@ export const api = {
       return response.data;
     },
 
-    previewMaterialSuggestions: async (projectId: string, description: string, language?: string): Promise<{components: any[]}> => {
+    previewMaterialSuggestions: async (projectId: string, description: string): Promise<{components: any[]}> => {
       const response = await apiClient.post(`/materials/project/${projectId}/preview-suggestions`, {
         prompt: description,
-        language,
       });
       return response.data;
     },
@@ -183,14 +182,12 @@ export const api = {
       projectId: string,
       question: string,
       context?: string,
-      persist?: 'ai' | 'both',
-      language?: string
+      persist?: 'ai' | 'both'
     ): Promise<{answer: string}> => {
       const response = await apiClient.post(`/projects/${projectId}/ask`, {
         question,
         context,
-        persist,
-        language
+        persist
       });
       return response.data;
     },
@@ -237,11 +234,10 @@ export const api = {
     },
 
     // Generate wiring suggestions using AI
-    generateWiringSuggestions: async (projectId: string, prompt: string, currentDiagram?: any, language?: string): Promise<any> => {
+    generateWiringSuggestions: async (projectId: string, prompt: string, currentDiagram?: any): Promise<any> => {
       const response = await apiClient.post(`/wiring/project/${projectId}/suggestions`, {
         prompt,
-        currentDiagram,
-        language
+        currentDiagram
       });
       return response.data;
     },

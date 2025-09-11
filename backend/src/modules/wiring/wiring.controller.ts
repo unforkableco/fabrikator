@@ -99,7 +99,7 @@ export class WiringController {
   async generateWiringSuggestions(req: Request, res: Response) {
     try {
       const { projectId } = req.params;
-      const { prompt, currentDiagram, language } = req.body;
+      const { prompt, currentDiagram } = req.body;
       
       // Retrieve recent chat history for wiring context
       const history = await prisma.message.findMany({
@@ -112,7 +112,7 @@ export class WiringController {
         content: String(m.content || ''),
       }));
 
-      const suggestions = await this.wiringService.generateWiringSuggestions(projectId, prompt, currentDiagram, language, chatHistory);
+      const suggestions = await this.wiringService.generateWiringSuggestions(projectId, prompt, currentDiagram, chatHistory);
       res.json(suggestions);
     } catch (error) {
       console.error('Error generating wiring suggestions:', error);

@@ -14,13 +14,7 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
-  const detectLanguage = (input: string): 'fr' | 'en' => {
-    try {
-      const hasAccent = /[éèêàùçîïôû]/i.test(input);
-      const frenchWords = /(\b|_)(bonjour|merci|svp|stp|s['’]il|voudrais|puissance|mettre|plus|de|le|la|les|un|une|des|et|ou|est|vous|nous|je|tu)(\b|_)/i;
-      return (hasAccent || frenchWords.test(input)) ? 'fr' : 'en';
-    } catch { return 'en'; }
-  };
+  // No language detection on frontend
 
   // Load chat messages on startup
   const loadChatMessages = useCallback(async () => {
@@ -116,8 +110,7 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
       if (mode === 'ask') {
         // Ask mode - Answer questions about wiring
         try {
-          const inferredLang = detectLanguage(message);
-          const askRes = await api.projects.askQuestion(projectId, `[WIRING CONTEXT] ${message}`, 'wiring', 'ai', inferredLang);
+          const askRes = await api.projects.askQuestion(projectId, `[WIRING CONTEXT] ${message}`, 'wiring', 'ai');
           aiResponse = askRes.answer;
         } catch (error) {
           console.error('Error asking wiring question:', error);
@@ -125,12 +118,13 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
         }
       } else {
         // Agent mode - Generate wiring suggestions and modifications
+        console.log('Sending wiring agent message:', message);
         
         try {
           // Use wiring-specific API endpoint for suggestions
           // ✅ Transmettre le diagramme actuel à l'IA pour analyse des connexions existantes
-          const inferredLang = detectLanguage(message);
-          const response = await api.wiring.generateWiringSuggestions(projectId, message, diagram, inferredLang);
+          const response = await api.wiring.generateWiringSuggestions(projectId, message, diagram);
+          console.log('Wiring agent response:', response);
           
           if (response && response.suggestions && Array.isArray(response.suggestions)) {
             // Adapt suggestions to handle old and new formats
@@ -173,20 +167,13 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
             });
             
             chatSuggestions = suggestions;
-            aiResponse = inferredLang === 'fr'
-              ? `J'ai généré ${suggestions.length} suggestions de connexions pour votre circuit.`
-              : `I generated ${suggestions.length} connection suggestions for your circuit.`;
+            aiResponse = `I generated ${suggestions.length} connection suggestions for your circuit.`;
           } else {
-            aiResponse = inferredLang === 'fr'
-              ? `J'ai compris votre demande de câblage. J'analyse les connexions appropriées.`
-              : 'I understood your wiring request. I am working on analyzing the appropriate connections.';
+            aiResponse = 'I understood your wiring request. I am working on analyzing the appropriate connections.';
           }
         } catch (error) {
           console.error('Error with wiring agent:', error);
-          const inferredLang = detectLanguage(message);
-          aiResponse = inferredLang === 'fr'
-            ? `Désolé, une erreur est survenue lors de l'analyse de votre demande de câblage. Veuillez réessayer.`
-            : 'Sorry, I encountered an error analyzing your wiring request. Please try again.';
+          aiResponse = 'Sorry, I encountered an error analyzing your wiring request. Please try again.';
         }
       }
 
