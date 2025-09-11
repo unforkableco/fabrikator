@@ -573,17 +573,21 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   return (
     <Box sx={{ display: 'flex', gap: 2 }}>
       <Box sx={{ flex: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h6">Materials</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <StatusLegend />
-              <Button
-                variant="contained"
-                startIcon={<PlaylistAddIcon />}
-                onClick={() => setShowAddDialog(true)}
-              >
+            <Typography variant="h5" fontWeight={600}>
+              Materials
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <StatusLegend />
+            <Button
+              variant="contained"
+              startIcon={<PlaylistAddIcon />}
+              onClick={() => setShowAddDialog(true)}
+            >
               Add Material
-              </Button>
+            </Button>
           </Box>
         </Box>
 

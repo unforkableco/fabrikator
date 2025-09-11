@@ -287,7 +287,7 @@ export class ProjectController {
           console.warn('Failed to persist AI Ask message:', e);
         }
       }
-
+      
       res.json({ answer });
     } catch (error) {
       console.error('Error answering project question:', error);
