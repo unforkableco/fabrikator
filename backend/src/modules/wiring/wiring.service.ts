@@ -266,7 +266,7 @@ export class WiringService {
           type: specs.type || 'unknown',
           quantity: specs.quantity || 1,
           description: specs.description || '',
-          specifications: specs.technicalSpecs || {}
+          specifications: specs.requirements || {}
         };
       });
 
@@ -376,6 +376,15 @@ export class WiringService {
         // VALIDATION: Ensure pins are appropriate based on technical specifications
         const validFromPins = this.getValidPinsForComponent(fromComponentExists);
         const validToPins = this.getValidPinsForComponent(toComponentExists);
+
+        // Reject suggestions involving non-electronic components (no pins)
+        if (validFromPins.length === 0 || validToPins.length === 0) {
+          console.warn('Dropping suggestion with non-electronic component(s):', {
+            fromComponent: connectionData.fromComponent,
+            toComponent: connectionData.toComponent
+          });
+          return null;
+        }
         
         if (!validFromPins.includes(connectionData.fromPin) || !validToPins.includes(connectionData.toPin)) {
           const fromSpecs = fromComponentExists.currentVersion?.specs as any || {};
@@ -435,7 +444,7 @@ export class WiringService {
             fromPin: connectionData.fromPin,
             toPin: connectionData.toPin,
             wireType: this.normalizeWireType(connectionData.wireType),
-            wireColor: connectionData.wireColor || '#0000ff'
+            wireColor: this.defaultWireColor(connectionData.wireColor, connectionData.wireType)
             // Do NOT include 'validated' here - it belongs at the suggestion level
           },
           existingConnectionId: suggestion.existingConnectionId,
@@ -449,12 +458,35 @@ export class WiringService {
       console.log('WiringService - Processed suggestions:', suggestions.length);
       console.log('WiringService - Valid suggestions:', suggestions.map((s: any) => ({
         title: s.title,
-        from: s.connectionData.fromComponent,
-        to: s.connectionData.toComponent
+        from: s.connectionData?.fromComponent,
+        to: s.connectionData?.toComponent
       })));
+
+      // Build a minimal list of components to place (only those referenced by suggestions)
+      const involvedComponentIds = new Set<string>();
+      suggestions.forEach((s: any) => {
+        if (s?.connectionData) {
+          if (s.connectionData.fromComponent) involvedComponentIds.add(s.connectionData.fromComponent);
+          if (s.connectionData.toComponent) involvedComponentIds.add(s.connectionData.toComponent);
+        }
+      });
+
+      const componentsToPlace = Array.from(involvedComponentIds).map((id) => {
+        const mat = materials.find(m => m.id === id);
+        if (!mat) return null;
+        const specs = (mat.currentVersion?.specs as any) || {};
+        const pins = this.getValidPinsForComponent(mat);
+        return {
+          id: mat.id,
+          name: specs.name || 'Component',
+          type: specs.type || 'unknown',
+          pins
+        };
+      }).filter(Boolean);
 
       return {
         suggestions,
+        componentsToPlace,
         explanation: aiResponse.explanation || `I generated ${suggestions.length} valid connection suggestions for your circuit.`
       };
 
@@ -464,6 +496,7 @@ export class WiringService {
       // Fallback in case of AI error
       return {
         suggestions: [],
+        componentsToPlace: [],
         explanation: 'Sorry, I could not generate wiring suggestions at the moment. Please try again.'
       };
     }
@@ -518,6 +551,16 @@ export class WiringService {
             pins.push(`GPIO${i}`);
           }
         }
+
+        // Handle numeric GPIO fields like 'gpio.header_pins': 40 or 'gpio_exposed_count': 33
+        if (keyLower.includes('gpio') && !gpioPins) {
+          const numericVal = typeof value === 'number' ? value : parseInt(valueStr.replace(/[^0-9]/g, ''), 10);
+          if (!isNaN(numericVal) && numericVal > 0) {
+            for (let i = 0; i < Math.min(numericVal, 60); i++) {
+              pins.push(`GPIO${i + 1}`);
+            }
+          }
+        }
       }
       
       // Communication interfaces
@@ -530,6 +573,12 @@ export class WiringService {
         }
         if (valueStr.includes('uart') || valueStr.includes('serial')) {
           pins.push('TX', 'RX');
+        }
+        if (valueStr.includes('i2s')) {
+          // Typical I2S pins
+          pins.push('BCLK', 'LRCLK', 'DIN', 'DOUT');
+          // Optional master clock if present in some designs
+          pins.push('MCLK');
         }
       }
       
@@ -547,6 +596,11 @@ export class WiringService {
     
     // 2. Detect component type and add specific pins
     const componentType = (specs.type || component.type || '').toLowerCase();
+
+    // Early exit for non-electronic components (mechanical/structural)
+    if (this.isNonElectronicComponent(componentType, technicalSpecs)) {
+      return [];
+    }
     
     if (componentType.includes('arduino') || componentType.includes('microcontroller')) {
       // Arduino pinout - detect model to adjust pins
@@ -598,6 +652,21 @@ export class WiringService {
       pins.push('VCC', 'GND', 'SIGNAL', 'PWM', 'DIR1', 'DIR2');
     } else if (componentType.includes('battery') || componentType.includes('power')) {
       pins.push('POSITIVE', 'NEGATIVE', 'VCC', 'GND', 'OUT+', 'OUT-');
+    } else if (componentType.includes('speaker')) {
+      // Speakers are differential outputs from an amplifier
+      pins.push('SPK+', 'SPK-');
+    } else if (componentType.includes('headphone') || componentType.includes('jack')) {
+      // Headphone jacks typically expose L, R, GND and a detect pin
+      pins.push('HP_L', 'HP_R', 'GND', 'HP_DET');
+    } else if (componentType.includes('audio') || componentType.includes('codec') || componentType.includes('amplifier')) {
+      // Audio codec/amplifier common pins
+      pins.push('SDA', 'SCL');
+      pins.push('BCLK', 'LRCLK', 'DIN', 'DOUT');
+      // If specs mention speaker output power, expose speaker outputs
+      const specText = JSON.stringify(technicalSpecs).toLowerCase();
+      if (specText.includes('speaker') || specText.includes('output_power')) {
+        pins.push('SPK+', 'SPK-');
+      }
     }
     
     // 3. If nothing found, use generic pins
@@ -609,6 +678,23 @@ export class WiringService {
     const uniquePins = [...new Set(pins)];
     console.log(`Extracted pins for ${specs.type || component.type}:`, uniquePins);
     return uniquePins.sort();
+  }
+
+  /**
+   * Detect non-electronic components to avoid assigning pins
+   */
+  private isNonElectronicComponent(componentType: string, specs: any): boolean {
+    const mechanicalKeywords = [
+      'enclosure', 'case', 'mount', 'bracket', 'plate', 'holder', 'frame', 'shell', 'cover', 'spacer', 'support',
+      'screw', 'bolt', 'nut', 'washer', 'bearing', 'spring', 'shaft', 'wheel', 'gear', 'pulley', 'belt', 'hinge',
+      'chassis', 'profile', 'extrusion', 'panel', 'grille', 'vent', 'foot', 'pad', 'standoff', 'spacer', 'clip'
+    ];
+    if (mechanicalKeywords.some(k => componentType.includes(k))) return true;
+
+    // Heuristic: absence of any electrical fields suggests non-electronic
+    const specText = JSON.stringify(specs).toLowerCase();
+    const hasElectricalHints = /(voltage|current|gpio|i2c|spi|uart|pin|vcc|gnd|3\.3v|5v|power)/.test(specText);
+    return !hasElectricalHints;
   }
 
   /**
@@ -674,6 +760,19 @@ export class WiringService {
     }
     
     return 'data';
+  }
+
+  /**
+   * Choose default wire color from type when missing
+   */
+  private defaultWireColor(color: string | undefined, wireType: string | undefined): string {
+    if (color && typeof color === 'string' && color.trim().length > 0) return color;
+    const type = (wireType || '').toLowerCase();
+    if (type.includes('power') || type.includes('vcc') || type.includes('vdd')) return '#ff0000';
+    if (type.includes('ground') || type.includes('gnd')) return '#000000';
+    if (type.includes('analog')) return '#00ff00';
+    if (type.includes('digital') || type.includes('communication') || type.includes('data')) return '#0000ff';
+    return '#0000ff';
   }
 
   /**

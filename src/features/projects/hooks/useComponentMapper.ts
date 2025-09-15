@@ -214,14 +214,16 @@ export const useComponentMapper = () => {
   };
 
   // Helper function to create component from material using technical specifications
-  const createComponentFromMaterial = (material: any, index: number): WiringComponent => {
+  const createComponentFromMaterial = (material: any, index: number, opts?: { presetPins?: WiringPin[] }): WiringComponent => {
     const specs = material.currentVersion?.specs || {};
     const componentType = specs.type?.toLowerCase() || 'unknown';
     
 
     
-    // Use real technical specifications to generate pins
-    const pins = extractPinsFromTechnicalSpecs(material);
+    // Use preset pins if provided (from backend componentsToPlace), else extract
+    const pins = opts?.presetPins && Array.isArray(opts.presetPins) && opts.presetPins.length > 0
+      ? opts.presetPins as WiringPin[]
+      : extractPinsFromTechnicalSpecs(material);
     
     // Compact grid layout
     const componentsPerRow = 3;

@@ -44,7 +44,9 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     isLoadingMessages,
     handleSendChatMessage,
     handleStopGeneration,
-    updateMessageSuggestions
+    updateMessageSuggestions,
+    componentsToPlaceIds,
+    componentsToPlaceById
   } = useWiringChat({ 
     projectId: projectId || '', // ✅ Assurer que projectId n'est pas undefined
     diagram 
@@ -105,28 +107,6 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     // Determine current diagram to use
     let currentDiagram = diagram;
 
-    // Create diagram if necessary with ALL available components
-    if (!currentDiagram && suggestion.connectionData) {
-      console.log('Creating initial diagram with ALL available components');
-      const allComponents = materials.map((material, index) => 
-        createComponentFromMaterial(material, index)
-      );
-      
-      currentDiagram = {
-        id: `diagram-${Date.now()}`,
-        components: allComponents,
-        connections: [],
-        metadata: {
-          title: 'Circuit Optimal',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          version: 1
-        }
-      };
-      
-      console.log('Initial diagram created with ALL available components:', allComponents.length);
-    }
-
         // Apply suggestion based on action
     if (suggestion.action === 'add' && suggestion.connectionData && currentDiagram) {
         console.log('Adding connection from suggestion:', suggestion.connectionData);
@@ -148,16 +128,45 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           return;
         }
         
-      // Add missing components if needed
+      // Add missing components if needed (only the ones involved in the connection)
       const requiredMaterialIds = new Set([
         suggestion.connectionData.fromComponent,
         suggestion.connectionData.toComponent
       ]);
+
+      // If no diagram exists yet, create a minimal one with only required components
+      if (!currentDiagram) {
+        const minimalComponents = materials
+          .filter(material => requiredMaterialIds.has(material.id))
+          .map((material, index) => {
+            const preset = componentsToPlaceById[material.id]?.pins;
+            return createComponentFromMaterial(material, index, { presetPins: Array.isArray(preset) ? preset : undefined });
+          });
+        currentDiagram = {
+          id: `diagram-${Date.now()}`,
+          components: minimalComponents,
+          connections: [],
+          metadata: {
+            title: 'Wiring Diagram',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            version: 1
+          }
+        };
+        setDiagram(currentDiagram);
+      }
       
         const existingComponentIds = new Set(currentDiagram.components.map(c => c.id));
       const componentsToAdd = materials
         .filter(material => requiredMaterialIds.has(material.id) && !existingComponentIds.has(material.id))
-        .map((material, index) => createComponentFromMaterial(material, currentDiagram!.components.length + index));
+        .map((material, index) => {
+          const preset = componentsToPlaceById[material.id]?.pins;
+          return createComponentFromMaterial(
+            material,
+            currentDiagram!.components.length + index,
+            { presetPins: Array.isArray(preset) ? preset : undefined }
+          );
+        });
       
       // Map pins correctly
       const fromComponent = [...currentDiagram.components, ...componentsToAdd]
@@ -224,25 +233,8 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         detail: { projectId, context: 'wiring' } 
       }));
       
-      // Create diagram with ALL components if none exists
-      if (!diagram) {
-        const allComponents = materials.map((material, index) => 
-          createComponentFromMaterial(material, index)
-        );
-        
-        const newDiagram = {
-        id: `diagram-${Date.now()}`,
-        components: allComponents,
-          connections: [],
-        metadata: {
-          title: 'Circuit Optimal',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          version: 1
-        }
-      };
-        setDiagram(newDiagram);
-      }
+      // Ne pas créer de diagramme exhaustif à l'avance;
+      // attendre la réponse de l'IA (componentsToPlaceIds) pour n'ajouter que l'essentiel
       
       // Send optimal circuit request
       await handleSendChatMessage('Suggest me an optimal circuit', 'agent');
@@ -314,7 +306,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         {/* Wiring Canvas */}
         <WiringCanvas
             diagram={diagram}
-          materials={materials}
+          materials={componentsToPlaceIds.length > 0 ? materials.filter(m => componentsToPlaceIds.includes(m.id)) : (isGenerating ? [] : materials)}
             selectedConnection={selectedConnection}
             selectedComponent={selectedComponent}
           isValidating={isValidating}

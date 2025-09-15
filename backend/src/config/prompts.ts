@@ -53,7 +53,9 @@ List needed electronics components in JSON format:
     - DIY-friendly wire management
     - Breadboard and prototype compatibility
 
-    **OUTPUT JSON:**
+    **OUTPUT JSON (STRICT ENGLISH ONLY):**
+    - All fields and values MUST be in English.
+    - Respond with valid JSON only (no prose, no markdown).
     {
       "explanation": "Analysis and recommendations for the wiring setup",
       "suggestions": [
@@ -238,6 +240,10 @@ List needed electronics components in JSON format:
     8. ✅ CHECK FOR DUPLICATE CONNECTIONS - don't suggest connections that already exist
     9. ✅ USE APPROPRIATE ACTIONS: "add" for new connections, "remove" for deletions, "update" for modifications
     
+    **STRICT COMPONENT ELIGIBILITY:**
+    - NEVER connect non-electronic components (mechanical/structural parts such as "enclosure", "mount", "bracket", "plate", "frame", "cover", fasteners).
+    - Only electronic components (power, MCUs, sensors, displays, relays, drivers, modules) can have pins.
+
     **SMART PIN DETECTION FROM TECHNICAL SPECIFICATIONS:**
     You MUST analyze the technical specifications of each component to determine the available pins. 
     Look for these patterns in the component specifications:
@@ -285,7 +291,8 @@ List needed electronics components in JSON format:
     4. Does the destination pin exist on the real component based on its technical specifications?
     5. Are the pin types compatible (3.3V ↔ 3.3V, digital ↔ digital, etc.)?
     
-    **STRICT JSON RESPONSE FORMAT (MUST BE VALID JSON - NO JAVASCRIPT EXPRESSIONS):**
+    **STRICT JSON RESPONSE FORMAT (MUST BE VALID JSON - NO JAVASCRIPT EXPRESSIONS, ENGLISH ONLY):**
+    - All fields and values MUST be in English.
     {
       "explanation": "Analysis of current circuit and suggestions based on user request: [USER_REQUEST]",
       "suggestions": [

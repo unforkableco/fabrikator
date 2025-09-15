@@ -61,9 +61,10 @@ export class AIService {
 
     // Initialize OpenAI client if using OpenAI provider
     if (this.currentProvider.name === 'openai') {
+      const timeoutMs = Number(process.env.OPENAI_TIMEOUT_MS || 1800000); // default 30 minutes
       this.openaiClient = new OpenAI({
         apiKey: this.currentProvider.apiKey,
-        timeout: 600000 // 10 minutes timeout for GPT-5
+        timeout: timeoutMs
       });
     }
 
@@ -174,7 +175,7 @@ export class AIService {
   /**
    * Generic call to AI API with provider-specific implementation
    */
-  public async callAI(messages: any[], temperature = 0.7, retries = 2): Promise<string> {
+  public async callAI(messages: any[], temperature = 0.7, retries = 4): Promise<string> {
     console.log(`Calling ${this.currentProvider.name} API with model: ${this.currentProvider.model}, messages: ${messages.length}, temperature: ${temperature}`);
     
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -194,14 +195,19 @@ export class AIService {
         return response;
       } catch (error: any) {
         const isRateLimit = error.response?.status === 429;
+        const isTimeout =
+          error?.name?.toLowerCase?.().includes('timeout') ||
+          error?.message?.toLowerCase?.().includes('timed out') ||
+          error?.code === 'ETIMEDOUT' ||
+          error?.type === 'timeout';
         const isLastAttempt = attempt === retries;
         
-        if (isRateLimit && !isLastAttempt) {
+        if ((isRateLimit || isTimeout) && !isLastAttempt) {
           // Calculate exponential backoff delay: 2^attempt * baseDelay (in ms)
-          const baseDelay = 1000; // 1 second
-          const delay = Math.min(baseDelay * Math.pow(2, attempt), 30000); // Max 30 seconds
+          const baseDelay = isTimeout ? 2000 : 1000;
+          const delay = Math.min(baseDelay * Math.pow(2, attempt), 60000); // Max 60 seconds
           
-          console.log(`Rate limit hit (429), retrying in ${delay}ms (attempt ${attempt + 1}/${retries + 1})`);
+          console.log(`${isTimeout ? 'Timeout' : 'Rate limit'} encountered, retrying in ${delay}ms (attempt ${attempt + 1}/${retries + 1})`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
@@ -473,8 +479,8 @@ export class AIService {
    * Generate wiring suggestions
    */
   async generateWiringSuggestions(prompt: string, context?: any): Promise<any>;
-  async generateWiringSuggestions(params: { prompt: string; materials: any[]; currentDiagram?: any }): Promise<any>;
-  async generateWiringSuggestions(promptOrParams: string | { prompt: string; materials: any[]; currentDiagram?: any }, context?: any): Promise<any> {
+  async generateWiringSuggestions(params: { prompt: string; materials: any[]; currentDiagram?: any; existingConnections?: any[]; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }): Promise<any>;
+  async generateWiringSuggestions(promptOrParams: string | { prompt: string; materials: any[]; currentDiagram?: any; existingConnections?: any[]; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }, context?: any): Promise<any> {
     let prompt: string;
     let contextData: any;
 
@@ -486,19 +492,28 @@ export class AIService {
       prompt = promptOrParams.prompt;
       contextData = {
         materials: promptOrParams.materials,
-        currentDiagram: promptOrParams.currentDiagram
+        currentDiagram: promptOrParams.currentDiagram,
+        existingConnections: promptOrParams.existingConnections,
+        chatHistory: promptOrParams.chatHistory
       };
     }
 
-    // Use wiringOptimalCircuit for complex wiring analysis (legacy support)
-    if (contextData?.materials && contextData.materials.length > 0 && contextData?.currentDiagram) {
+    // Determine model capabilities
+    const modelConfig = getModelConfig(this.currentProvider.model);
+    const isReasoningModel = modelConfig?.isReasoningModel || false;
+
+    // Use wiringOptimalCircuit for complex wiring analysis ONLY for non-reasoning models
+    if (!isReasoningModel && contextData?.materials && contextData.materials.length > 0 && contextData?.currentDiagram) {
       const historyArr = Array.isArray(contextData?.chatHistory) ? contextData.chatHistory as Array<{role: string; content: string}> : [];
       const historyText = historyArr.length > 0
         ? '\n\nConversation History (latest messages):\n' + historyArr.slice(-10).map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')
         : '';
       let systemPrompt = (prompts.wiringOptimalCircuit
         .replace('{{materials}}', JSON.stringify(contextData.materials, null, 2))
-        .replace('{{currentDiagram}}', JSON.stringify(contextData.currentDiagram, null, 2))
+        .replace('{{currentDiagram}}', JSON.stringify({
+          ...contextData.currentDiagram,
+          existingConnections: contextData.existingConnections || []
+        }, null, 2))
         .replace('{{prompt}}', prompt)) + historyText;
       
       const messages = [
@@ -533,9 +548,20 @@ export class AIService {
         const parsedResponse = JSON.parse(cleanedResponse);
         return parsedResponse;
       } catch (error) {
-        console.error('Error parsing AI wiring response:', error);
-        
-        // Fallback: return a default structure
+        console.error('Error parsing AI wiring response (complex path):', error);
+        // Fallback attempt with alternate model if available
+        if (this.currentProvider.name === 'openai') {
+          try {
+            const fallbackModel = process.env.OPENAI_FALLBACK_MODEL || 'gpt-4o';
+            console.log(`Retrying wiring suggestions with fallback model: ${fallbackModel}`);
+            const fallbackRaw = await this.callOpenAI(messages, 0.7, fallbackModel);
+            const cleaned = this.cleanJsonResponse(fallbackRaw);
+            return JSON.parse(cleaned);
+          } catch (fallbackError) {
+            console.error('Fallback model also failed:', fallbackError);
+          }
+        }
+        // Final fallback: return a default structure
         return {
           explanation: "I couldn't analyze your materials correctly at the moment.",
           suggestions: []
@@ -562,7 +588,19 @@ export class AIService {
         const cleanedResponse = this.cleanJsonResponse(response);
         return JSON.parse(cleanedResponse);
       } catch (error) {
-        console.error('Error in generateWiringSuggestions:', error);
+        console.error('Error in generateWiringSuggestions (simple path):', error);
+        // Fallback attempt with alternate model if available
+        if (this.currentProvider.name === 'openai') {
+          try {
+            const fallbackModel = process.env.OPENAI_FALLBACK_MODEL || 'gpt-4o';
+            console.log(`Retrying wiring suggestions with fallback model: ${fallbackModel}`);
+            const fallbackRaw = await this.callOpenAI(messages, 0.7, fallbackModel);
+            const cleaned = this.cleanJsonResponse(fallbackRaw);
+            return JSON.parse(cleaned);
+          } catch (fallbackError) {
+            console.error('Fallback model also failed:', fallbackError);
+          }
+        }
         throw error;
       }
     }
@@ -600,7 +638,7 @@ export class AIService {
   /**
    * Legacy method: Suggests hardware components for a project (backward compatibility)
    */
-  async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[]; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) {
+  async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[]; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>; language?: string }) {
     const { name, description, userPrompt = '', previousComponents = [], currentMaterials = [], chatHistory = [] } = params;
     
     // Simplify current materials first (now includes requirements for precision)

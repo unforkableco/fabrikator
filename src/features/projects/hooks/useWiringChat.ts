@@ -13,6 +13,8 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [componentsToPlaceIds, setComponentsToPlaceIds] = useState<string[]>([]);
+  const [componentsToPlaceById, setComponentsToPlaceById] = useState<Record<string, { id: string; name: string; type: string; pins: any[] }>>({});
 
   // No language detection on frontend
 
@@ -102,6 +104,8 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
     }
     
     setIsGenerating(true);
+    // Reset components to place while generating a new response
+    setComponentsToPlaceIds([]);
 
     try {
       let aiResponse: string;
@@ -126,6 +130,21 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
           const response = await api.wiring.generateWiringSuggestions(projectId, message, diagram);
           console.log('Wiring agent response:', response);
           
+          // Capture components to place (ids only) for toolbar filtering
+          if (response && Array.isArray(response.componentsToPlace)) {
+            const ids = response.componentsToPlace
+              .map((c: any) => c && typeof c.id === 'string' ? c.id : null)
+              .filter((id: any): id is string => Boolean(id));
+            setComponentsToPlaceIds(ids);
+            const byId: Record<string, { id: string; name: string; type: string; pins: any[] }> = {};
+            response.componentsToPlace.forEach((c: any) => {
+              if (c && c.id) {
+                byId[c.id] = { id: c.id, name: c.name, type: c.type, pins: Array.isArray(c.pins) ? c.pins : [] };
+              }
+            });
+            setComponentsToPlaceById(byId);
+          }
+
           if (response && response.suggestions && Array.isArray(response.suggestions)) {
             // Adapt suggestions to handle old and new formats
             const suggestions = response.suggestions.map((suggestion: any, index: number) => {
@@ -253,6 +272,8 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
     handleSendChatMessage,
     handleStopGeneration,
     updateMessageSuggestions,
-    loadChatMessages
+    loadChatMessages,
+    componentsToPlaceIds,
+    componentsToPlaceById
   };
 }; 
