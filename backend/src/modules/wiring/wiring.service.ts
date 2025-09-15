@@ -313,12 +313,12 @@ export class WiringService {
           }
           
           return {
-            id: `remove-suggestion-${uuidv4()}`, // Always generate a unique UUID
+            id: `remove-suggestion-${uuidv4()}`,
             title: suggestion.type || `Remove connection`,
             description: suggestion.description || `Remove connection ${connectionToRemove.fromComponent} → ${connectionToRemove.toComponent}`,
             action: 'remove',
             existingConnectionId: suggestion.existingConnectionId,
-            connectionData: connectionToRemove, // Include existing connection data for reference
+            connectionData: connectionToRemove,
             expanded: false,
             validated: false,
             confidence: suggestion.confidence || 0.8
@@ -373,11 +373,10 @@ export class WiringService {
           return null;
         }
 
-        // VALIDATION: Ensure pins are appropriate based on technical specifications
-        const validFromPins = this.getValidPinsForComponent(fromComponentExists);
-        const validToPins = this.getValidPinsForComponent(toComponentExists);
+        // VALIDATION: Ensure pins are appropriate based on explicit specs
+        const validFromPins = this.getPinsFromSpecs(fromComponentExists) || [];
+        const validToPins = this.getPinsFromSpecs(toComponentExists) || [];
 
-        // Reject suggestions involving non-electronic components (no pins)
         if (validFromPins.length === 0 || validToPins.length === 0) {
           console.warn('Dropping suggestion with non-electronic component(s):', {
             fromComponent: connectionData.fromComponent,
@@ -387,57 +386,30 @@ export class WiringService {
         }
         
         if (!validFromPins.includes(connectionData.fromPin) || !validToPins.includes(connectionData.toPin)) {
-          const fromSpecs = fromComponentExists.currentVersion?.specs as any || {};
-          const toSpecs = toComponentExists.currentVersion?.specs as any || {};
-          
-          console.warn('Invalid pins - Adjusted connection (based on technical specifications):', {
-            from: `${fromSpecs.name || 'Unknown'}(${fromSpecs.type || 'Unknown'}).${connectionData.fromPin}`,
-            to: `${toSpecs.name || 'Unknown'}(${toSpecs.type || 'Unknown'}).${connectionData.toPin}`,
-            validFromPins: validFromPins,
-            validToPins: validToPins,
-            fromComponentSpecs: fromSpecs.requirements || {},
-            toComponentSpecs: toSpecs.requirements || {}
-          });
-          
-          // Adjust pins if needed, preferring appropriate pins
-          if (!validFromPins.includes(connectionData.fromPin)) {
-            // Choose an appropriate pin based on the wire type
-            if (connectionData.wireType === 'power') {
-              connectionData.fromPin = validFromPins.find(p => ['VCC', '5V', '3V3', 'POSITIVE', 'OUT+'].includes(p)) || validFromPins[0];
-            } else if (connectionData.wireType === 'ground') {
-              connectionData.fromPin = validFromPins.find(p => ['GND', 'NEGATIVE', 'OUT-'].includes(p)) || validFromPins[0];
-            } else {
-              connectionData.fromPin = validFromPins.find(p => !['VCC', 'GND', '5V', '3V3'].includes(p)) || validFromPins[0];
-            }
-          }
-          
-          if (!validToPins.includes(connectionData.toPin)) {
-            // Choose an appropriate pin based on the wire type
-            if (connectionData.wireType === 'power') {
-              connectionData.toPin = validToPins.find(p => ['VCC', '5V', '3V3', 'POSITIVE'].includes(p)) || validToPins[0];
-            } else if (connectionData.wireType === 'ground') {
-              connectionData.toPin = validToPins.find(p => ['GND', 'NEGATIVE'].includes(p)) || validToPins[0];
-            } else {
-              connectionData.toPin = validToPins.find(p => !['VCC', 'GND', '5V', '3V3'].includes(p)) || validToPins[0];
-            }
-          }
-          
-          console.log('Adjusted pins:', {
+          console.warn('Invalid pins - rejecting suggestion (AI must provide valid pin names)', {
+            fromComponent: connectionData.fromComponent,
+            toComponent: connectionData.toComponent,
             fromPin: connectionData.fromPin,
-            toPin: connectionData.toPin
+            toPin: connectionData.toPin,
+            validFromPins,
+            validToPins
           });
+          return null;
         }
 
         const fromSpecs = fromComponentExists.currentVersion?.specs as any || {};
         const toSpecs = toComponentExists.currentVersion?.specs as any || {};
+        const fromName = fromSpecs.name || fromSpecs.type || 'Unknown';
+        const toName = toSpecs.name || toSpecs.type || 'Unknown';
+        const titleBase = suggestion.type || (suggestion.action || 'add');
+        const title = `${titleBase}: ${fromName}.${connectionData.fromPin} → ${toName}.${connectionData.toPin}`;
 
         return {
-          id: `wiring-suggestion-${uuidv4()}`, // Always generate a unique UUID in the backend
-          title: suggestion.type || `${suggestion.action || 'add'} ${fromSpecs.name || 'Unknown'} → ${toSpecs.name || 'Unknown'}`,
-          description: suggestion.description || this.getActionDescription(suggestion.action, fromSpecs.name || 'Unknown', toSpecs.name || 'Unknown', connectionData.fromPin, connectionData.toPin),
+          id: `wiring-suggestion-${uuidv4()}`,
+          title,
+          description: suggestion.description || this.getActionDescription(suggestion.action, fromName, toName, connectionData.fromPin, connectionData.toPin),
           action: suggestion.action || 'add',
           connectionData: {
-            // Always generate a unique UUID for connectionData
             id: `conn-${uuidv4()}`,
             fromComponent: connectionData.fromComponent,
             toComponent: connectionData.toComponent,
@@ -445,7 +417,6 @@ export class WiringService {
             toPin: connectionData.toPin,
             wireType: this.normalizeWireType(connectionData.wireType),
             wireColor: this.defaultWireColor(connectionData.wireColor, connectionData.wireType)
-            // Do NOT include 'validated' here - it belongs at the suggestion level
           },
           existingConnectionId: suggestion.existingConnectionId,
           componentData: suggestion.componentData,
@@ -475,7 +446,7 @@ export class WiringService {
         const mat = materials.find(m => m.id === id);
         if (!mat) return null;
         const specs = (mat.currentVersion?.specs as any) || {};
-        const pins = this.getValidPinsForComponent(mat);
+        const pins = this.getPinsFromSpecs(mat);
         return {
           id: mat.id,
           name: specs.name || 'Component',
@@ -502,234 +473,29 @@ export class WiringService {
     }
   }
 
-  /**
-   * Extract pins from a component's technical specifications
-   */
-  private extractPinsFromTechnicalSpecs(component: any): string[] {
-    const specs = component.currentVersion?.specs || {};
-    const technicalSpecs = specs.requirements || {};
-    const productReference = specs.productReference || {};
-    
-    console.log(`Extracting pins for component: ${specs.type || component.type}`);
-    console.log(`Technical specs:`, technicalSpecs);
-    
-    // Collect all pins mentioned in the specifications
-    const pins: string[] = [];
-    
-    // 1. Search specs for mentions of pins
-    Object.entries(technicalSpecs).forEach(([key, value]) => {
-      const keyLower = key.toLowerCase();
-      const valueStr = String(value).toLowerCase();
-      
-      // Common pins
-      if (keyLower.includes('pin') || keyLower.includes('broche') || keyLower.includes('gpio')) {
-        // Extract patterns like "14 digital pins", "6 analog pins"
-        const digitalPins = valueStr.match(/(\d+)\s*digital/i);
-        const analogPins = valueStr.match(/(\d+)\s*analog/i);
-        const gpioPins = valueStr.match(/(\d+)\s*gpio/i);
-        
-        if (digitalPins) {
-          const count = parseInt(digitalPins[1]);
-          // No artificial limitation - use actual number of pins
-          for (let i = 0; i < Math.min(count, 60); i++) { // Reasonable limit to avoid errors
-            pins.push(`D${i}`);
-          }
-        }
-        
-        if (analogPins) {
-          const count = parseInt(analogPins[1]);
-          // No artificial limitation - use actual number of pins
-          for (let i = 0; i < Math.min(count, 20); i++) { // Reasonable limit to avoid errors
-            pins.push(`A${i}`);
-          }
-        }
-        
-        if (gpioPins) {
-          const count = parseInt(gpioPins[1]);
-          // No artificial limitation - use actual number of pins
-          for (let i = 0; i < Math.min(count, 40); i++) { // Reasonable limit to avoid errors
-            pins.push(`GPIO${i}`);
-          }
-        }
-
-        // Handle numeric GPIO fields like 'gpio.header_pins': 40 or 'gpio_exposed_count': 33
-        if (keyLower.includes('gpio') && !gpioPins) {
-          const numericVal = typeof value === 'number' ? value : parseInt(valueStr.replace(/[^0-9]/g, ''), 10);
-          if (!isNaN(numericVal) && numericVal > 0) {
-            for (let i = 0; i < Math.min(numericVal, 60); i++) {
-              pins.push(`GPIO${i + 1}`);
-            }
-          }
-        }
-      }
-      
-      // Communication interfaces
-      if (keyLower.includes('interface') || keyLower.includes('communication')) {
-        if (valueStr.includes('i2c') || valueStr.includes('iic')) {
-          pins.push('SDA', 'SCL');
-        }
-        if (valueStr.includes('spi')) {
-          pins.push('MOSI', 'MISO', 'SCK', 'SS');
-        }
-        if (valueStr.includes('uart') || valueStr.includes('serial')) {
-          pins.push('TX', 'RX');
-        }
-        if (valueStr.includes('i2s')) {
-          // Typical I2S pins
-          pins.push('BCLK', 'LRCLK', 'DIN', 'DOUT');
-          // Optional master clock if present in some designs
-          pins.push('MCLK');
-        }
-      }
-      
-      // Voltage and power
-      if (keyLower.includes('voltage') || keyLower.includes('power') || keyLower.includes('supply')) {
-        pins.push('VCC', 'GND');
-        if (valueStr.includes('3.3v') || valueStr.includes('3v3')) {
-          pins.push('3V3');
-        }
-        if (valueStr.includes('5v')) {
-          pins.push('5V');
-        }
-      }
-    });
-    
-    // 2. Detect component type and add specific pins
-    const componentType = (specs.type || component.type || '').toLowerCase();
-
-    // Early exit for non-electronic components (mechanical/structural)
-    if (this.isNonElectronicComponent(componentType, technicalSpecs)) {
-      return [];
+  // Strict: read pins only from specs
+  private getPinsFromSpecs(component: any): string[] | null {
+    const specs: any = (component?.currentVersion?.specs as any) || {};
+    // Prefer top-level specs.pins
+    if (specs.pins === null) return null;
+    if (Array.isArray(specs.pins)) {
+      const normalized: string[] = (specs.pins as any[])
+        .map((p: any) => typeof p === 'string' ? p.trim() : '')
+        .filter((p: string): p is string => typeof p === 'string' && p.length > 0);
+      return [...new Set(normalized)].sort();
     }
-    
-    if (componentType.includes('arduino') || componentType.includes('microcontroller')) {
-      // Arduino pinout - detect model to adjust pins
-      pins.push('VCC', 'GND', '3V3', '5V', 'VIN', 'RESET');
-      
-      if (componentType.includes('mega') || technicalSpecs['Digital I/O Pins']?.toString().includes('54')) {
-        // Arduino Mega - 54 digital, 16 analog
-        if (!pins.some(p => p.startsWith('D'))) {
-          for (let i = 0; i <= 53; i++) pins.push(`D${i}`);
-        }
-        if (!pins.some(p => p.startsWith('A'))) {
-          for (let i = 0; i <= 15; i++) pins.push(`A${i}`);
-        }
-      } else {
-        // Arduino Uno/Nano standard - 14 digital, 6 analog
-        if (!pins.some(p => p.startsWith('D'))) {
-          for (let i = 0; i <= 13; i++) pins.push(`D${i}`);
-        }
-        if (!pins.some(p => p.startsWith('A'))) {
-          for (let i = 0; i <= 5; i++) pins.push(`A${i}`);
-        }
-      }
-    } else if (componentType.includes('esp32')) {
-      // ESP32 specific pins - use real available pins
-      pins.push('VCC', 'GND', '3V3', 'EN', 'VP', 'VN');
-      // ESP32 has 36 GPIOs (0-39 but some are reserved)
-      const esp32Pins = [0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39];
-      esp32Pins.forEach(i => pins.push(`GPIO${i}`));
-      // Also add specific analog pins
-      [36, 39, 34, 35, 32, 33, 25, 26, 27, 14, 12, 13, 4, 0, 2, 15].forEach(i => pins.push(`A${esp32Pins.indexOf(i) >= 0 ? esp32Pins.indexOf(i) : i}`));
-    } else if (componentType.includes('esp8266')) {
-      pins.push('VCC', 'GND', '3V3', 'RST', 'CH_PD', 'A0');
-      // ESP8266 usable pins
-      [0, 2, 4, 5, 12, 13, 14, 15, 16].forEach(i => pins.push(`GPIO${i}`));
-    } else if (componentType.includes('sensor')) {
-      // Generic sensors
-      pins.push('VCC', 'GND', 'DATA', 'SIGNAL', 'OUT');
-      if (componentType.includes('analog') || componentType.includes('analogue')) {
-        pins.push('AOUT', 'ANALOG');
-      }
-      if (componentType.includes('digital')) {
-        pins.push('DOUT', 'DIGITAL');
-      }
-    } else if (componentType.includes('display') || componentType.includes('lcd') || componentType.includes('oled')) {
-      pins.push('VCC', 'GND', 'SDA', 'SCL', 'CS', 'DC', 'RST', 'MOSI', 'SCK');
-    } else if (componentType.includes('relay')) {
-      pins.push('VCC', 'GND', 'IN', 'SIGNAL', 'COM', 'NO', 'NC');
-    } else if (componentType.includes('motor') || componentType.includes('servo')) {
-      pins.push('VCC', 'GND', 'SIGNAL', 'PWM', 'DIR1', 'DIR2');
-    } else if (componentType.includes('battery') || componentType.includes('power')) {
-      pins.push('POSITIVE', 'NEGATIVE', 'VCC', 'GND', 'OUT+', 'OUT-');
-    } else if (componentType.includes('speaker')) {
-      // Speakers are differential outputs from an amplifier
-      pins.push('SPK+', 'SPK-');
-    } else if (componentType.includes('headphone') || componentType.includes('jack')) {
-      // Headphone jacks typically expose L, R, GND and a detect pin
-      pins.push('HP_L', 'HP_R', 'GND', 'HP_DET');
-    } else if (componentType.includes('audio') || componentType.includes('codec') || componentType.includes('amplifier')) {
-      // Audio codec/amplifier common pins
-      pins.push('SDA', 'SCL');
-      pins.push('BCLK', 'LRCLK', 'DIN', 'DOUT');
-      // If specs mention speaker output power, expose speaker outputs
-      const specText = JSON.stringify(technicalSpecs).toLowerCase();
-      if (specText.includes('speaker') || specText.includes('output_power')) {
-        pins.push('SPK+', 'SPK-');
-      }
+    // Fallback: many flows store pins under specs.requirements.pins
+    const reqPins = specs?.requirements?.pins;
+    if (reqPins === null) return null;
+    if (Array.isArray(reqPins)) {
+      const normalized: string[] = (reqPins as any[])
+        .map((p: any) => typeof p === 'string' ? p.trim() : '')
+        .filter((p: string): p is string => typeof p === 'string' && p.length > 0);
+      return [...new Set(normalized)].sort();
     }
-    
-    // 3. If nothing found, use generic pins
-    if (pins.length === 0) {
-      pins.push('VCC', 'GND', 'SIGNAL', 'DATA');
-    }
-    
-    // 4. Return unique, sorted pins
-    const uniquePins = [...new Set(pins)];
-    console.log(`Extracted pins for ${specs.type || component.type}:`, uniquePins);
-    return uniquePins.sort();
+    return null;
   }
 
-  /**
-   * Detect non-electronic components to avoid assigning pins
-   */
-  private isNonElectronicComponent(componentType: string, specs: any): boolean {
-    const mechanicalKeywords = [
-      'enclosure', 'case', 'mount', 'bracket', 'plate', 'holder', 'frame', 'shell', 'cover', 'spacer', 'support',
-      'screw', 'bolt', 'nut', 'washer', 'bearing', 'spring', 'shaft', 'wheel', 'gear', 'pulley', 'belt', 'hinge',
-      'chassis', 'profile', 'extrusion', 'panel', 'grille', 'vent', 'foot', 'pad', 'standoff', 'spacer', 'clip'
-    ];
-    if (mechanicalKeywords.some(k => componentType.includes(k))) return true;
-
-    // Heuristic: absence of any electrical fields suggests non-electronic
-    const specText = JSON.stringify(specs).toLowerCase();
-    const hasElectricalHints = /(voltage|current|gpio|i2c|spi|uart|pin|vcc|gnd|3\.3v|5v|power)/.test(specText);
-    return !hasElectricalHints;
-  }
-
-  /**
-   * Return valid pins for a component (based on its technical specs)
-   */
-  private getValidPinsForComponent(component: any): string[] {
-    // Use the component's real technical specifications
-    return this.extractPinsFromTechnicalSpecs(component);
-  }
-
-  /**
-   * DEPRECATED: Old function kept for compatibility
-   * Use getValidPinsForComponent() instead
-   */
-  private getValidPinsForComponentType(componentType: string): string[] {
-    console.warn('getValidPinsForComponentType() is deprecated. Use getValidPinsForComponent() instead.');
-    
-    const type = componentType?.toLowerCase() || '';
-    
-    if (type.includes('microcontroller') || type.includes('arduino')) {
-      return ['VCC', 'GND', 'D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'A0', 'A1'];
-    } else if (type.includes('sensor')) {
-      return ['VCC', 'GND', 'DATA', 'SIGNAL', 'OUT'];
-    } else if (type.includes('display')) {
-      return ['VCC', 'GND', 'SDA', 'SCL', 'CS', 'DC', 'RST'];
-    } else if (type.includes('relay')) {
-      return ['VCC', 'GND', 'IN', 'COM', 'NO', 'NC'];
-    }
-    
-    return ['VCC', 'GND', 'SIGNAL', 'DATA'];
-  }
-
-  /**
-   * Generate action description based on action type
-   */
   private getActionDescription(action: string, fromName: string, toName: string, fromPin: string, toPin: string): string {
     switch (action) {
       case 'add':
@@ -743,28 +509,15 @@ export class WiringService {
     }
   }
 
-  /**
-   * Normalize wire types to expected categories
-   */
   private normalizeWireType(wireType: string): 'data' | 'power' | 'ground' | 'analog' | 'digital' {
     const type = wireType?.toLowerCase() || 'data';
-    
-    if (type.includes('power') || type.includes('vcc') || type.includes('vdd')) {
-      return 'power';
-    } else if (type.includes('ground') || type.includes('gnd')) {
-      return 'ground';
-    } else if (type.includes('analog')) {
-      return 'analog';
-    } else if (type.includes('digital') || type.includes('communication')) {
-      return 'digital';
-    }
-    
+    if (type.includes('power') || type.includes('vcc') || type.includes('vdd')) return 'power';
+    if (type.includes('ground') || type.includes('gnd')) return 'ground';
+    if (type.includes('analog')) return 'analog';
+    if (type.includes('digital') || type.includes('communication')) return 'digital';
     return 'data';
   }
 
-  /**
-   * Choose default wire color from type when missing
-   */
   private defaultWireColor(color: string | undefined, wireType: string | undefined): string {
     if (color && typeof color === 'string' && color.trim().length > 0) return color;
     const type = (wireType || '').toLowerCase();
@@ -775,20 +528,14 @@ export class WiringService {
     return '#0000ff';
   }
 
-  /**
-   * Validate a wiring diagram
-   */
   async validateWiring(projectId: string, diagram: any) {
     try {
       const errors: any[] = [];
       const warnings: any[] = [];
-
-      // Basic validation - extend with more sophisticated rules
       if (diagram.components && diagram.connections) {
         for (const connection of diagram.connections) {
           const fromComponent = diagram.components.find((c: any) => c.id === connection.fromComponent);
           const toComponent = diagram.components.find((c: any) => c.id === connection.toComponent);
-
           if (!fromComponent || !toComponent) {
             errors.push({
               id: `error-${connection.id}`,
@@ -798,11 +545,8 @@ export class WiringService {
               severity: 'error'
             });
           }
-
-          // Check voltage mismatch
           const fromPin = fromComponent?.pins?.find((p: any) => p.id === connection.fromPin);
           const toPin = toComponent?.pins?.find((p: any) => p.id === connection.toPin);
-
           if (fromPin && toPin && fromPin.voltage && toPin.voltage && fromPin.voltage !== toPin.voltage) {
             warnings.push({
               id: `warning-${connection.id}`,
@@ -813,12 +557,7 @@ export class WiringService {
           }
         }
       }
-
-      return {
-        isValid: errors.length === 0,
-        errors,
-        warnings
-      };
+      return { isValid: errors.length === 0, errors, warnings };
     } catch (error) {
       console.error('Error in validateWiring:', error);
       throw error;

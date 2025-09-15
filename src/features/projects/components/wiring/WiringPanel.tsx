@@ -108,11 +108,11 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     let currentDiagram = diagram;
 
         // Apply suggestion based on action
-    if (suggestion.action === 'add' && suggestion.connectionData && currentDiagram) {
+    if (suggestion.action === 'add' && suggestion.connectionData) {
         console.log('Adding connection from suggestion:', suggestion.connectionData);
         
       // Check if connection already exists
-        const existingConnection = currentDiagram.connections.find(c => 
+        const existingConnection = (currentDiagram?.connections || []).find(c => 
           (c.fromComponent === suggestion.connectionData!.fromComponent && 
            c.toComponent === suggestion.connectionData!.toComponent &&
            c.fromPin === suggestion.connectionData!.fromPin &&
@@ -140,7 +140,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           .filter(material => requiredMaterialIds.has(material.id))
           .map((material, index) => {
             const preset = componentsToPlaceById[material.id]?.pins;
-            return createComponentFromMaterial(material, index, { presetPins: Array.isArray(preset) ? preset : undefined });
+            return createComponentFromMaterial(material, index, { presetPins: (Array.isArray(preset) || preset === null) ? preset : undefined });
           });
         currentDiagram = {
           id: `diagram-${Date.now()}`,
@@ -164,14 +164,14 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           return createComponentFromMaterial(
             material,
             currentDiagram!.components.length + index,
-            { presetPins: Array.isArray(preset) ? preset : undefined }
+            { presetPins: (Array.isArray(preset) || preset === null) ? preset : undefined }
           );
         });
       
       // Map pins correctly
-      const fromComponent = [...currentDiagram.components, ...componentsToAdd]
+      const fromComponent = [...(currentDiagram?.components || []), ...componentsToAdd]
         .find(c => c.id === suggestion.connectionData!.fromComponent);
-      const toComponent = [...currentDiagram.components, ...componentsToAdd]
+      const toComponent = [...(currentDiagram?.components || []), ...componentsToAdd]
         .find(c => c.id === suggestion.connectionData!.toComponent);
       
       let mappedConnection = { ...suggestion.connectionData };
@@ -182,13 +182,23 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         mappedConnection.toPin = mapPinName(suggestion.connectionData.toPin, toComponent.pins);
         }
         
-        const updatedDiagram = {
+        const updatedDiagram = currentDiagram ? {
           ...currentDiagram,
           components: [...currentDiagram.components, ...componentsToAdd],
-        connections: [...currentDiagram.connections, mappedConnection],
+          connections: [...currentDiagram.connections, mappedConnection],
           metadata: {
             ...currentDiagram.metadata,
             updatedAt: new Date().toISOString()
+          }
+        } : {
+          id: `diagram-${Date.now()}`,
+          components: componentsToAdd,
+          connections: [mappedConnection],
+          metadata: {
+            title: 'Wiring Diagram',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            version: 1
           }
         };
       

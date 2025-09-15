@@ -66,6 +66,8 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
       const specs = material.requirements || {};
       const stringSpecs: {[key: string]: string} = {};
       Object.entries(specs).forEach(([key, value]) => {
+        // Masquer les pins du formulaire d'édition
+        if (key.toLowerCase() === 'pins') return;
         stringSpecs[key] = String(value);
       });
       setSpecifications(stringSpecs);
@@ -412,6 +414,7 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
                           {String(value)}
                         </Typography>
                       </Box>
+                      {/* Ne pas permettre l'édition de pins (non présentes car filtrées plus haut) */}
                       <IconButton
                         onClick={() => handleEditSpecification(key, String(value))}
                         size="small"

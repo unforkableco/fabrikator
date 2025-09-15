@@ -75,6 +75,8 @@ List needed electronics components in JSON format:
         }
       ]
     }
+
+    IMPORTANT: When choosing fromPin/toPin, you MUST read pin names from the materials' specs ("pins" in technicalSpecs or requirements.pins provided by the materials phase) and use those exact canonical short names.
   `,
 
   chatResponse: `
@@ -131,6 +133,22 @@ List needed electronics components in JSON format:
   - If a requirement key exists (e.g., ports.hdmi.count, power.total_W, interfaces.usb.type, dimensions.width_mm), your technicalSpecs MUST include that key with a compatible or greater value.
   - If a requirement cannot be satisfied, set the component action to "remove" or propose an "update" to another component that unlocks feasibility, and explain explicitly why.
 
+  **PINS ENRICHMENT (MANDATORY):**
+  - For EACH electronic component, add "pins" inside technicalSpecs as a canonical list of pin names (string[]), or set it to null ONLY for non-electronic components.
+  - Pins MUST use short, standard denominations (no long names, no vendor-specific aliases):
+    - Power: VCC, GND, 3V3, 5V, VIN
+    - I2C: SDA, SCL
+    - SPI: MOSI, MISO, SCK, CS (or SS)
+    - UART/Serial: TX, RX
+    - Analog inputs: A0, A1, A2, ...
+    - Digital GPIO (arduino-like): D0, D1, D2, ...
+    - MCU GPIO (esp32-like): GPIO0, GPIO1, ... (use real available numbers when known)
+    - Sensors (generic): VCC, GND, DATA (or SIGNAL)
+    - Relays: IN, COM, NO, NC
+    - Speakers: SPK+, SPK-
+  - Choose pins that match the component type and its technical capabilities. Do NOT invent non-existing pins.
+  - If the component does not require power or is non-electronic (mechanical/structural), set pins to null.
+
   (Product reference suggestions are handled by a dedicated sourcing step; do not include purchasing info here.)
 
   **STRICTLY FORBIDDEN IN technicalSpecs:**
@@ -163,6 +181,11 @@ List needed electronics components in JSON format:
             // MUST satisfy corresponding requirements keys from current materials when present
             // Must be one key and one value for each requirement key from current materials
             // No URLs/links or purchasing info allowed here
+            // PINS ENRICHMENT (MANDATORY):
+            //   Include a key "pins" with value:
+            //   - string[] of canonical short pin names (see conventions above), or
+            //   - null for non-electronic components
+            // Examples: ["VCC","GND","SDA","SCL"] or ["VCC","GND","TX","RX"] or ["D0","D1","A0","A1"] or ["GPIO0","GPIO2","3V3","GND"], or null
           }
         }
       }

@@ -185,7 +185,9 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
     const nonTechnicalFields = [
       'action', 'quantity', 'notes', 'status', 'createdBy', 'createdAt', 
       'updatedAt', 'id', 'materialRequirementId', 'projectId', 'componentId',
-      'versionNumber', 'aiSuggested', 'suggestedAlternatives'
+      'versionNumber', 'aiSuggested', 'suggestedAlternatives',
+      // Masquer explicitement les pins (gérées uniquement par l'IA côté wiring)
+      'pins'
     ];
 
     const technicalSpecs: any = {};
@@ -194,7 +196,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
       const lowerKey = key.toLowerCase();
       
       // Exclure les champs non-techniques
-      if (!nonTechnicalFields.some(field => lowerKey.includes(field.toLowerCase()))) {
+      if (!nonTechnicalFields.some(field => lowerKey === field.toLowerCase() || lowerKey.includes(field.toLowerCase()))) {
         technicalSpecs[key] = value;
       }
     });

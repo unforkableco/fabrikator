@@ -187,8 +187,11 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     // Determine exit direction for each pin
     const getConnectionDirection = (pin: WiringPin, component: WiringComponent) => {
       const componentSize = getComponentSize(component.type);
-      const pinPosX = pin.position.x;
-      const pinPosY = pin.position.y;
+      const padding = 10;
+      const clampedX = Math.max(-componentSize.width / 2 + padding, Math.min(componentSize.width / 2 - padding, pin.position.x));
+      const clampedY = Math.max(-componentSize.height / 2 + padding, Math.min(componentSize.height / 2 - padding, pin.position.y));
+      const pinPosX = clampedX;
+      const pinPosY = clampedY;
       
       const leftThreshold = -componentSize.width * 0.4;
       const rightThreshold = componentSize.width * 0.4;
@@ -660,223 +663,9 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
   /**
    * Extract pins from technical specifications of a material
    */
-  const extractPinsFromTechnicalSpecs = (material: any): WiringPin[] => {
-    const specs = material.currentVersion?.specs || {};
-    const technicalSpecs = specs.requirements || {};
-    const productReference = specs.productReference || {};
-    
-    const pins: WiringPin[] = [];
-    const componentType = (specs.type || material.type || '').toLowerCase();
-    
-    console.log('🔧 Extracting pins from technical specs:', {
-      materialName: specs.name || material.name,
-      componentType,
-      technicalSpecs,
-      productReference: productReference.name
-    });
-    
-    // 1. Analyze technical specifications to extract pin information
-    Object.entries(technicalSpecs).forEach(([key, value]) => {
-      const keyLower = key.toLowerCase();
-      const valueStr = String(value).toLowerCase();
-      
-      // Search for pin patterns in specifications
-      if (keyLower.includes('pin') || keyLower.includes('broche') || keyLower.includes('gpio')) {
-        const digitalPins = valueStr.match(/(\d+)\s*digital/i);
-        const analogPins = valueStr.match(/(\d+)\s*analog/i);
-        const gpioPins = valueStr.match(/(\d+)\s*gpio/i);
-        
-        if (digitalPins) {
-          const count = parseInt(digitalPins[1]);
-          for (let i = 0; i < Math.min(count, 14); i++) {
-            pins.push({
-              id: `d${i}`,
-              name: `D${i}`,
-              type: 'digital',
-              position: { x: i < 7 ? -60 : 60, y: -40 + (i % 7) * 12 },
-              connected: false
-            });
-          }
-        }
-        
-        if (analogPins) {
-          const count = parseInt(analogPins[1]);
-          for (let i = 0; i < Math.min(count, 8); i++) {
-            pins.push({
-              id: `a${i}`,
-              name: `A${i}`,
-              type: 'analog',
-              position: { x: 0, y: -40 + i * 10 },
-              connected: false
-            });
-          }
-        }
-        
-        if (gpioPins) {
-          const count = parseInt(gpioPins[1]);
-          for (let i = 0; i < Math.min(count, 10); i++) {
-            pins.push({
-              id: `gpio${i}`,
-              name: `GPIO${i}`,
-              type: 'digital',
-              position: { x: i < 5 ? -50 : 50, y: -30 + (i % 5) * 15 },
-              connected: false
-            });
-          }
-        }
-      }
-      
-      // Communication interfaces
-      if (keyLower.includes('interface') || keyLower.includes('communication')) {
-        if (valueStr.includes('i2c') || valueStr.includes('iic')) {
-      pins.push(
-        { id: 'sda', name: 'SDA', type: 'digital', position: { x: 40, y: -20 }, connected: false },
-        { id: 'scl', name: 'SCL', type: 'digital', position: { x: 40, y: 20 }, connected: false }
-      );
-        }
-        if (valueStr.includes('spi')) {
-      pins.push(
-            { id: 'mosi', name: 'MOSI', type: 'digital', position: { x: 40, y: -30 }, connected: false },
-            { id: 'miso', name: 'MISO', type: 'digital', position: { x: 40, y: -10 }, connected: false },
-            { id: 'sck', name: 'SCK', type: 'digital', position: { x: 40, y: 10 }, connected: false },
-            { id: 'ss', name: 'SS', type: 'digital', position: { x: 40, y: 30 }, connected: false }
-      );
-        }
-        if (valueStr.includes('uart') || valueStr.includes('serial')) {
-      pins.push(
-            { id: 'tx', name: 'TX', type: 'digital', position: { x: 40, y: -15 }, connected: false },
-            { id: 'rx', name: 'RX', type: 'digital', position: { x: 40, y: 15 }, connected: false }
-          );
-        }
-      }
-      
-      // Voltage and power supply
-      if (keyLower.includes('voltage') || keyLower.includes('power') || keyLower.includes('supply')) {
-        const voltage3v3 = valueStr.includes('3.3v') || valueStr.includes('3v3');
-        const voltage5v = valueStr.includes('5v');
-        
-        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -25 }, connected: false, voltage: voltage3v3 ? 3.3 : 5.0 });
-        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 25 }, connected: false });
-        
-        if (voltage3v3) {
-          pins.push({ id: '3v3', name: '3V3', type: 'power', position: { x: -40, y: -10 }, connected: false, voltage: 3.3 });
-        }
-        if (voltage5v) {
-          pins.push({ id: '5v', name: '5V', type: 'power', position: { x: -40, y: 5 }, connected: false, voltage: 5.0 });
-        }
-      }
-    });
-    
-    // 2. Generate specific pins based on component type and product reference
-    if (componentType.includes('arduino') || productReference.name?.toLowerCase().includes('arduino')) {
-      // Arduino Uno R3 standard pinout
-      if (!pins.some(p => p.name.startsWith('D'))) {
-        for (let i = 0; i <= 13; i++) {
-          pins.push({
-            id: `d${i}`,
-            name: `D${i}`,
-            type: 'digital',
-            position: { x: i < 7 ? -60 : 60, y: -40 + (i % 7) * 12 },
-            connected: false
-          });
-        }
-      }
-      if (!pins.some(p => p.name.startsWith('A'))) {
-        for (let i = 0; i <= 5; i++) {
-          pins.push({
-            id: `a${i}`,
-            name: `A${i}`,
-            type: 'analog',
-            position: { x: 0, y: -30 + i * 10 },
-            connected: false
-          });
-        }
-      }
-      // Power and control pins
-      if (!pins.some(p => p.id === 'vcc')) {
-        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -25 }, connected: false, voltage: 5.0 });
-        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 25 }, connected: false });
-        pins.push({ id: '3v3', name: '3V3', type: 'power', position: { x: -40, y: -10 }, connected: false, voltage: 3.3 });
-        pins.push({ id: 'reset', name: 'RESET', type: 'digital', position: { x: -40, y: 5 }, connected: false });
-      }
-    } else if (componentType.includes('esp32') || productReference.name?.toLowerCase().includes('esp32')) {
-      // ESP32 specific pinout
-      if (!pins.some(p => p.name.startsWith('GPIO'))) {
-        const availableGPIOs = [0, 2, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33];
-        availableGPIOs.forEach((gpio, index) => {
-          pins.push({
-            id: `gpio${gpio}`,
-            name: `GPIO${gpio}`,
-            type: 'digital',
-            position: { x: index < 10 ? -60 : 60, y: -40 + (index % 10) * 8 },
-            connected: false
-          });
-        });
-      }
-      if (!pins.some(p => p.id === 'vcc')) {
-        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -30 }, connected: false, voltage: 3.3 });
-        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 30 }, connected: false });
-        pins.push({ id: '3v3', name: '3V3', type: 'power', position: { x: -40, y: -15 }, connected: false, voltage: 3.3 });
-        pins.push({ id: 'en', name: 'EN', type: 'digital', position: { x: -40, y: 0 }, connected: false });
-      }
-    } else if (componentType.includes('sensor')) {
-      // Generic sensors
-      if (!pins.some(p => p.id === 'vcc')) {
-        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -20 }, connected: false, voltage: 3.3 });
-        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 20 }, connected: false });
-        pins.push({ id: 'data', name: 'DATA', type: 'analog', position: { x: 30, y: 0 }, connected: false });
-        
-        if (componentType.includes('analog')) {
-          pins.push({ id: 'aout', name: 'AOUT', type: 'analog', position: { x: 30, y: -15 }, connected: false });
-        }
-        if (componentType.includes('digital')) {
-          pins.push({ id: 'dout', name: 'DOUT', type: 'digital', position: { x: 30, y: 15 }, connected: false });
-        }
-      }
-    } else if (componentType.includes('display') || componentType.includes('oled') || componentType.includes('lcd')) {
-      // Screens
-      if (!pins.some(p => p.id === 'vcc')) {
-        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -40, y: -30 }, connected: false, voltage: 3.3 });
-        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -40, y: 30 }, connected: false });
-        
-        // Default I2C
-        if (!pins.some(p => p.id === 'sda')) {
-          pins.push({ id: 'sda', name: 'SDA', type: 'digital', position: { x: 40, y: -20 }, connected: false });
-          pins.push({ id: 'scl', name: 'SCL', type: 'digital', position: { x: 40, y: 20 }, connected: false });
-        }
-      }
-    } else if (componentType.includes('relay')) {
-      // Relays
-      if (!pins.some(p => p.id === 'vcc')) {
-        pins.push({ id: 'vcc', name: 'VCC', type: 'power', position: { x: -30, y: -20 }, connected: false, voltage: 5.0 });
-        pins.push({ id: 'gnd', name: 'GND', type: 'ground', position: { x: -30, y: 20 }, connected: false });
-        pins.push({ id: 'in', name: 'IN', type: 'digital', position: { x: 30, y: -15 }, connected: false });
-        pins.push({ id: 'com', name: 'COM', type: 'power', position: { x: 30, y: 0 }, connected: false });
-        pins.push({ id: 'no', name: 'NO', type: 'power', position: { x: 30, y: 15 }, connected: false });
-      }
-    } else if (componentType.includes('battery') || componentType.includes('power')) {
-      // Batteries and power supplies
-      if (!pins.some(p => p.id === 'positive')) {
-        pins.push({ id: 'positive', name: '+', type: 'power', position: { x: 0, y: -25 }, connected: false, voltage: 12 });
-        pins.push({ id: 'negative', name: '-', type: 'ground', position: { x: 0, y: 25 }, connected: false });
-      }
-    }
-    
-    // 3. Generic pins if none found
-    if (pins.length === 0) {
-      pins.push(
-        { id: 'vcc', name: 'VCC', type: 'power', position: { x: -25, y: -15 }, connected: false, voltage: 3.3 },
-        { id: 'gnd', name: 'GND', type: 'ground', position: { x: -25, y: 15 }, connected: false },
-        { id: 'signal', name: 'SIGNAL', type: 'digital', position: { x: 25, y: 0 }, connected: false }
-      );
-    }
-    
-    console.log('🔧 Generated pins from technical specs:', pins.map(p => ({ id: p.id, name: p.name, type: p.type })));
-    
-    return pins;
-  };
+  const extractPinsFromTechnicalSpecs = (_material: any): WiringPin[] => [];
 
-  // Enhanced component template generator using technical specifications
+  // Enhanced component template generator using explicit pins only
   const getComponentTemplate = (material: any): Omit<WiringComponent, 'id' | 'position'> => {
     console.log('🔧 Creating component from material with technical specs:', material);
     
@@ -884,8 +673,8 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     const materialName = material.name || specs.name || 'Component';
     const materialType = specs.type || material.type || material.category || 'Component';
     
-    // Use actual technical specifications to generate pins
-    const pins = extractPinsFromTechnicalSpecs(material);
+    // Use explicit pins only (provided via mapper: material.pins)
+    const pins = Array.isArray((material as any).pins) ? (material as any).pins : [];
 
     const componentName = materialName.length > 15 ? materialName.substring(0, 12) + '...' : materialName;
 
@@ -1198,9 +987,12 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
 
         {/* Pins */}
         {component.pins.map((pin) => {
-          // Position pins inside the component
-          const pinX = component.position.x + size.width / 2 + pin.position.x;
-          const pinY = component.position.y + size.height / 2 + pin.position.y;
+          // Position pins INSIDE the component (clamped)
+          const padding = 10;
+          const localX = Math.max(-size.width / 2 + padding, Math.min(size.width / 2 - padding, pin.position.x));
+          const localY = Math.max(-size.height / 2 + padding, Math.min(size.height / 2 - padding, pin.position.y));
+          const pinX = component.position.x + size.width / 2 + localX;
+          const pinY = component.position.y + size.height / 2 + localY;
           
           // Colors of pins based on their type
           const getPinColor = (pinType: string) => {
@@ -1257,7 +1049,7 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
               {/* Label of the pin with background */}
               <g style={{ pointerEvents: 'none' }}>
                 <rect
-                  x={pinX + (pin.position.x > 0 ? 10 : -10 - pin.name.length * 4)}
+                  x={pinX + (localX > 0 ? 10 : -10 - pin.name.length * 4)}
                   y={pinY - 6}
                   width={pin.name.length * 4 + 4}
                   height={12}
@@ -1267,12 +1059,12 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
                   rx={2}
                 />
                 <text
-                  x={pinX + (pin.position.x > 0 ? 12 : -8)}
+                  x={pinX + (localX > 0 ? 12 : -8)}
                   y={pinY + 2}
                   fontSize={8}
                   fill="#333"
                   fontWeight="bold"
-                  textAnchor={pin.position.x > 0 ? 'start' : 'end'}
+                  textAnchor={localX > 0 ? 'start' : 'end'}
                 >
                   {pin.name}
                 </text>

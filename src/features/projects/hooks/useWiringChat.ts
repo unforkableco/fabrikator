@@ -14,7 +14,7 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [componentsToPlaceIds, setComponentsToPlaceIds] = useState<string[]>([]);
-  const [componentsToPlaceById, setComponentsToPlaceById] = useState<Record<string, { id: string; name: string; type: string; pins: any[] }>>({});
+  const [componentsToPlaceById, setComponentsToPlaceById] = useState<Record<string, { id: string; name: string; type: string; pins: string[] | null }>>({});
 
   // No language detection on frontend
 
@@ -136,10 +136,10 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
               .map((c: any) => c && typeof c.id === 'string' ? c.id : null)
               .filter((id: any): id is string => Boolean(id));
             setComponentsToPlaceIds(ids);
-            const byId: Record<string, { id: string; name: string; type: string; pins: any[] }> = {};
+            const byId: Record<string, { id: string; name: string; type: string; pins: string[] | null }> = {};
             response.componentsToPlace.forEach((c: any) => {
               if (c && c.id) {
-                byId[c.id] = { id: c.id, name: c.name, type: c.type, pins: Array.isArray(c.pins) ? c.pins : [] };
+                byId[c.id] = { id: c.id, name: c.name, type: c.type, pins: Array.isArray(c.pins) ? c.pins : (c.pins === null ? null : []) };
               }
             });
             setComponentsToPlaceById(byId);

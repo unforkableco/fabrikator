@@ -105,6 +105,10 @@ export interface MaterialSpec {
   description?: string;
   quantity?: number;
   requirements?: { [key: string]: string | number };
+  // Nouveau: description des broches déclarées par l'IA ou l'utilisateur
+  // - null: non électronique / pas d'alimentation requise
+  // - string[]: liste des noms de broches disponibles
+  pins?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
 }
