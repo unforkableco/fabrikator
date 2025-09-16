@@ -572,6 +572,12 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
   // Keyboard shortcuts for zoom and deletion
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Do not intercept keys while typing in inputs/textareas/contentEditable
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      const isEditable = tag === 'input' || tag === 'textarea' || (target && target.isContentEditable === true);
+      if (isEditable) return;
+
       if (e.ctrlKey || e.metaKey) {
         switch (e.key) {
           case '+':
@@ -659,11 +665,6 @@ const WiringEditor: React.FC<WiringEditorProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  /**
-   * Extract pins from technical specifications of a material
-   */
-  const extractPinsFromTechnicalSpecs = (_material: any): WiringPin[] => [];
 
   // Enhanced component template generator using explicit pins only
   const getComponentTemplate = (material: any): Omit<WiringComponent, 'id' | 'position'> => {

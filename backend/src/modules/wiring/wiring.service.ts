@@ -528,7 +528,7 @@ export class WiringService {
     return '#0000ff';
   }
 
-  async validateWiring(projectId: string, diagram: any) {
+  async validateWiring(diagram: any) {
     try {
       const errors: any[] = [];
       const warnings: any[] = [];

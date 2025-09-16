@@ -54,10 +54,12 @@ interface BaseSuggestion {
 
 interface ChatPanelProps {
   messages: ChatMessage[];
-  onSendMessage: (message: string, mode: 'ask' | 'agent') => void;
-  onStopGeneration: () => void;
-  onAcceptSuggestion: (messageId: string, suggestionId: string) => void;
-  onRejectSuggestion: (messageId: string, suggestionId: string) => void;
+  onSendMessage: (message: string, mode: 'ask' | 'agent') => void | Promise<void>;
+  onStopGeneration: () => void | Promise<void>;
+  onAcceptSuggestion: (messageId: string, suggestionId: string) => void | Promise<void>;
+  onRejectSuggestion: (messageId: string, suggestionId: string) => void | Promise<void>;
+  onAcceptAllSuggestions?: (messageId: string, suggestionIds: string[]) => void | Promise<void>;
+  onRejectAllSuggestions?: (messageId: string, suggestionIds: string[]) => void | Promise<void>;
   isGenerating?: boolean;
   context?: 'materials' | 'wiring' | 'general';
   projectId?: string;
@@ -69,6 +71,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   onStopGeneration,
   onAcceptSuggestion,
   onRejectSuggestion,
+  onAcceptAllSuggestions,
+  onRejectAllSuggestions,
   isGenerating = false,
   context,
   projectId
@@ -186,9 +190,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Scroll uniquement pour les nouveaux messages ou pendant la génération
+  const prevMsgLenRef = useRef<number>(0);
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isGenerating]);
+    const prevLen = prevMsgLenRef.current;
+    if (isGenerating) {
+      scrollToBottom();
+    } else if (messages.length > prevLen) {
+      scrollToBottom();
+    }
+    prevMsgLenRef.current = messages.length;
+  }, [messages.length, isGenerating]);
 
   const handleSendMessage = () => {
     if (inputMessage.trim() && !isGenerating) {
@@ -220,7 +232,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       localStorage.setItem(storageKey, JSON.stringify(newStates));
       
       // Appeler la fonction parent
-      onAcceptSuggestion(messageId, suggestionId);
+      await Promise.resolve(onAcceptSuggestion(messageId, suggestionId));
     } catch (error) {
       console.error('Error updating suggestion status:', error);
     }
@@ -242,7 +254,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       localStorage.setItem(storageKey, JSON.stringify(newStates));
       
       // Appeler la fonction parent
-      onRejectSuggestion(messageId, suggestionId);
+      await Promise.resolve(onRejectSuggestion(messageId, suggestionId));
     } catch (error) {
       console.error('Error updating suggestion status:', error);
     }
@@ -674,7 +686,77 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
                     {/* Suggestions */}
                     {message.suggestions && message.suggestions.length > 0 && (
-                      <Box sx={{ mt: 1 }}>
+                      <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {/* Actions groupées si >1 suggestion en attente */}
+                        {(() => {
+                          const pending = message.suggestions!.filter(s => !suggestionStates[s.id]);
+                          if (pending.length > 1) {
+                            const handleAcceptAll = async () => {
+                              // Toujours persister les statuts en BD
+                              for (const s of pending) {
+                                try {
+                                  await api.projects.updateSuggestionStatus(projectId!, message.id, s.id, 'accepted');
+                                } catch (e) {
+                                  console.error('Persist accept failed for', s.id, e);
+                                }
+                              }
+
+                              if (typeof onAcceptAllSuggestions === 'function') {
+                                await Promise.resolve(onAcceptAllSuggestions(message.id, pending.map(p => p.id)));
+                              } else {
+                                // Fallback séquentiel côté UI
+                                for (const s of pending) {
+                                  if (!suggestionStates[s.id]) {
+                                    await handleAcceptSuggestion(message.id, s.id);
+                                  }
+                                }
+                              }
+
+                              // Marquer localement
+                              const newStates = { ...suggestionStates } as any;
+                              pending.forEach(p => { newStates[p.id] = 'accepted'; });
+                              setSuggestionStates(newStates);
+                              localStorage.setItem(storageKey, JSON.stringify(newStates));
+                            };
+                            const handleRejectAll = async () => {
+                              // Toujours persister les statuts en BD
+                              for (const s of pending) {
+                                try {
+                                  await api.projects.updateSuggestionStatus(projectId!, message.id, s.id, 'rejected');
+                                } catch (e) {
+                                  console.error('Persist reject failed for', s.id, e);
+                                }
+                              }
+
+                              if (typeof onRejectAllSuggestions === 'function') {
+                                await Promise.resolve(onRejectAllSuggestions(message.id, pending.map(p => p.id)));
+                              } else {
+                                for (const s of pending) {
+                                  if (!suggestionStates[s.id]) {
+                                    await handleRejectSuggestion(message.id, s.id);
+                                  }
+                                }
+                              }
+
+                              const newStates = { ...suggestionStates } as any;
+                              pending.forEach(p => { newStates[p.id] = 'rejected'; });
+                              setSuggestionStates(newStates);
+                              localStorage.setItem(storageKey, JSON.stringify(newStates));
+                            };
+                            return (
+                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                <Button size="small" variant="contained" color="success" onClick={handleAcceptAll}>
+                                  Accept all ({pending.length})
+                                </Button>
+                                <Button size="small" variant="outlined" color="error" onClick={handleRejectAll}>
+                                  Reject all ({pending.length})
+                                </Button>
+                              </Box>
+                            );
+                          }
+                          return null;
+                        })()}
+
                         {message.suggestions.map(suggestion => 
                           renderSuggestion(suggestion, message.id)
                         )}

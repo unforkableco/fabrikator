@@ -125,10 +125,9 @@ export class WiringController {
    */
   async validateWiring(req: Request, res: Response) {
     try {
-      const { projectId } = req.params;
       const { diagram } = req.body;
       
-      const validationResult = await this.wiringService.validateWiring(projectId, diagram);
+      const validationResult = await this.wiringService.validateWiring(diagram);
       res.json(validationResult);
     } catch (error) {
       console.error('Error validating wiring:', error);
