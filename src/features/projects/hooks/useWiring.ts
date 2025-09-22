@@ -31,7 +31,7 @@ export const useWiring = (projectId?: string) => {
       }
       setError(null);
     } catch (err) {
-      console.error('Error fetching wiring diagram:', err);
+      // silent
       setError('Failed to load wiring diagram');
     } finally {
       setIsLoading(false);
@@ -93,7 +93,7 @@ export const useWiring = (projectId?: string) => {
       
       setError(null);
     } catch (err) {
-      console.error('Error saving wiring diagram:', err);
+      // silent
       setError('Failed to save wiring diagram');
     } finally {
       setIsLoading(false);

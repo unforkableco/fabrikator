@@ -39,9 +39,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
   onConnectionDelete
 }) => {
   const getComponentName = (componentId: string): string => {
-    console.log('Looking for component:', componentId, 'in components:', components);
     const component = components.find(c => c.id === componentId);
-    console.log('Found component:', component);
     return component?.name || 'Unknown Component';
   };
 
@@ -55,10 +53,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
                                       componentId.toLowerCase().includes(c.name.toLowerCase()));
     }
     
-    if (!component) {
-      console.log('Component not found for ID:', componentId, 'Available components:', components.map(c => ({ id: c.id, name: c.name })));
-      return 'Unknown Component Pin';
-    }
+    if (!component) return 'Unknown Component Pin';
     
     // Look up pin by exact ID
     let pin = component.pins.find(p => p.id === pinId);
@@ -81,7 +76,6 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
       );
     }
     
-    console.log('Looking for pin:', pinId, 'in component:', component.name, 'found pin:', pin);
     return pin?.name || pin?.id || pinId; // Return original name if not found
   };
 

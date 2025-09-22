@@ -148,6 +148,7 @@ List needed electronics components in JSON format:
     - Speakers: SPK+, SPK-
   - Choose pins that match the component type and its technical capabilities. Do NOT invent non-existing pins.
   - If the component does not require power or is non-electronic (mechanical/structural), set pins to null.
+  - STRICT REQUIREMENT: any electronic/electrical component MUST include a non-empty pins[] derived from its technical specifications and standard interfaces. Do not hardcode examples; infer pins implicitly from the component's type and specs (e.g., power sources expose positive/negative terminals; actuators expose power/control as applicable; regulators expose input/output/ground; communication-capable devices expose their bus pins). Use the canonical short names above where they apply.
 
   (Product reference suggestions are handled by a dedicated sourcing step; do not include purchasing info here.)
 
@@ -262,6 +263,7 @@ List needed electronics components in JSON format:
     7. ✅ RESPOND TO USER'S SPECIFIC REQUEST - don't ignore their prompt
     8. ✅ CHECK FOR DUPLICATE CONNECTIONS - don't suggest connections that already exist
     9. ✅ USE APPROPRIATE ACTIONS: "add" for new connections, "remove" for deletions, "update" for modifications
+    10. ✅ WHEN MULTIPLE IDENTICAL COMPONENTS EXIST (e.g., two analog joysticks), YOU MUST USE DISTINCT IDS for each physical instance. Do NOT reuse the same component id to represent two separate physical devices. Select different ids from the materials list for each instance.
     
     **STRICT COMPONENT ELIGIBILITY:**
     - NEVER connect non-electronic components (mechanical/structural parts such as "enclosure", "mount", "bracket", "plate", "frame", "cover", fasteners).

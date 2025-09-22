@@ -23,7 +23,7 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { TypingAnimation } from './';
-import api from '../../../../shared/services/api';
+import { api } from '../../../../shared/services/api';
 
 interface ChatMessage {
   id: string;
@@ -137,7 +137,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       localStorage.setItem(storageKey, JSON.stringify(validStates));
       
     } catch (error) {
-      console.warn('Error loading suggestion states:', error);
+      // silent
       setSuggestionStates({});
     }
   }, [messages, storageKey]);
@@ -234,7 +234,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       // Appeler la fonction parent
       await Promise.resolve(onAcceptSuggestion(messageId, suggestionId));
     } catch (error) {
-      console.error('Error updating suggestion status:', error);
+      // silent
     }
   };
 
@@ -256,8 +256,75 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       // Appeler la fonction parent
       await Promise.resolve(onRejectSuggestion(messageId, suggestionId));
     } catch (error) {
-      console.error('Error updating suggestion status:', error);
+      // silent
     }
+  };
+
+  const renderBulkSuggestionActions = (message: ChatMessage) => {
+    if (!projectId) return null;
+    const pending = message.suggestions?.filter(s => !suggestionStates[s.id]) || [];
+    if (pending.length <= 1) return null;
+
+    const handleAcceptAll = async () => {
+      for (const s of pending) {
+        try {
+          await api.projects.updateSuggestionStatus(projectId, message.id, s.id, 'accepted');
+        } catch (e) {
+          // silent
+        }
+      }
+
+      if (typeof onAcceptAllSuggestions === 'function') {
+        await Promise.resolve(onAcceptAllSuggestions(message.id, pending.map(p => p.id)));
+      } else {
+        for (const s of pending) {
+          if (!suggestionStates[s.id]) {
+            await handleAcceptSuggestion(message.id, s.id);
+          }
+        }
+      }
+
+      const newStates = { ...suggestionStates } as any;
+      pending.forEach(p => { newStates[p.id] = 'accepted'; });
+      setSuggestionStates(newStates);
+      localStorage.setItem(storageKey, JSON.stringify(newStates));
+    };
+
+    const handleRejectAll = async () => {
+      for (const s of pending) {
+        try {
+          await api.projects.updateSuggestionStatus(projectId, message.id, s.id, 'rejected');
+        } catch (e) {
+          // silent
+        }
+      }
+
+      if (typeof onRejectAllSuggestions === 'function') {
+        await Promise.resolve(onRejectAllSuggestions(message.id, pending.map(p => p.id)));
+      } else {
+        for (const s of pending) {
+          if (!suggestionStates[s.id]) {
+            await handleRejectSuggestion(message.id, s.id);
+          }
+        }
+      }
+
+      const newStates = { ...suggestionStates } as any;
+      pending.forEach(p => { newStates[p.id] = 'rejected'; });
+      setSuggestionStates(newStates);
+      localStorage.setItem(storageKey, JSON.stringify(newStates));
+    };
+
+    return (
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <Button size="small" variant="contained" color="success" onClick={handleAcceptAll}>
+          Accept all ({pending.length})
+        </Button>
+        <Button size="small" variant="outlined" color="error" onClick={handleRejectAll}>
+          Reject all ({pending.length})
+        </Button>
+      </Box>
+    );
   };
 
   const renderSuggestion = (suggestion: BaseSuggestion, messageId: string) => {
@@ -687,79 +754,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     {/* Suggestions */}
                     {message.suggestions && message.suggestions.length > 0 && (
                       <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {/* Actions groupées si >1 suggestion en attente */}
-                        {(() => {
-                          const pending = message.suggestions!.filter(s => !suggestionStates[s.id]);
-                          if (pending.length > 1) {
-                            const handleAcceptAll = async () => {
-                              // Toujours persister les statuts en BD
-                              for (const s of pending) {
-                                try {
-                                  await api.projects.updateSuggestionStatus(projectId!, message.id, s.id, 'accepted');
-                                } catch (e) {
-                                  console.error('Persist accept failed for', s.id, e);
-                                }
-                              }
-
-                              if (typeof onAcceptAllSuggestions === 'function') {
-                                await Promise.resolve(onAcceptAllSuggestions(message.id, pending.map(p => p.id)));
-                              } else {
-                                // Fallback séquentiel côté UI
-                                for (const s of pending) {
-                                  if (!suggestionStates[s.id]) {
-                                    await handleAcceptSuggestion(message.id, s.id);
-                                  }
-                                }
-                              }
-
-                              // Marquer localement
-                              const newStates = { ...suggestionStates } as any;
-                              pending.forEach(p => { newStates[p.id] = 'accepted'; });
-                              setSuggestionStates(newStates);
-                              localStorage.setItem(storageKey, JSON.stringify(newStates));
-                            };
-                            const handleRejectAll = async () => {
-                              // Toujours persister les statuts en BD
-                              for (const s of pending) {
-                                try {
-                                  await api.projects.updateSuggestionStatus(projectId!, message.id, s.id, 'rejected');
-                                } catch (e) {
-                                  console.error('Persist reject failed for', s.id, e);
-                                }
-                              }
-
-                              if (typeof onRejectAllSuggestions === 'function') {
-                                await Promise.resolve(onRejectAllSuggestions(message.id, pending.map(p => p.id)));
-                              } else {
-                                for (const s of pending) {
-                                  if (!suggestionStates[s.id]) {
-                                    await handleRejectSuggestion(message.id, s.id);
-                                  }
-                                }
-                              }
-
-                              const newStates = { ...suggestionStates } as any;
-                              pending.forEach(p => { newStates[p.id] = 'rejected'; });
-                              setSuggestionStates(newStates);
-                              localStorage.setItem(storageKey, JSON.stringify(newStates));
-                            };
-                            return (
-                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                                <Button size="small" variant="contained" color="success" onClick={handleAcceptAll}>
-                                  Accept all ({pending.length})
-                                </Button>
-                                <Button size="small" variant="outlined" color="error" onClick={handleRejectAll}>
-                                  Reject all ({pending.length})
-                                </Button>
-                              </Box>
-                            );
-                          }
-                          return null;
-                        })()}
+                        {context !== 'wiring' && renderBulkSuggestionActions(message)}
 
                         {message.suggestions.map(suggestion => 
                           renderSuggestion(suggestion, message.id)
                         )}
+
+                        {context === 'wiring' && renderBulkSuggestionActions(message)}
                       </Box>
                     )}
                   </Box>

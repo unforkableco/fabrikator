@@ -38,7 +38,7 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
       
       setMessages(chatMessages);
     } catch (error) {
-      console.error('Error loading wiring chat messages:', error);
+      // silent
     } finally {
       setIsLoadingMessages(false);
     }
@@ -71,17 +71,14 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
         suggestions: savedMessage.suggestions ? savedMessage.suggestions as WiringSuggestion[] : undefined
       };
     } catch (error) {
-      console.error('Error saving wiring chat message:', error);
+      // silent
       return null;
     }
   };
 
   // Handle chat messages with wiring-specific AI agent
   const handleSendChatMessage = async (message: string, mode: 'ask' | 'agent') => {
-    if (!projectId) {
-      console.error('Project ID is required for wiring chat');
-      return;
-    }
+    if (!projectId) return;
 
     // Add user message with temporary ID
     const userMessage: ChatMessage = {
@@ -117,18 +114,18 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
           const askRes = await api.projects.askQuestion(projectId, `[WIRING CONTEXT] ${message}`, 'wiring', 'ai');
           aiResponse = askRes.answer;
         } catch (error) {
-          console.error('Error asking wiring question:', error);
+          // silent
           aiResponse = `Sorry, I encountered an error analyzing your wiring question. Could you rephrase it?`;
         }
       } else {
         // Agent mode - Generate wiring suggestions and modifications
-        console.log('Sending wiring agent message:', message);
+        // silent
         
         try {
           // Use wiring-specific API endpoint for suggestions
           // ✅ Transmettre le diagramme actuel à l'IA pour analyse des connexions existantes
           const response = await api.wiring.generateWiringSuggestions(projectId, message, diagram);
-          console.log('Wiring agent response:', response);
+          // silent
           
           // Capture components to place (ids only) for toolbar filtering
           if (response && Array.isArray(response.componentsToPlace)) {
@@ -191,7 +188,7 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
             aiResponse = 'I understood your wiring request. I am working on analyzing the appropriate connections.';
           }
         } catch (error) {
-          console.error('Error with wiring agent:', error);
+          // silent
           aiResponse = 'Sorry, I encountered an error analyzing your wiring request. Please try again.';
         }
       }
@@ -218,7 +215,7 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
       }
 
     } catch (error) {
-      console.error('Error sending wiring chat message:', error);
+      // silent
       
       // Add error message
       const errorMessage: ChatMessage = {

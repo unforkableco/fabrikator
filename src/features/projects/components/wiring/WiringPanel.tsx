@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import CableIcon from '@mui/icons-material/Cable';
-import { WiringDiagram, WiringSuggestion, WiringConnection } from '../../../../shared/types';
+import { WiringDiagram, WiringSuggestion, WiringConnection, WiringComponent } from '../../../../shared/types';
 import { useWiring } from '../../hooks/useWiring';
 import { useWiringChat } from '../../hooks/useWiringChat';
 import { useWiringValidation } from '../../hooks/useWiringValidation';
@@ -12,6 +12,7 @@ import { ChatPanel } from '../chat';
 import WiringCanvas from './WiringCanvas';
 import ConnectionManager from './ConnectionManager';
 import ValidationPanel from './ValidationPanel';
+import { generateTempId } from '../../../../shared/utils/uuid';
 
 interface WiringPanelProps {
   wiringDiagram?: WiringDiagram | null;
@@ -33,9 +34,10 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
   const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
 
   // Hooks
-  const { wiringDiagram: hookDiagram, saveWiringDiagram, refreshWiring } = useWiring(projectId);
+  const { wiringDiagram: hookDiagram, saveWiringDiagram } = useWiring(projectId);
   const { createComponentFromMaterial } = useComponentMapper();
   const { mapPinName } = usePinMapping();
+  const DEBUG = false;
   
   // Chat hook
   const {
@@ -90,30 +92,84 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
     }
   }, [hookDiagram, wiringDiagram, diagram]);
 
+  // Helpers
+  const ensureComponentsPresent = (
+    baseDiagram: WiringDiagram,
+    requiredIds: Set<string>,
+    materials: any[],
+    componentsMeta: Record<string, { id: string; name: string; type: string; pins: string[] | null }>
+  ): { diagram: WiringDiagram; added: WiringComponent[] } => {
+    const existingIds = new Set(baseDiagram.components.map(c => c.id));
+    const added: WiringComponent[] = [];
+    let indexOffset = baseDiagram.components.length;
+    for (const compId of Array.from(requiredIds)) {
+      if (existingIds.has(compId)) continue;
+      let material = materials.find(m => m.id === compId);
+      const preset = componentsMeta[compId]?.pins;
+      if (!material && componentsMeta[compId]) {
+        const meta = componentsMeta[compId];
+        material = {
+          id: compId,
+          currentVersion: { specs: { name: meta.name || 'Component', type: meta.type || 'unknown', pins: Array.isArray(meta.pins) ? meta.pins : (meta.pins === null ? null : []) } }
+        } as any;
+      }
+      if (material) {
+        const comp = createComponentFromMaterial(material, indexOffset, { presetPins: (Array.isArray(preset) || preset === null) ? preset : undefined });
+        added.push(comp);
+        indexOffset += 1;
+      }
+    }
+    if (added.length === 0) return { diagram: baseDiagram, added };
+    return {
+      diagram: {
+        ...baseDiagram,
+        components: [...baseDiagram.components, ...added],
+        metadata: { ...baseDiagram.metadata, updatedAt: new Date().toISOString() }
+      },
+      added
+    };
+  };
+
+  const mapPins = (conn: WiringConnection, diagram: WiringDiagram): WiringConnection => {
+    const fromComp = diagram.components.find(c => c.id === conn.fromComponent);
+    const toComp = diagram.components.find(c => c.id === conn.toComponent);
+    const mapped: WiringConnection = { ...conn };
+    if (fromComp) mapped.fromPin = mapPinName(conn.fromPin, fromComp.pins);
+    if (toComp) mapped.toPin = mapPinName(conn.toPin, toComp.pins);
+    return mapped;
+  };
+
+  const addConnectionIfNotExists = (diagramIn: WiringDiagram, conn: WiringConnection): WiringDiagram => {
+    const exists = (diagramIn.connections || []).some(c =>
+      (c.fromComponent === conn.fromComponent && c.toComponent === conn.toComponent && c.fromPin === conn.fromPin && c.toPin === conn.toPin) ||
+      (c.fromComponent === conn.toComponent && c.toComponent === conn.fromComponent && c.fromPin === conn.toPin && c.toPin === conn.fromPin)
+    );
+    if (exists) return diagramIn;
+    return {
+      ...diagramIn,
+      connections: [...diagramIn.connections, conn],
+      metadata: { ...diagramIn.metadata, updatedAt: new Date().toISOString() }
+    };
+  };
+
   // Handle suggestion operations
   const handleAcceptSuggestion = async (messageId: string, suggestionId: string) => {
-    console.log('Accepting suggestion:', { messageId, suggestionId });
+    if (DEBUG) console.log('Accepting suggestion:', { messageId, suggestionId });
 
     // Find suggestion in messages
     const message = messages.find(m => m.id === messageId);
     const suggestion = message?.suggestions?.find(s => s.id === suggestionId) as WiringSuggestion;
 
-    if (!suggestion) {
-      console.error('Suggestion not found:', { messageId, suggestionId });
-      return;
-    }
+    if (!suggestion) return;
 
     // Already accepted?
-    if (suggestion.status === 'accepted') {
-      console.warn('⚠️ Suggestion already accepted, skipping:', suggestion.id);
-      return;
-    }
+    if (suggestion.status === 'accepted') return;
 
     let diagramToSave: WiringDiagram | null = null;
 
     if (suggestion.action === 'add' && suggestion.connectionData) {
       const conn = suggestion.connectionData as WiringConnection;
-      console.log('Adding connection from suggestion:', suggestion.connectionData);
+      if (DEBUG) console.log('Adding connection from suggestion:', suggestion.connectionData);
 
       // Compute using latest state to avoid stale diagram during batch accept
       setDiagram(prev => {
@@ -158,46 +214,15 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
            c.toPin === conn.fromPin)
         );
         if (exists) {
-          console.warn('⚠️ Connection already exists, ignoring:', suggestion.connectionData);
+          if (DEBUG) console.warn('⚠️ Connection already exists, ignoring:', suggestion.connectionData);
           diagramToSave = currentDiagram;
           return currentDiagram;
         }
-
-        const existingComponentIds = new Set(currentDiagram.components.map(c => c.id));
-        const componentsToAdd: any[] = [];
-        let addIndex = 0;
-        for (const compId of Array.from(requiredMaterialIds)) {
-          if (existingComponentIds.has(compId)) continue;
-          let material = materials.find(m => m.id === compId);
-          let preset = componentsToPlaceById[compId]?.pins;
-          if (!material && componentsToPlaceById[compId]) {
-            // Synthétiser un material placeholder à partir des suggestions
-            const meta = componentsToPlaceById[compId];
-            material = {
-              id: compId,
-              currentVersion: { specs: { name: meta.name || 'Component', type: meta.type || 'unknown', pins: Array.isArray(meta.pins) ? meta.pins : (meta.pins === null ? null : []) } }
-            } as any;
-          }
-          if (material) {
-            componentsToAdd.push(
-              createComponentFromMaterial(
-                material,
-                currentDiagram!.components.length + addIndex,
-                { presetPins: (Array.isArray(preset) || preset === null) ? preset : undefined }
-              )
-            );
-            addIndex += 1;
-          }
-        }
-
-        // Map pins
-        const fromComponent = [...currentDiagram.components, ...componentsToAdd]
-          .find(c => c.id === conn.fromComponent);
-        const toComponent = [...currentDiagram.components, ...componentsToAdd]
-          .find(c => c.id === conn.toComponent);
-
-        const mappedConnection: WiringConnection = {
-          id: conn.id || `conn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        // Ensure components
+        const ensured = ensureComponentsPresent(currentDiagram, requiredMaterialIds, materials, componentsToPlaceById);
+        // Map pins & add connection
+        const mappedConnection: WiringConnection = mapPins({
+          id: conn.id || generateTempId(),
           fromComponent: conn.fromComponent,
           fromPin: conn.fromPin,
           toComponent: conn.toComponent,
@@ -207,24 +232,8 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
           label: conn.label,
           validated: conn.validated,
           error: conn.error
-        };
-        if (fromComponent) {
-          mappedConnection.fromPin = mapPinName(conn.fromPin, fromComponent.pins);
-        }
-        if (toComponent) {
-          mappedConnection.toPin = mapPinName(conn.toPin, toComponent.pins);
-        }
-
-        const nextDiagram: WiringDiagram = {
-          ...currentDiagram,
-          components: [...currentDiagram.components, ...componentsToAdd],
-          connections: [...currentDiagram.connections, mappedConnection],
-          metadata: {
-            ...currentDiagram.metadata,
-            updatedAt: new Date().toISOString()
-          }
-        };
-
+        }, ensured.diagram);
+        const nextDiagram = addConnectionIfNotExists(ensured.diagram, mappedConnection);
         diagramToSave = nextDiagram;
         return nextDiagram;
       });
@@ -233,10 +242,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       if (diagramToSave) {
         try {
           await saveWiringDiagram(diagramToSave);
-          await refreshWiring();
-          console.log('✅ Wiring diagram saved successfully');
         } catch (error) {
-          console.error('❌ Failed to save wiring diagram:', error);
           addValidationError({
             id: 'save-error',
             type: 'save_error',
@@ -253,7 +259,6 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
   };
 
   const handleRejectSuggestion = (messageId: string, suggestionId: string) => {
-    console.log('Rejecting suggestion:', { messageId, suggestionId });
     updateMessageSuggestions(messageId, suggestionId, 'rejected');
   };
 
@@ -273,7 +278,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       // Appliquer comme dans handleAcceptSuggestion mais sur nextDiagram
       if (!nextDiagram) {
         const ids = new Set([suggestion.connectionData.fromComponent, suggestion.connectionData.toComponent]);
-        const minimal: any[] = [];
+        const minimal: WiringComponent[] = [];
         let idx = 0;
         for (const m of materials) {
           if (ids.has(m.id)) {
@@ -290,72 +295,30 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         };
       }
 
-      let exists = false;
-      for (const c of (nextDiagram.connections || [])) {
-        if ((c.fromComponent === suggestion.connectionData!.fromComponent && c.toComponent === suggestion.connectionData!.toComponent && c.fromPin === suggestion.connectionData!.fromPin && c.toPin === suggestion.connectionData!.toPin) ||
-            (c.fromComponent === suggestion.connectionData!.toComponent && c.toComponent === suggestion.connectionData!.fromComponent && c.fromPin === suggestion.connectionData!.toPin && c.toPin === suggestion.connectionData!.fromPin)) {
-          exists = true; break;
-        }
-      }
-      if (exists) continue;
-
-      const existingIds = new Set(nextDiagram.components.map(c => c.id));
-      const toAdd: any[] = [];
-      const baseIndex = nextDiagram.components.length;
-      let addedIdx = 0;
-      for (const compId of [suggestion.connectionData!.fromComponent, suggestion.connectionData!.toComponent]) {
-        if (!existingIds.has(compId)) {
-          let material = materials.find(m => m.id === compId);
-          let preset = componentsToPlaceById[compId]?.pins;
-          if (!material && componentsToPlaceById[compId]) {
-            const meta = componentsToPlaceById[compId];
-            material = {
-              id: compId,
-              currentVersion: { specs: { name: meta.name || 'Component', type: meta.type || 'unknown', pins: Array.isArray(meta.pins) ? meta.pins : (meta.pins === null ? null : []) } }
-            } as any;
-          }
-          if (material) {
-            toAdd.push(createComponentFromMaterial(material, baseIndex + addedIdx, { presetPins: (Array.isArray(preset) || preset === null) ? preset : undefined }));
-            addedIdx += 1;
-          }
-        }
-      }
-
-      let fromComp: any = undefined;
-      let toComp: any = undefined;
-      for (const c of [...nextDiagram.components, ...toAdd]) {
-        if (!fromComp && c.id === suggestion.connectionData!.fromComponent) fromComp = c;
-        if (!toComp && c.id === suggestion.connectionData!.toComponent) toComp = c;
-        if (fromComp && toComp) break;
-      }
-      const conn: WiringConnection = {
-        id: suggestion.connectionData.id || `conn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      // Ensure components
+      const ensured = ensureComponentsPresent(nextDiagram, new Set([suggestion.connectionData.fromComponent, suggestion.connectionData.toComponent]), materials, componentsToPlaceById);
+      // Map pins & add connection
+      const conn: WiringConnection = mapPins({
+        id: suggestion.connectionData.id || generateTempId(),
         fromComponent: suggestion.connectionData.fromComponent!,
-        fromPin: fromComp ? mapPinName(suggestion.connectionData.fromPin!, fromComp.pins) : suggestion.connectionData.fromPin!,
+        fromPin: suggestion.connectionData.fromPin!,
         toComponent: suggestion.connectionData.toComponent!,
-        toPin: toComp ? mapPinName(suggestion.connectionData.toPin!, toComp.pins) : suggestion.connectionData.toPin!,
+        toPin: suggestion.connectionData.toPin!,
         wireType: suggestion.connectionData.wireType || 'data',
         wireColor: suggestion.connectionData.wireColor,
         label: suggestion.connectionData.label,
         validated: suggestion.connectionData.validated,
         error: suggestion.connectionData.error
-      };
-
-      nextDiagram = {
-        ...nextDiagram,
-        components: [...nextDiagram.components, ...toAdd],
-        connections: [...nextDiagram.connections, conn],
-        metadata: { ...nextDiagram.metadata, updatedAt: new Date().toISOString() }
-      };
+      }, ensured.diagram);
+      nextDiagram = addConnectionIfNotExists(ensured.diagram, conn);
     }
 
     if (nextDiagram) {
       setDiagram(nextDiagram);
       try {
         await saveWiringDiagram(nextDiagram);
-        await refreshWiring();
       } catch (e) {
-        console.error('Failed to persist batch accept', e);
+        // silent
       }
     }
 
@@ -376,7 +339,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       // 🧹 Nettoyer localStorage pour éviter les collisions d'état des suggestions
       const storageKey = `suggestions-${projectId}`;
       localStorage.removeItem(storageKey);
-      console.log('🧹 Cleared suggestion states for new optimal circuit generation');
+      if (DEBUG) console.log('🧹 Cleared suggestion states for new optimal circuit generation');
       
       // 🧹 Force le nettoyage des états de suggestions dans ChatPanel
       // We will send a special message to trigger cleanup
@@ -390,7 +353,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
       // Send optimal circuit request
       await handleSendChatMessage('Suggest me an optimal circuit', 'agent');
     } catch (error) {
-      console.error('Error suggesting optimal circuit:', error);
+      // silent
     }
   };
 
@@ -477,7 +440,7 @@ const WiringPanel: React.FC<WiringPanelProps> = ({
         {validationResults && (
           <ValidationPanel
             validationResults={validationResults}
-            onFixError={(errorId: string) => console.log('Fix error:', errorId)}
+            onFixError={(errorId: string) => undefined}
           />
         )}
 
