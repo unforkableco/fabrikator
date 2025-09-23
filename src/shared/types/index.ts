@@ -109,6 +109,7 @@ export interface MaterialSpec {
   // - null: non électronique / pas d'alimentation requise
   // - string[]: liste des noms de broches disponibles
   pins?: string[] | null;
+  estimatedUnitCost?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -150,6 +151,7 @@ export interface Material {
   // Normalized fields
   materialSpec?: MaterialSpec | null;
   purchaseReferences?: PurchaseReference[];
+  estimatedUnitCost?: string;
 }
 
 export interface SelectedPart {
@@ -199,7 +201,23 @@ export enum PartStatus {
   SELECTED = 'selected',
   ORDERED = 'ordered',
   RECEIVED = 'received'
-} 
+}
+
+export interface AccountSummary {
+  id: string;
+  email: string;
+  credits: number;
+  maxProjects: number;
+  status: string;
+  role: string;
+  projectsUsed: number;
+  projectsRemaining: number;
+}
+
+export interface LoginResponse {
+  token: string;
+  account: AccountSummary;
+}
 
 // Wiring specific interfaces
 export interface WiringConnection {

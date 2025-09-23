@@ -24,6 +24,7 @@ const transformBackendToMaterial = (backendComponent: any): Material => {
     purchaseReferences: backendComponent.purchaseReferences ?? [],
     // Legacy single productReference (kept if present in specs)
     productReference: specs.productReference || undefined,
+    estimatedUnitCost: backendComponent.materialSpec?.estimatedUnitCost ?? specs.estimatedUnitCost ?? undefined,
   };
 };
 

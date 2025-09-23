@@ -29,9 +29,11 @@ import {
 } from '@mui/icons-material';
 import { Project } from '../shared/types';
 import { api } from '../shared/services/api';
+import { useAuth } from '../shared/contexts/AuthContext';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { refreshAccount } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,6 +116,7 @@ const HomePage: React.FC = () => {
     try {
       setIsDeleting(true);
       await api.projects.delete(projectToDelete.id);
+      await refreshAccount();
       
       // Update the projects list
       const updatedProjects = projects.filter(p => p.id !== projectToDelete.id);

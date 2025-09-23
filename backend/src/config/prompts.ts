@@ -3,7 +3,7 @@ export const prompts = {
   materialsSearchSimple: `For project "{{projectName}}" ({{projectDescription}}), user wants: {{userPrompt}}
 
 List needed electronics components in JSON format:
-{"explanation": {"summary": "brief", "reasoning": "why"}, "components": [{"type": "name", "details": {"quantity": 1, "notes": "use", "action": "new", "technicalSpecs": {}}}]}`,
+{"explanation": {"summary": "brief", "reasoning": "why"}, "components": [{"type": "name", "details": {"quantity": 1, "notes": "use", "action": "new", "estimatedUnitCost": "$0.00", "technicalSpecs": {}}}]}`,
   projectAnalysis: `
   Analyze the following project description and provide a comprehensive analysis in both structured and human-readable format:
   {{description}}
@@ -177,6 +177,7 @@ List needed electronics components in JSON format:
           "quantity": number,
             "notes": "specific role and function in this project OR reason for removal",
           "action": "keep|update|new|remove",
+          "estimatedUnitCost": "$12.34",
           "technicalSpecs": {
             // COMPREHENSIVE technical specifications, using measurable fields and units
             // MUST satisfy corresponding requirements keys from current materials when present
@@ -198,6 +199,7 @@ List needed electronics components in JSON format:
     - Include components with appropriate actions based on user intent
     - For remove actions, focus on explanation in "notes" field
     - Provide EXHAUSTIVE technical specifications matching the suggested product reference (except for removed items)
+    - ALWAYS provide estimatedUnitCost for each component (use a realistic single-unit price string such as "$4.50" or "€4.50")
     - Include electrical, mechanical, performance, connectivity, and environmental specs when relevant
     - Do NOT include purchase links or datasheet/manual URLs in technicalSpecs
     - Don't duplicate existing components unless upgrading

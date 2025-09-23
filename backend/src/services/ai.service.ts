@@ -745,6 +745,11 @@ export class AIService {
           component.details.productReference.estimatedPrice = normalizedPrice;
           console.log(`Price normalized: "${originalPrice}" -> "${normalizedPrice}"`);
         }
+        if (component.details?.estimatedUnitCost) {
+          const originalUnitCost = component.details.estimatedUnitCost;
+          component.details.estimatedUnitCost = this.normalizePriceString(originalUnitCost);
+          console.log(`Unit cost normalized: "${originalUnitCost}" -> "${component.details.estimatedUnitCost}"`);
+        }
         return component;
       });
 
@@ -940,6 +945,9 @@ export class AIService {
         if (component.details?.productReference?.estimatedPrice) {
           const originalPrice = component.details.productReference.estimatedPrice;
           component.details.productReference.estimatedPrice = this.normalizePriceString(originalPrice);
+        }
+        if (component.details?.estimatedUnitCost) {
+          component.details.estimatedUnitCost = this.normalizePriceString(component.details.estimatedUnitCost);
         }
         return component;
       });

@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
 import { WiringService } from './wiring.service';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../../prisma/prisma.service';
+import { ensureProjectAccess, ensureWiringSchemaAccess } from '../../utils/access-guards';
 
 export class WiringController {
   private wiringService: WiringService;
@@ -11,12 +10,44 @@ export class WiringController {
     this.wiringService = new WiringService();
   }
 
+  private async assertProjectAccess(req: Request, res: Response, projectId: string) {
+    if (!req.account) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return null;
+    }
+
+    const project = await ensureProjectAccess(req.account.id, projectId);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return null;
+    }
+
+    return project;
+  }
+
+  private async assertWiringAccess(req: Request, res: Response, wiringId: string) {
+    if (!req.account) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return null;
+    }
+
+    const wiring = await ensureWiringSchemaAccess(req.account.id, wiringId);
+    if (!wiring) {
+      res.status(404).json({ error: 'Wiring plan not found' });
+      return null;
+    }
+
+    return wiring;
+  }
+
   /**
    * Get wiring plan for a project
    */
   async getWiringForProject(req: Request, res: Response) {
     try {
       const { projectId } = req.params;
+      const project = await this.assertProjectAccess(req, res, projectId);
+      if (!project) return;
       const wiring = await this.wiringService.getWiringForProject(projectId);
       res.json(wiring);
     } catch (error) {
@@ -31,6 +62,8 @@ export class WiringController {
   async createWiring(req: Request, res: Response) {
     try {
       const { projectId } = req.params;
+      const project = await this.assertProjectAccess(req, res, projectId);
+      if (!project) return;
       const wiringData = req.body;
       const wiring = await this.wiringService.createWiring(projectId, wiringData);
       res.status(201).json(wiring);
@@ -46,6 +79,8 @@ export class WiringController {
   async getWiringById(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const wiringSchema = await this.assertWiringAccess(req, res, id);
+      if (!wiringSchema) return;
       const wiring = await this.wiringService.getWiringById(id);
       
       if (!wiring) {
@@ -65,6 +100,8 @@ export class WiringController {
   async addVersion(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const wiringSchema = await this.assertWiringAccess(req, res, id);
+      if (!wiringSchema) return;
       const versionData = req.body;
       const result = await this.wiringService.addVersion(id, versionData);
       res.status(201).json(result);
@@ -80,6 +117,8 @@ export class WiringController {
   async getWiringVersions(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const wiringSchema = await this.assertWiringAccess(req, res, id);
+      if (!wiringSchema) return;
       const versions = await this.wiringService.getWiringVersions(id);
       
       if (!versions) {
@@ -99,6 +138,8 @@ export class WiringController {
   async generateWiringSuggestions(req: Request, res: Response) {
     try {
       const { projectId } = req.params;
+      const project = await this.assertProjectAccess(req, res, projectId);
+      if (!project) return;
       const { prompt, currentDiagram } = req.body;
       
       // Retrieve recent chat history for wiring context
@@ -125,6 +166,9 @@ export class WiringController {
    */
   async validateWiring(req: Request, res: Response) {
     try {
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
       const { diagram } = req.body;
       
       const validationResult = await this.wiringService.validateWiring(diagram);

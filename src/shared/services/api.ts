@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Project, Material, ProjectRequirements, Message, ProductReference } from '../types/index';
+import { Project, Material, ProjectRequirements, Message, ProductReference, AccountSummary, LoginResponse } from '../types/index';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -37,6 +37,20 @@ apiClient.interceptors.response.use(
 );
 
 export const api = {
+  auth: {
+    login: async (credentials: { email: string; password: string }): Promise<LoginResponse> => {
+      const response = await apiClient.post('/auth/login', credentials);
+      return response.data;
+    },
+  },
+
+  accounts: {
+    getMe: async (): Promise<AccountSummary> => {
+      const response = await apiClient.get('/accounts/me');
+      return response.data;
+    },
+  },
+
   projects: {
     getAll: async (): Promise<Project[]> => {
       const response = await apiClient.get('/projects');

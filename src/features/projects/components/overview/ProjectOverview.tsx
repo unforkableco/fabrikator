@@ -52,31 +52,96 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({
   const suggestedMaterials = materials.filter(m => m.status === MaterialStatus.SUGGESTED);
 
   // Calculate total estimated price
+  const extractPricingData = (material: Material) => {
+    const specs: any = material.currentVersion?.specs || {};
+    const reference = specs?.productReference || material.productReference;
+    const purchaseReference = material.purchaseReferences?.find(ref => Boolean(ref?.estimatedPrice));
+    const priceSource = specs?.estimatedUnitCost
+      || material.materialSpec?.estimatedUnitCost
+      || material.estimatedUnitCost
+      || reference?.estimatedPrice
+      || purchaseReference?.estimatedPrice;
+
+    if (!priceSource) return null;
+
+    const priceString = String(priceSource).trim();
+    if (!priceString) return null;
+
+    const numericPrice = (() => {
+      const cleaned = priceString.replace(/[^0-9.,]/g, '');
+      if (!cleaned) return NaN;
+
+      const lastComma = cleaned.lastIndexOf(',');
+      const lastDot = cleaned.lastIndexOf('.');
+
+      if (lastComma > -1 && lastDot > -1) {
+        if (lastComma > lastDot) {
+          return parseFloat(cleaned.replace(/\./g, '').replace(',', '.'));
+        }
+        return parseFloat(cleaned.replace(/,/g, ''));
+      }
+
+      if (lastComma > -1) {
+        return parseFloat(cleaned.replace(',', '.'));
+      }
+
+      if ((cleaned.match(/\./g) || []).length > 1) {
+        const parts = cleaned.split('.');
+        const decimal = parts.pop();
+        return parseFloat(parts.join('') + '.' + decimal);
+      }
+
+      return parseFloat(cleaned);
+    })();
+
+    if (Number.isNaN(numericPrice)) return null;
+
+    const inferredCurrency = (() => {
+      const currencyMatch = priceString.match(/[A-Z]{3}/i);
+      if (currencyMatch) return currencyMatch[0].toUpperCase();
+      if (priceString.includes('€')) return 'EUR';
+      if (priceString.includes('£')) return 'GBP';
+      if (priceString.includes('¥')) return 'JPY';
+      if (priceString.includes('$')) return 'USD';
+      return reference?.currency || 'USD';
+    })();
+
+    const quantity = (specs?.quantity ?? material.materialSpec?.quantity ?? material.quantity ?? 1) || 1;
+
+    return {
+      price: numericPrice,
+      currency: inferredCurrency,
+      quantity,
+    };
+  };
+
   const calculateTotalPrice = () => {
     let total = 0;
     let currency = 'USD';
-    
+    let pricedCount = 0;
+
     materials.forEach(material => {
-      const price = material.currentVersion?.specs?.productReference?.estimatedPrice;
-      if (price) {
-        // Extract numeric value from price string (e.g., "$15.99 USD" -> 15.99)
-        const numericPrice = parseFloat(price.replace(/[^0-9.]/g, ''));
-        if (!isNaN(numericPrice)) {
-          total += numericPrice * (material.quantity || 1);
-        }
-        
-        // Extract currency from the first price found
-        const currencyMatch = price.match(/[A-Z]{3}/);
-        if (currencyMatch && currency === 'USD') {
-          currency = currencyMatch[0];
-        }
+      const pricing = extractPricingData(material);
+      if (!pricing) return;
+
+      pricedCount += 1;
+      total += pricing.price * pricing.quantity;
+
+      if (currency === 'USD' && pricing.currency) {
+        currency = pricing.currency;
       }
     });
-    
-    return { total, currency };
+
+    return { total, currency, pricedCount };
   };
 
-  const { total: totalPrice, currency } = calculateTotalPrice();
+  const { total: totalPrice, currency, pricedCount } = calculateTotalPrice();
+
+  const formatTotalPrice = () => {
+    if (pricedCount === 0) return 'Not calculated';
+    const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '';
+    return `${symbol}${totalPrice.toFixed(2)} ${currency}`;
+  };
 
   // Get component type icon
   const getComponentIcon = (type: string) => {
@@ -200,11 +265,11 @@ const ProjectOverview: React.FC<ProjectOverviewProps> = ({
                   </Typography>
                 </Box>
                 <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.contrastText' }}>
-                  {totalPrice > 0 ? `$${totalPrice.toFixed(2)} ${currency}` : 'Not calculated'}
+                  {formatTotalPrice()}
                 </Typography>
-                {totalPrice > 0 && (
+                {pricedCount > 0 && (
                   <Typography variant="body2" sx={{ color: 'primary.contrastText', opacity: 0.8 }}>
-                    Based on {materials.filter(m => m.currentVersion?.specs?.productReference?.estimatedPrice).length} priced components
+                    Based on {pricedCount} priced components
                   </Typography>
                 )}
               </Box>

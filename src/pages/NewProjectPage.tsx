@@ -11,9 +11,11 @@ import {
   Alert,
 } from '@mui/material';
 import { api } from '../shared/services/api';
+import { useAuth } from '../shared/contexts/AuthContext';
 
 const NewProjectPage: React.FC = () => {
   const navigate = useNavigate();
+  const { account, refreshAccount } = useAuth();
   
   // AI prompt creation
   const [prompt, setPrompt] = useState('');
@@ -21,6 +23,13 @@ const NewProjectPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+
+  const hasQuota = !account || (account.projectsRemaining > 0 && account.credits > 0);
+  const quotaMessage = account && !hasQuota
+    ? account.credits <= 0
+      ? 'You have no credits remaining to create a project.'
+      : 'You reached the maximum number of active projects.'
+    : null;
 
   const handlePromptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +44,7 @@ const NewProjectPage: React.FC = () => {
 
     try {
       const project = await api.projects.createFromPrompt(prompt.trim());
-      
+
       // Automatically generate an initial materials list based on the original prompt
       setLoadingStatus('Generating materials list...');
       try {
@@ -45,9 +54,11 @@ const NewProjectPage: React.FC = () => {
         // Continue even if material generation fails
       }
 
+      await refreshAccount();
       navigate(`/project/${project.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+    } catch (err: any) {
+      const message = err?.response?.data?.error || (err instanceof Error ? err.message : 'An error occurred');
+      setError(message);
     } finally {
       setIsLoading(false);
       setLoadingStatus('');
@@ -68,6 +79,12 @@ const NewProjectPage: React.FC = () => {
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
+          </Alert>
+        )}
+
+        {quotaMessage && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            {quotaMessage}
           </Alert>
         )}
 
@@ -94,7 +111,7 @@ const NewProjectPage: React.FC = () => {
             <Button
               type="submit"
               variant="contained"
-              disabled={isLoading || !prompt.trim()}
+              disabled={isLoading || !prompt.trim() || !hasQuota}
               size="large"
             >
               {isLoading ? <CircularProgress size={24} /> : 'Create with AI'}

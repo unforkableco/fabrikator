@@ -13,6 +13,10 @@ export class ChatController {
 
   async handle3DChat(req: Request, res: Response) {
     try {
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const { message, projectId, context, sceneState, selectedComponents } = req.body;
 
       if (!message?.trim()) {
@@ -25,7 +29,7 @@ export class ChatController {
 
       // Persist user message (Ask in 3D context)
       try {
-        await this.projectService.addMessageToProject(projectId, {
+        await this.projectService.addMessageToProject(req.account.id, projectId, {
           context: context || '3d',
           content: message.trim(),
           sender: 'user',
@@ -46,7 +50,7 @@ export class ChatController {
 
       // Persist AI response (Agent in 3D context). Include suggestions if available
       try {
-        await this.projectService.addMessageToProject(projectId, {
+        await this.projectService.addMessageToProject(req.account.id, projectId, {
           context: context || '3d',
           content: response.content,
           sender: 'ai',

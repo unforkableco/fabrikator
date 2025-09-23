@@ -51,6 +51,7 @@ export class MaterialService {
         description, 
         requirements, 
         productReference,
+        estimatedUnitCost,
         status = MaterialStatus.SUGGESTED,
         createdBy = 'User' 
       } = materialData;
@@ -76,6 +77,7 @@ export class MaterialService {
               description,
               requirements,
               productReference,
+              estimatedUnitCost,
               status
             }
           }
@@ -217,6 +219,7 @@ export class MaterialService {
         description, 
         requirements, 
         productReference,
+        estimatedUnitCost,
         status,
         createdBy = 'User' 
       } = versionData;
@@ -248,6 +251,7 @@ export class MaterialService {
           description: description ?? currentSpecs.description,
           requirements: requirements ?? currentSpecs.requirements,
           productReference: productReference ?? currentSpecs.productReference,
+          estimatedUnitCost: estimatedUnitCost ?? currentSpecs.estimatedUnitCost,
           status: status ?? currentSpecs.status
         };
         

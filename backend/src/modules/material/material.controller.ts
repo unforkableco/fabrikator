@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { MaterialService } from './material.service';
 import { AIService } from '../../services/ai.service';
 import { prisma } from '../../prisma/prisma.service';
+import { ensureComponentAccess, ensureProjectAccess } from '../../utils/access-guards';
 
 export class MaterialController {
   private materialService: MaterialService;
@@ -12,12 +13,44 @@ export class MaterialController {
     this.aiService = AIService.getInstance();
   }
 
+  private async assertProjectAccess(req: Request, res: Response, projectId: string) {
+    if (!req.account) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return null;
+    }
+
+    const project = await ensureProjectAccess(req.account.id, projectId);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return null;
+    }
+
+    return project;
+  }
+
+  private async assertComponentAccess(req: Request, res: Response, componentId: string) {
+    if (!req.account) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return null;
+    }
+
+    const component = await ensureComponentAccess(req.account.id, componentId);
+    if (!component) {
+      res.status(404).json({ error: 'Material not found' });
+      return null;
+    }
+
+    return component;
+  }
+
   /**
    * List all materials for a project
    */
   async listMaterials(req: Request, res: Response) {
     try {
       const { projectId } = req.params;
+      const project = await this.assertProjectAccess(req, res, projectId);
+      if (!project) return;
       const components = await this.materialService.listMaterials(projectId);
       
       // Transform components to materials (legacy structure)
@@ -49,6 +82,8 @@ export class MaterialController {
   async getMaterialVersions(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const component = await this.assertComponentAccess(req, res, id);
+      if (!component) return;
       const versions = await this.materialService.getMaterialVersions(id);
       res.json(versions);
     } catch (error) {
@@ -63,6 +98,8 @@ export class MaterialController {
   async createMaterial(req: Request, res: Response) {
     try {
       const { projectId } = req.params;
+      const project = await this.assertProjectAccess(req, res, projectId);
+      if (!project) return;
       const materialData = req.body;
       const result = await this.materialService.createMaterial(projectId, materialData);
       res.status(201).json(result);
@@ -78,6 +115,8 @@ export class MaterialController {
   async getMaterialById(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const allowed = await this.assertComponentAccess(req, res, id);
+      if (!allowed) return;
       const component = await this.materialService.getMaterialById(id);
       
       if (!component) {
@@ -111,6 +150,8 @@ export class MaterialController {
   async updateMaterialStatus(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const allowed = await this.assertComponentAccess(req, res, id);
+      if (!allowed) return;
       const { action, ...updateData } = req.body;
       
       if (!action || !['approve', 'reject', 'update'].includes(action)) {
@@ -207,6 +248,8 @@ export class MaterialController {
   async deleteMaterial(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const allowed = await this.assertComponentAccess(req, res, id);
+      if (!allowed) return;
       await this.materialService.deleteMaterial(id);
       res.status(204).send();
     } catch (error) {
@@ -221,11 +264,10 @@ export class MaterialController {
   async generateSuggestions(req: Request, res: Response) {
     try {
       const { projectId } = req.params;
+      const project = await this.assertProjectAccess(req, res, projectId);
+      if (!project) return;
       const { prompt } = req.body;
       
-      const project = await prisma.project.findUnique({ where: { id: projectId } });
-      if (!project) return res.status(404).json({ error: 'Project not found' });
-
       const currentMaterials = await this.materialService.listMaterials(projectId);
       const suggestions = await this.aiService.suggestMaterials({
         name: project.name || 'Unnamed Project',
@@ -249,6 +291,7 @@ export class MaterialController {
             quantity: component.details?.quantity || 1,
             requirements: component.details?.technicalSpecs || {},
             productReference: component.details?.productReference || null,
+            estimatedUnitCost: component.details?.estimatedUnitCost || null,
             status: 'suggested',
             createdBy: 'AI'
           };
@@ -267,6 +310,7 @@ export class MaterialController {
               quantity: component.details?.quantity || 1,
               requirements: component.details?.technicalSpecs || {},
               productReference: component.details?.productReference || null,
+              estimatedUnitCost: component.details?.estimatedUnitCost ?? undefined,
               status: 'suggested',
               createdBy: 'AI'
             };
@@ -299,9 +343,9 @@ export class MaterialController {
     try {
       const { projectId } = req.params;
       const { prompt, language } = req.body;
-      
-      const project = await prisma.project.findUnique({ where: { id: projectId } });
-      if (!project) return res.status(404).json({ error: 'Project not found' });
+
+      const project = await this.assertProjectAccess(req, res, projectId);
+      if (!project) return;
 
       const currentMaterials = await this.materialService.listMaterials(projectId);
 
@@ -346,6 +390,9 @@ export class MaterialController {
       
       if (!suggestion) return res.status(400).json({ error: 'Invalid suggestion data' });
       
+      const project = await this.assertProjectAccess(req, res, projectId);
+      if (!project) return;
+
       const action = suggestion.action || 'new';
       const currentMaterials = await this.materialService.listMaterials(projectId);
       
@@ -358,6 +405,7 @@ export class MaterialController {
           quantity: suggestion.details?.quantity || 1,
           requirements: baseSpecs,
           productReference: suggestion.details?.productReference || null,
+          estimatedUnitCost: suggestion.details?.estimatedUnitCost || null,
           status: 'suggested',
           createdBy: 'AI'
         };
@@ -468,6 +516,7 @@ export class MaterialController {
           quantity: suggestion.details?.quantity || 1,
           requirements: mergedRequirements,
           productReference: suggestion.details?.productReference || null,
+          estimatedUnitCost: suggestion.details?.estimatedUnitCost ?? currentSpecs.estimatedUnitCost ?? null,
           status: 'suggested',
           createdBy: 'AI'
         };
@@ -514,6 +563,8 @@ export class MaterialController {
   async suggestPurchaseReferences(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      const allowed = await this.assertComponentAccess(req, res, id);
+      if (!allowed) return;
       const component = await this.materialService.getMaterialById(id);
       if (!component) return res.status(404).json({ error: 'Material not found' });
 
