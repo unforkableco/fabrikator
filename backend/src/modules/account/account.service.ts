@@ -1,4 +1,5 @@
 import { prisma } from '../../prisma/prisma.service';
+import bcrypt from 'bcryptjs';
 
 export interface AccountSummary {
   id: string;
@@ -79,6 +80,24 @@ export class AccountService {
         amount,
         reason,
       },
+    });
+  }
+
+  async updatePassword(accountId: string, currentPassword: string, newPassword: string) {
+    const account = await prisma.account.findUnique({ where: { id: accountId } });
+    if (!account) {
+      throw new Error('ACCOUNT_NOT_FOUND');
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, account.hashedPassword);
+    if (!isValid) {
+      throw new Error('INVALID_PASSWORD');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.account.update({
+      where: { id: accountId },
+      data: { hashedPassword },
     });
   }
 }

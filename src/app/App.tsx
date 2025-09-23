@@ -14,6 +14,7 @@ import HomePage from '../pages/HomePage';
 import NewProjectPage from '../pages/NewProjectPage';
 import ProjectPage from '../features/projects/pages/ProjectPage';
 import LoginPage from '../pages/LoginPage';
+import ProfilePage from '../pages/ProfilePage';
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
                 <Route path="/" element={<HomePage />} />
                 <Route path="/project/new" element={<NewProjectPage />} />
                 <Route path="/project/:id" element={<ProjectPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
               </Route>
             </Route>
           </Routes>

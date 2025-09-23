@@ -19,6 +19,7 @@ import {
   Build as BuildIcon,
   HelpOutline as HelpIcon,
   Logout as LogoutIcon,
+  AccountCircle as AccountCircleIcon,
 } from '@mui/icons-material';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -161,6 +162,14 @@ export const AppLayout: React.FC = () => {
               title="Help"
             >
               <HelpIcon />
+            </IconButton>
+
+            <IconButton
+              color="inherit"
+              onClick={() => navigate('/profile')}
+              title="Profile"
+            >
+              <AccountCircleIcon />
             </IconButton>
 
             <IconButton

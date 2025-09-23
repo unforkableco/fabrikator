@@ -49,6 +49,9 @@ export const api = {
       const response = await apiClient.get('/accounts/me');
       return response.data;
     },
+    updatePassword: async (payload: { currentPassword: string; newPassword: string }): Promise<void> => {
+      await apiClient.put('/accounts/me/password', payload);
+    },
   },
 
   projects: {
