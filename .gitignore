@@ -35,3 +35,14 @@ yarn-error.log*
 /backend/scripts/tmp
 /backend/debug
 /backend/scripts/temp
+
+/attempts
+generated.py
+
+*.pyc
+
+.hypothesis/
+
+/out
+/backend/runs/
+/openscadmcp/node_modules/

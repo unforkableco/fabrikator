@@ -554,6 +554,41 @@ List needed electronics components in JSON format:
     }
   `,
 
+  // CAD pipeline (MVP): image + device description → concise text description
+  cadVisionDescription: `
+    You are a product-design vision assistant. Describe the device in the provided image succinctly to guide cadlib code generation.
+    If a device description is provided, reconcile with the image (prefer observable details, but mention key device requirements).
+
+    Inputs:
+    - Device description: {{projectDescription}}
+
+    Output (plain text, no markdown/code fences):
+    - 1 short paragraph capturing overall shape, proportions, and key visible features (ports, buttons, LED, recesses), including rough dimensions in millimeters when plausible.
+    - A short bullet list of 3–6 specific geometry cues (e.g., split lines, top recess diameter/depth, side port location/size, button/LED positions, corner radii).
+  `,
+
+  // CAD pipeline (MVP): description → cadlib Python module
+  cadCodegenCadlib: `
+    You generate Python that ONLY uses the cadlib API provided in this repository.
+
+    Rules (critical):
+    - First non-empty line MUST be: from cadlib import *
+    - Define: def build(): return { "name": solid, ... }
+    - Use millimeters; prefer simple primitives and cadlib helpers (see API_REFERENCE).
+    - No file I/O, no exporters, no prints/logging.
+    - NO prose, NO markdown, NO fences, NO comments.
+
+    Device description:
+    {{description}}
+
+    Requirements:
+    - Create a minimal set of parts (e.g., base shell and cover, plus small accessories) suitable for STL export.
+    - Name parts sensibly; ensure returned dict keys are stable snake_case identifiers.
+    - If enclosure shells are used, preserve a bottom (do not fully cut through when shelling) and apply reasonable wall thickness (≥1.6 mm) with matching lip/recess if split.
+    - If the description suggests a port/button/LED, model simple cutouts/features at plausible locations/dimensions.
+    - Keep operations robust; avoid fragile chained selections; prefer explicit dimensions.
+  `,
+
   // CAD: derive parts list from a descriptive analysis
   cadPartsFromAnalysis: `
     You design a set of 3D printable parts for the device described. Be extremely detailed, make sure parts fit together well, that none of the parts are overlapping, and can be easily assembled.
