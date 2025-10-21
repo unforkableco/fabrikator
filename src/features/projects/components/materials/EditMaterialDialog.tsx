@@ -15,6 +15,8 @@ import {
   Select,
   MenuItem,
   Divider,
+  Alert,
+  Chip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -22,12 +24,14 @@ import {
   Edit as EditIcon,
 } from '@mui/icons-material';
 import { Material } from '../../../../shared/types';
+import { api } from '../../../../shared/services/api';
 
 interface EditMaterialDialogProps {
   open: boolean;
   material: Material | null;
   onClose: () => void;
   onSave: (materialId: string, updatedMaterial: Partial<Material>) => void;
+  onRefetch?: () => void;
 }
 
 const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
@@ -35,6 +39,7 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
   material,
   onClose,
   onSave,
+  onRefetch,
 }) => {
   const [name, setName] = useState('');
   const [type, setType] = useState('');
@@ -43,6 +48,13 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
   const [editingSpec, setEditingSpec] = useState<{key: string; value: string} | null>(null);
   const [newSpecKey, setNewSpecKey] = useState('');
   const [newSpecValue, setNewSpecValue] = useState('');
+
+  // Impact analysis state
+  const [isAnalyzingImpact, setIsAnalyzingImpact] = useState(false);
+  const [impactResult, setImpactResult] = useState<any | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const [isApplying, setIsApplying] = useState(false);
+  const [applySuccess, setApplySuccess] = useState<string | null>(null);
 
   // Initialiser les valeurs quand le material change
   useEffect(() => {
@@ -54,6 +66,8 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
       const specs = material.requirements || {};
       const stringSpecs: {[key: string]: string} = {};
       Object.entries(specs).forEach(([key, value]) => {
+        // Masquer les pins du formulaire d'édition
+        if (key.toLowerCase() === 'pins') return;
         stringSpecs[key] = String(value);
       });
       setSpecifications(stringSpecs);
@@ -67,20 +81,79 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
     setEditingSpec(null);
     setNewSpecKey('');
     setNewSpecValue('');
+    // Reset impact UI when reopening
+    setImpactResult(null);
+    setApplyError(null);
+    setApplySuccess(null);
   }, [material]);
+
+  const buildUpdatedMaterial = (): Partial<Material> => ({
+    name: name.trim(),
+    type: type.trim(),
+    description: description.trim(),
+    requirements: specifications,
+  });
 
   const handleSave = () => {
     if (!material) return;
 
-    const updatedMaterial: Partial<Material> = {
-      name: name.trim(),
-      type: type.trim(),
-      description: description.trim(),
-      requirements: specifications,
-    };
-
+    const updatedMaterial = buildUpdatedMaterial();
     onSave(material.id, updatedMaterial);
     onClose();
+    // (Retiré) Pas de onRefetch ici pour éviter double refresh; le panel gère l'optimisme + refresh
+  };
+
+  const handleSaveWithImpact = async () => {
+    if (!material) return;
+    setIsAnalyzingImpact(true);
+    setApplyError(null);
+    setApplySuccess(null);
+    try {
+      const updatedMaterial = buildUpdatedMaterial();
+      const result = await api.projects.updateMaterialAndReviewImpact(material.id, updatedMaterial);
+      setImpactResult(result?.impactSuggestions || null);
+      // Trigger a refetch so the list reflects the new spec immediately
+      onRefetch?.();
+    } catch (err) {
+      setImpactResult({
+        explanation: { summary: "Impossible d'analyser l'impact pour le moment." },
+        components: []
+      });
+    } finally {
+      setIsAnalyzingImpact(false);
+    }
+  };
+
+  const handleApplyImpact = async () => {
+    if (!material || !material.projectId || !impactResult || !Array.isArray(impactResult.components)) return;
+    setIsApplying(true);
+    setApplyError(null);
+    setApplySuccess(null);
+
+    try {
+      for (const comp of impactResult.components) {
+        const action = comp.details?.action || 'update';
+        const normalizedSpecs = comp.details?.specs || comp.details?.technicalSpecs || {};
+        const suggestion = {
+          action,
+          type: comp.type,
+          details: {
+            quantity: comp.details?.quantity ?? 1,
+            notes: comp.details?.notes || '',
+            technicalSpecs: undefined,
+            specs: normalizedSpecs,
+            productReference: comp.details?.productReference || null,
+          }
+        };
+        await api.projects.addMaterialFromSuggestion(material.projectId, suggestion);
+      }
+      setApplySuccess('Modifications liées appliquées.');
+      onRefetch?.();
+    } catch (err: any) {
+      setApplyError("Échec lors de l'application automatique des modifications.");
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   const handleAddSpecification = () => {
@@ -102,18 +175,8 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
     if (!editingSpec) return;
 
     const newSpecs = { ...specifications };
-    
-    // Si la clé a changé, supprimer l'ancienne
-    if (editingSpec.key !== Object.keys(specifications).find(k => specifications[k] === editingSpec.value)) {
-      const oldKey = Object.keys(specifications).find(k => specifications[k] === editingSpec.value);
-      if (oldKey) {
-        delete newSpecs[oldKey];
-      }
-    }
-    
-    // Ajouter la nouvelle spécification
+    // simple replacement by key
     newSpecs[editingSpec.key] = editingSpec.value;
-    
     setSpecifications(newSpecs);
     setEditingSpec(null);
   };
@@ -136,6 +199,55 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
     'Interface',
     'Other'
   ];
+
+  const renderImpact = () => {
+    if (!impactResult) return null;
+    const components = Array.isArray(impactResult.components) ? impactResult.components : [];
+    return (
+      <Box sx={{ mt: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+        <Typography variant="h6" gutterBottom color="primary">
+          Impact détecté
+        </Typography>
+        {impactResult.explanation?.summary && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            {impactResult.explanation.summary}
+          </Alert>
+        )}
+        {components.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            Aucun impact détecté.
+          </Typography>
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {components.map((c: any, idx: number) => (
+              <Box key={idx} sx={{ p: 1.5, border: '1px dashed', borderColor: 'divider', borderRadius: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Typography variant="subtitle2">{c.type}</Typography>
+                  <Chip label={String(c.details?.action || 'update')} size="small" color={c.details?.action === 'remove' ? 'error' : c.details?.action === 'new' ? 'success' : 'warning'} />
+                </Box>
+                <Typography variant="body2" color="text.secondary">
+                  {c.details?.notes || 'Mise à jour nécessaire suite au changement.'}
+                </Typography>
+                {'quantity' in (c.details || {}) && (
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    Quantité: {String(c.details?.quantity)}
+                  </Typography>
+                )}
+              </Box>
+            ))}
+            {applyError && <Alert severity="error">{applyError}</Alert>}
+            {applySuccess && <Alert severity="success">{applySuccess}</Alert>}
+            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+              <Button variant="contained" onClick={handleApplyImpact} disabled={isApplying}>
+                {isApplying ? 'Application…' : 'Appliquer automatiquement'}
+              </Button>
+              <Button variant="text" onClick={onClose}>Fermer</Button>
+            </Box>
+          </Box>
+        )}
+      </Box>
+    );
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -302,6 +414,7 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
                           {String(value)}
                         </Typography>
                       </Box>
+                      {/* Ne pas permettre l'édition de pins (non présentes car filtrées plus haut) */}
                       <IconButton
                         onClick={() => handleEditSpecification(key, String(value))}
                         size="small"
@@ -328,6 +441,9 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
               )}
             </Box>
           </Box>
+
+          {/* Impact analysis results */}
+          {renderImpact()}
         </Box>
       </DialogContent>
       
@@ -337,10 +453,17 @@ const EditMaterialDialog: React.FC<EditMaterialDialogProps> = ({
         </Button>
         <Button 
           onClick={handleSave} 
-          variant="contained"
+          variant="outlined"
           disabled={!name.trim() || !type.trim()}
         >
           Save Changes
+        </Button>
+        <Button
+          onClick={handleSaveWithImpact}
+          variant="contained"
+          disabled={!name.trim() || !type.trim() || isAnalyzingImpact}
+        >
+          {isAnalyzingImpact ? 'Analyse…' : 'Save + Impact'}
         </Button>
       </DialogActions>
     </Dialog>

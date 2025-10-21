@@ -8,7 +8,7 @@ import {
 
 const StatusLegend: React.FC = () => {
   return (
-    <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', m: 0, p: 0 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
         <Box 
           sx={{ 

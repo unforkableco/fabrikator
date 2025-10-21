@@ -61,9 +61,10 @@ export class AIService {
 
     // Initialize OpenAI client if using OpenAI provider
     if (this.currentProvider.name === 'openai') {
+      const timeoutMs = Number(process.env.OPENAI_TIMEOUT_MS || 1800000); // default 30 minutes
       this.openaiClient = new OpenAI({
         apiKey: this.currentProvider.apiKey,
-        timeout: 600000 // 10 minutes timeout for GPT-5
+        timeout: timeoutMs
       });
     }
 
@@ -174,7 +175,7 @@ export class AIService {
   /**
    * Generic call to AI API with provider-specific implementation
    */
-  public async callAI(messages: any[], temperature = 0.7, retries = 2): Promise<string> {
+  public async callAI(messages: any[], temperature = 0.7, retries = 4): Promise<string> {
     console.log(`Calling ${this.currentProvider.name} API with model: ${this.currentProvider.model}, messages: ${messages.length}, temperature: ${temperature}`);
     
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -194,14 +195,19 @@ export class AIService {
         return response;
       } catch (error: any) {
         const isRateLimit = error.response?.status === 429;
+        const isTimeout =
+          error?.name?.toLowerCase?.().includes('timeout') ||
+          error?.message?.toLowerCase?.().includes('timed out') ||
+          error?.code === 'ETIMEDOUT' ||
+          error?.type === 'timeout';
         const isLastAttempt = attempt === retries;
         
-        if (isRateLimit && !isLastAttempt) {
+        if ((isRateLimit || isTimeout) && !isLastAttempt) {
           // Calculate exponential backoff delay: 2^attempt * baseDelay (in ms)
-          const baseDelay = 1000; // 1 second
-          const delay = Math.min(baseDelay * Math.pow(2, attempt), 30000); // Max 30 seconds
+          const baseDelay = isTimeout ? 2000 : 1000;
+          const delay = Math.min(baseDelay * Math.pow(2, attempt), 60000); // Max 60 seconds
           
-          console.log(`Rate limit hit (429), retrying in ${delay}ms (attempt ${attempt + 1}/${retries + 1})`);
+          console.log(`${isTimeout ? 'Timeout' : 'Rate limit'} encountered, retrying in ${delay}ms (attempt ${attempt + 1}/${retries + 1})`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
@@ -473,8 +479,8 @@ export class AIService {
    * Generate wiring suggestions
    */
   async generateWiringSuggestions(prompt: string, context?: any): Promise<any>;
-  async generateWiringSuggestions(params: { prompt: string; materials: any[]; currentDiagram?: any }): Promise<any>;
-  async generateWiringSuggestions(promptOrParams: string | { prompt: string; materials: any[]; currentDiagram?: any }, context?: any): Promise<any> {
+  async generateWiringSuggestions(params: { prompt: string; materials: any[]; currentDiagram?: any; existingConnections?: any[]; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }): Promise<any>;
+  async generateWiringSuggestions(promptOrParams: string | { prompt: string; materials: any[]; currentDiagram?: any; existingConnections?: any[]; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }, context?: any): Promise<any> {
     let prompt: string;
     let contextData: any;
 
@@ -486,16 +492,29 @@ export class AIService {
       prompt = promptOrParams.prompt;
       contextData = {
         materials: promptOrParams.materials,
-        currentDiagram: promptOrParams.currentDiagram
+        currentDiagram: promptOrParams.currentDiagram,
+        existingConnections: promptOrParams.existingConnections,
+        chatHistory: promptOrParams.chatHistory
       };
     }
 
-    // Use wiringOptimalCircuit for complex wiring analysis (legacy support)
-    if (contextData?.materials && contextData.materials.length > 0 && contextData?.currentDiagram) {
-      let systemPrompt = prompts.wiringOptimalCircuit
+    // Determine model capabilities
+    const modelConfig = getModelConfig(this.currentProvider.model);
+    const isReasoningModel = modelConfig?.isReasoningModel || false;
+
+    // Use wiringOptimalCircuit for complex wiring analysis ONLY for non-reasoning models
+    if (!isReasoningModel && contextData?.materials && contextData.materials.length > 0 && contextData?.currentDiagram) {
+      const historyArr = Array.isArray(contextData?.chatHistory) ? contextData.chatHistory as Array<{role: string; content: string}> : [];
+      const historyText = historyArr.length > 0
+        ? '\n\nConversation History (latest messages):\n' + historyArr.slice(-10).map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')
+        : '';
+      let systemPrompt = (prompts.wiringOptimalCircuit
         .replace('{{materials}}', JSON.stringify(contextData.materials, null, 2))
-        .replace('{{currentDiagram}}', JSON.stringify(contextData.currentDiagram, null, 2))
-        .replace('{{prompt}}', prompt);
+        .replace('{{currentDiagram}}', JSON.stringify({
+          ...contextData.currentDiagram,
+          existingConnections: contextData.existingConnections || []
+        }, null, 2))
+        .replace('{{prompt}}', prompt)) + historyText;
       
       const messages = [
         {
@@ -529,19 +548,33 @@ export class AIService {
         const parsedResponse = JSON.parse(cleanedResponse);
         return parsedResponse;
       } catch (error) {
-        console.error('Error parsing AI wiring response:', error);
-        
-        // Fallback: return a default structure
+        console.error('Error parsing AI wiring response (complex path):', error);
+        // Fallback attempt with alternate model if available
+        if (this.currentProvider.name === 'openai') {
+          try {
+            const fallbackModel = process.env.OPENAI_FALLBACK_MODEL || 'gpt-4o';
+            console.log(`Retrying wiring suggestions with fallback model: ${fallbackModel}`);
+            const fallbackRaw = await this.callOpenAI(messages, 0.7, fallbackModel);
+            const cleaned = this.cleanJsonResponse(fallbackRaw);
+            return JSON.parse(cleaned);
+          } catch (fallbackError) {
+            console.error('Fallback model also failed:', fallbackError);
+          }
+        }
+        // Final fallback: return a default structure
         return {
           explanation: "I couldn't analyze your materials correctly at the moment.",
           suggestions: []
         };
       }
     } else {
-      // Use simple wiring suggestions for new API
-      const systemPrompt = prompts.wiringSuggestions
+      const historyArr = Array.isArray(contextData?.chatHistory) ? contextData.chatHistory as Array<{role: string; content: string}> : [];
+      const historyText = historyArr.length > 0
+        ? '\n\nConversation History (latest messages):\n' + historyArr.slice(-10).map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')
+        : '';
+      const systemPrompt = (prompts.wiringSuggestions
         .replace('{{prompt}}', prompt)
-        .replace('{{context}}', contextData ? JSON.stringify(contextData) : '');
+        .replace('{{context}}', contextData ? JSON.stringify(contextData) : '')) + historyText;
       
       const messages = [
         {
@@ -555,7 +588,19 @@ export class AIService {
         const cleanedResponse = this.cleanJsonResponse(response);
         return JSON.parse(cleanedResponse);
       } catch (error) {
-        console.error('Error in generateWiringSuggestions:', error);
+        console.error('Error in generateWiringSuggestions (simple path):', error);
+        // Fallback attempt with alternate model if available
+        if (this.currentProvider.name === 'openai') {
+          try {
+            const fallbackModel = process.env.OPENAI_FALLBACK_MODEL || 'gpt-4o';
+            console.log(`Retrying wiring suggestions with fallback model: ${fallbackModel}`);
+            const fallbackRaw = await this.callOpenAI(messages, 0.7, fallbackModel);
+            const cleaned = this.cleanJsonResponse(fallbackRaw);
+            return JSON.parse(cleaned);
+          } catch (fallbackError) {
+            console.error('Fallback model also failed:', fallbackError);
+          }
+        }
         throw error;
       }
     }
@@ -593,17 +638,18 @@ export class AIService {
   /**
    * Legacy method: Suggests hardware components for a project (backward compatibility)
    */
-  async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[] }) {
-    const { name, description, userPrompt = '', previousComponents = [], currentMaterials = [] } = params;
+  async suggestMaterials(params: { name: string; description: string; userPrompt?: string; previousComponents?: any[]; currentMaterials?: any[]; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>; language?: string }) {
+    const { name, description, userPrompt = '', previousComponents = [], currentMaterials = [], chatHistory = [] } = params;
     
-    // Simplify current materials first
+    // Simplify current materials first (now includes requirements for precision)
     const simplifiedMaterials = currentMaterials.map(material => ({
       id: material.id,
       type: material.currentVersion?.specs?.type || 'unknown',
       name: material.currentVersion?.specs?.name || 'unknown', 
       quantity: material.currentVersion?.specs?.quantity || 1,
       description: material.currentVersion?.specs?.description || '',
-      status: material.currentVersion?.specs?.status || 'suggested'
+      status: material.currentVersion?.specs?.status || 'suggested',
+      requirements: (material.currentVersion?.specs as any)?.requirements || {}
     }));
     
     // Build the system prompt by replacing variables
@@ -618,6 +664,12 @@ export class AIService {
       .replace('{{projectName}}', name)
       .replace('{{projectDescription}}', description)
       .replace('{{userPrompt}}', userPrompt);
+
+    // Append recent chat history for context
+    const truncatedHistory = chatHistory.slice(-10);
+    const historyText = truncatedHistory.length > 0
+      ? '\n\nConversation History (latest messages):\n' + truncatedHistory.map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')
+      : '';
     
     // Replace all placeholders  
     const currentMaterialsJson = simplifiedMaterials.length > 0 
@@ -627,10 +679,21 @@ export class AIService {
     const previousCompJson = previousComponents.length > 0 
       ? JSON.stringify(previousComponents.slice(0, 3))
       : '[]';
+
+    // Build full specs payload for prompt (include entire specs object per material)
+    const fullMaterialsSpecs = currentMaterials.map(material => ({
+      id: material.id,
+      specs: (material.currentVersion?.specs as any) || {}
+    }));
+    const fullMaterialsSpecsJson = fullMaterialsSpecs.length > 0
+      ? JSON.stringify(fullMaterialsSpecs, null, 2)
+      : '[]';
     
     systemPrompt = systemPrompt
       .replace('{{currentMaterials}}', currentMaterialsJson)
-      .replace('{{previousComponents}}', previousCompJson);
+      .replace('{{previousComponents}}', previousCompJson)
+      .replace('{{currentMaterialsFullSpecs}}', fullMaterialsSpecsJson)
+      + historyText;
     
     const messages = [
       {
@@ -682,7 +745,126 @@ export class AIService {
           component.details.productReference.estimatedPrice = normalizedPrice;
           console.log(`Price normalized: "${originalPrice}" -> "${normalizedPrice}"`);
         }
+        if (component.details?.estimatedUnitCost) {
+          const originalUnitCost = component.details.estimatedUnitCost;
+          component.details.estimatedUnitCost = this.normalizePriceString(originalUnitCost);
+          console.log(`Unit cost normalized: "${originalUnitCost}" -> "${component.details.estimatedUnitCost}"`);
+        }
         return component;
+      });
+
+      // Post-filter: Evaluate compatibility against existing requirements
+      const flattenObject = (obj: any, prefix = ''): Record<string, any> => {
+        const result: Record<string, any> = {};
+        if (!obj || typeof obj !== 'object') return result;
+        for (const key of Object.keys(obj)) {
+          const value = obj[key];
+          const path = prefix ? `${prefix}.${key}` : key;
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            Object.assign(result, flattenObject(value, path));
+          } else {
+            result[path] = value;
+          }
+        }
+        return result;
+      };
+
+      const toNumber = (val: any): number | null => {
+        if (typeof val === 'number') return val;
+        if (typeof val === 'string') {
+          const match = val.match(/([0-9]+(?:\.[0-9]+)?)/);
+          if (match) return parseFloat(match[1]);
+        }
+        return null;
+      };
+
+      const includesAll = (needle: any, hay: any): boolean => {
+        if (Array.isArray(needle)) {
+          if (Array.isArray(hay)) return needle.every(n => hay.includes(n));
+          if (typeof hay === 'string') return needle.every(n => hay.toLowerCase().includes(String(n).toLowerCase()));
+          return false;
+        }
+        if (typeof needle === 'string') {
+          if (Array.isArray(hay)) return hay.map(h => String(h).toLowerCase()).includes(needle.toLowerCase());
+          if (typeof hay === 'string') return hay.toLowerCase().includes(needle.toLowerCase());
+        }
+        if (typeof needle === 'boolean') return needle === Boolean(hay);
+        return true;
+      };
+
+      const compareRequirements = (requirements: any, technicalSpecs: any) => {
+        const reqFlat = flattenObject(requirements || {});
+        const specFlat = flattenObject(technicalSpecs || {});
+        const mismatches: string[] = [];
+        for (const key of Object.keys(reqFlat)) {
+          const reqVal = reqFlat[key];
+          const specVal = specFlat[key];
+          if (specVal === undefined || specVal === null) {
+            mismatches.push(`Missing key: ${key}`);
+            continue;
+          }
+          if (typeof reqVal === 'number') {
+            const specNum = toNumber(specVal);
+            if (specNum === null || specNum < reqVal) {
+              mismatches.push(`Key ${key}: ${specNum ?? 'N/A'} < required ${reqVal}`);
+            }
+            continue;
+          }
+          if (Array.isArray(reqVal)) {
+            if (!includesAll(reqVal, specVal)) {
+              mismatches.push(`Key ${key}: does not include required values`);
+            }
+            continue;
+          }
+          if (typeof reqVal === 'string') {
+            // Try numeric compare if string contains number, else substring match
+            const reqNum = toNumber(reqVal);
+            if (reqNum !== null) {
+              const specNum = toNumber(specVal);
+              if (specNum === null || specNum < reqNum) {
+                mismatches.push(`Key ${key}: ${specNum ?? 'N/A'} < required ${reqNum}`);
+              }
+            } else if (!includesAll(reqVal, specVal)) {
+              mismatches.push(`Key ${key}: value not satisfied`);
+            }
+            continue;
+          }
+          if (typeof reqVal === 'boolean') {
+            if (Boolean(specVal) !== reqVal) {
+              mismatches.push(`Key ${key}: expected ${reqVal}`);
+            }
+          }
+        }
+        const score = mismatches.length === 0 ? 1 : Math.max(0, 1 - mismatches.length * 0.2);
+        return { score, mismatches };
+      };
+
+      const findExistingByTypeOrName = (typeOrName: string) => {
+        return currentMaterials.find((m: any) => {
+          const specs = (m.currentVersion?.specs as any) || {};
+          return specs?.type === typeOrName || specs?.name === typeOrName;
+        });
+      };
+
+      parsedResponse.components = parsedResponse.components.map((component: any) => {
+        try {
+          const existing = findExistingByTypeOrName(component.type);
+          const requirements = existing ? ((existing.currentVersion?.specs as any)?.requirements || {}) : {};
+          const technicalSpecs = component.details?.technicalSpecs || {};
+          const { score, mismatches } = compareRequirements(requirements, technicalSpecs);
+          component.details = component.details || {};
+          component.details.compatibilityScore = score;
+          if (mismatches.length > 0) component.details.mismatchNotes = mismatches;
+        } catch (e) {
+          console.warn('Compatibility evaluation failed for component', component?.type, e);
+        }
+        return component;
+      });
+
+      // Strict filtering: keep only 100% compatible suggestions
+      parsedResponse.components = parsedResponse.components.filter((c: any) => {
+        const score = c?.details?.compatibilityScore;
+        return typeof score === 'number' ? score >= 1 : true; // default keep if not computed
       });
       
       return parsedResponse;
@@ -710,10 +892,83 @@ export class AIService {
   }
 
   /**
+   * Analyze cascading impact on other materials when one component changes
+   */
+  async reviewMaterialImpact(params: { project: any; updatedComponent: any; currentMaterials: any[] }) {
+    const { project, updatedComponent, currentMaterials } = params;
+
+    // Simplify current materials for prompt context
+    const fullMaterials = currentMaterials.map(material => ({
+      id: material.id,
+      type: material.currentVersion?.specs?.type || 'unknown',
+      name: material.currentVersion?.specs?.name || 'unknown',
+      quantity: material.currentVersion?.specs?.quantity || 1,
+      description: material.currentVersion?.specs?.description || '',
+      status: material.currentVersion?.specs?.status || 'suggested',
+      specs: material.currentVersion?.specs?.requirements || {}
+    }));
+
+    // Compose system prompt
+    let systemPrompt = prompts.materialsImpactReview
+      .replace('{{projectName}}', project.name || 'Unnamed Project')
+      .replace('{{projectDescription}}', project.description || '')
+      .replace('{{previousComponent}}', JSON.stringify(updatedComponent.previous || updatedComponent, null, 2))
+      .replace('{{updatedComponent}}', JSON.stringify(updatedComponent, null, 2))
+      .replace('{{currentMaterials}}', JSON.stringify(fullMaterials, null, 2));
+
+    const messages = [
+      { role: 'system', content: systemPrompt }
+    ];
+
+    try {
+      let response: string;
+      if (this.currentProvider.name === 'openai') {
+        const modelConfig = getModelConfig(this.currentProvider.model);
+        if (supportsJsonMode(this.currentProvider.model)) {
+          response = await this.callOpenAIJson(messages, 0.5);
+        } else if (modelConfig?.isReasoningModel) {
+          response = await this.callOpenAIProvider(messages, 0.5);
+        } else {
+          response = await this.callOpenAIProvider(messages, 0.5);
+        }
+      } else {
+        response = await this.callAI(messages, 0.5);
+      }
+
+      const cleanedResponse = this.cleanJsonResponse(response);
+      const parsed = JSON.parse(cleanedResponse);
+      if (!parsed.components || !Array.isArray(parsed.components)) {
+        throw new Error('Invalid impact response');
+      }
+      // Normalize prices inside productReference if present
+      parsed.components = parsed.components.map((component: any) => {
+        if (component.details?.productReference?.estimatedPrice) {
+          const originalPrice = component.details.productReference.estimatedPrice;
+          component.details.productReference.estimatedPrice = this.normalizePriceString(originalPrice);
+        }
+        if (component.details?.estimatedUnitCost) {
+          component.details.estimatedUnitCost = this.normalizePriceString(component.details.estimatedUnitCost);
+        }
+        return component;
+      });
+      return parsed;
+    } catch (error) {
+      console.error('Error in reviewMaterialImpact:', error);
+      return {
+        explanation: {
+          summary: 'Impact analysis failed - fallback',
+          reasoning: 'Could not parse AI response'
+        },
+        components: []
+      };
+    }
+  }
+
+  /**
    * Legacy method: Answers a user question about a project (backward compatibility)
    */
-  async answerProjectQuestion(params: { project: any; materials?: any[]; wiring?: any; userQuestion: string }) {
-    const { project, materials = [], wiring = null, userQuestion } = params;
+  async answerProjectQuestion(params: { project: any; materials?: any[]; wiring?: any; userQuestion: string; chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) {
+    const { project, materials = [], wiring = null, userQuestion, chatHistory = [] } = params;
     
     // Build complete project context
     let projectContext = `Name: ${project.name || 'Unnamed project'}\nDescription: ${project.description || 'No description available'}\nStatus: ${project.status || 'In progress'}`;
@@ -751,10 +1006,14 @@ export class AIService {
       .replace('{{project}}', projectContext)
       .replace('{{userInput}}', userQuestion);
     
+    const historyText = chatHistory.length > 0
+      ? '\n\nConversation History (latest messages):\n' + chatHistory.slice(-10).map(h => `- ${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n') + '\n'
+      : '';
+    
     const messages = [
       {
         role: 'system',
-        content: systemPrompt
+        content: systemPrompt + historyText
       }
     ];
 
@@ -936,6 +1195,141 @@ export class AIService {
     } catch (error) {
       console.error('Error in analyzeImageForPrompt:', error);
       throw error;
+    }
+  }
+
+  async suggestProductReferences(params: { project: any; component: any }) {
+    const { project, component } = params;
+
+    const requirements = component.currentVersion?.specs?.requirements || {};
+
+    // Build broader project context to improve coherence of references
+    const projectMaterials = (project as any)?.components || undefined; // fallback if preloaded
+
+    // If not present on project, we can still inject the single component context only; controller may pass others later
+    const simplifiedMaterials = Array.isArray(projectMaterials) ? projectMaterials.map((m: any) => ({
+      id: m.id,
+      type: m.currentVersion?.specs?.type || 'unknown',
+      name: m.currentVersion?.specs?.name || 'unknown',
+      quantity: m.currentVersion?.specs?.quantity || 1,
+      description: m.currentVersion?.specs?.description || '',
+      status: m.currentVersion?.specs?.status || 'unknown',
+      requirements: (m.currentVersion?.specs as any)?.requirements || {}
+    })) : [];
+
+    const fullMaterialsSpecs = Array.isArray(projectMaterials) ? projectMaterials.map((m: any) => ({
+      id: m.id,
+      specs: (m.currentVersion?.specs as any) || {}
+    })) : [];
+
+    const systemPrompt = prompts.productReferenceSearch
+      .replace('{{projectName}}', project.name || 'Unnamed Project')
+      .replace('{{projectDescription}}', project.description || '')
+      .replace('{{componentType}}', component.currentVersion?.specs?.type || component.currentVersion?.specs?.name || 'Component')
+      .replace('{{componentName}}', component.currentVersion?.specs?.name || component.currentVersion?.specs?.type || 'Component')
+      .replace('{{requirements}}', JSON.stringify(requirements, null, 2))
+      .replace('{{currentMaterials}}', JSON.stringify(simplifiedMaterials, null, 2))
+      .replace('{{currentMaterialsFullSpecs}}', JSON.stringify(fullMaterialsSpecs, null, 2));
+
+    const messages = [{ role: 'system', content: systemPrompt }];
+
+    const ensureHttps = (url: string) => {
+      if (!url) return '';
+      try {
+        let u = url.trim();
+        if (u.startsWith('//')) u = 'https:' + u;
+        if (u.startsWith('http://')) u = 'https://' + u.slice(7);
+        if (!u.startsWith('http')) u = 'https://' + u;
+        return u;
+      } catch {
+        return '';
+      }
+    };
+
+    const isDomainAllowed = (u: string) => {
+      try {
+        const allowed = [
+          'amazon.', 'adafruit.', 'sparkfun.', 'aliexpress.', 'mouser.', 'digikey.',
+          'rs-online.', 'farnell.', 'element14.', 'arrow.', 'ti.com', 'st.com', 'analog.com'
+        ];
+        const host = new URL(u).hostname.toLowerCase();
+        if (host.includes('localhost') || host.endsWith('.local')) return false;
+        return allowed.some(d => host.includes(d));
+      } catch {
+        return false;
+      }
+    };
+
+    const buildSearchUrl = (name: string, supplier?: string) => {
+      const q = encodeURIComponent(name || 'electronics component');
+      if (supplier) {
+        const s = supplier.toLowerCase();
+        if (s.includes('mouser')) return `https://www.mouser.com/c/?q=${q}`;
+        if (s.includes('digikey')) return `https://www.digikey.com/en/products/result?keywords=${q}`;
+        if (s.includes('adafruit')) return `https://www.adafruit.com/search?q=${q}`;
+        if (s.includes('sparkfun')) return `https://www.sparkfun.com/search/results?term=${q}`;
+        if (s.includes('amazon')) return `https://www.amazon.com/s?k=${q}`;
+        if (s.includes('aliexpress')) return `https://www.aliexpress.com/wholesale?SearchText=${q}`;
+      }
+      return `https://www.google.com/search?q=${q}+buy+electronics`;
+    };
+
+    const verifyUrl = async (url: string) => {
+      const u = ensureHttps(url);
+      if (!u) return '';
+      if (!isDomainAllowed(u)) return '';
+      try {
+        // Lightweight GET with timeout; treat 2xx/3xx as valid
+        const res = await (await import('axios')).default.get(u, { timeout: 3000, maxRedirects: 3, validateStatus: s => s >= 200 && s < 400 });
+        return res.status >= 200 && res.status < 400 ? u : '';
+      } catch {
+        return '';
+      }
+    };
+
+    try {
+      let response: string;
+      if (this.currentProvider.name === 'openai' && supportsJsonMode(this.currentProvider.model)) {
+        response = await this.callOpenAIJson(messages, 0.6);
+      } else {
+        response = await this.callAI(messages, 0.6);
+      }
+      const cleaned = this.cleanJsonResponse(response);
+      const parsed = JSON.parse(cleaned);
+      let refs: any[] = Array.isArray(parsed.references) ? parsed.references : [];
+      // Normalize price strings
+      refs.forEach((r: any) => {
+        if (r.estimatedPrice) r.estimatedPrice = this.normalizePriceString(String(r.estimatedPrice));
+      });
+      // Sort by compatibilityScore desc if present
+      refs.sort((a: any, b: any) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0));
+      // Keep top 3
+      refs = refs.slice(0, 3);
+      // Verify URLs and replace bad links with search URLs
+      const verified: any[] = [];
+      for (const r of refs) {
+        const name = r.name || '';
+        const supplier = r.supplier || '';
+        const goodPurchase = await verifyUrl(r.purchaseUrl || '');
+        const goodDatasheet = r.datasheet ? await verifyUrl(r.datasheet) : '';
+        const finalPurchase = goodPurchase || buildSearchUrl(name, supplier);
+        const finalDatasheet = goodDatasheet || '';
+        verified.push({
+          name,
+          manufacturer: r.manufacturer || '',
+          purchaseUrl: finalPurchase,
+          estimatedPrice: r.estimatedPrice || '$0.00',
+          supplier,
+          partNumber: r.partNumber || '',
+          datasheet: finalDatasheet,
+          compatibilityScore: r.compatibilityScore || 0,
+          mismatchNotes: Array.isArray(r.mismatchNotes) ? r.mismatchNotes : []
+        });
+      }
+      return verified;
+    } catch (error) {
+      console.error('Error in suggestProductReferences:', error);
+      return [];
     }
   }
 }

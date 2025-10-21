@@ -7,6 +7,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Account {
+  id            String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String                      @unique
+  hashedPassword String
+  credits       Int                         @default(6)
+  maxProjects   Int                         @default(6)
+  role          String                      @default("user")
+  status        String                      @default("active")
+  createdAt     DateTime                    @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime                    @updatedAt @db.Timestamptz(6)
+  projects      Project[]
+  creditTransactions AccountCreditTransaction[]
+}
+
+model AccountCreditTransaction {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId String   @db.Uuid
+  amount    Int
+  reason    String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+}
+
 model Project {
   id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name          String
@@ -14,6 +40,7 @@ model Project {
   status        String
   createdAt     DateTime       @default(now()) @db.Timestamptz(6)
   updatedAt     DateTime       @default(now()) @db.Timestamptz(6)
+  ownerId       String?        @db.Uuid
   components    Component[]
   wiringSchemas WiringSchema[]
   messages      Message[]
@@ -22,6 +49,9 @@ model Project {
   // Latest picked design thumbnail for summaries
   designThumbnailUrl String?
   cadGenerations ProjectCadGeneration[]
+  owner         Account?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
 }
 
 model Component {

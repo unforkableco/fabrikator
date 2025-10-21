@@ -9,9 +9,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Chip,
-  Button,
-  Link,
+  Button
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -31,18 +29,19 @@ import {
   Cable as CableIcon,
   Settings as SettingsIcon,
   Thermostat as ThermostatIcon,
-  Lightbulb as LightbulbIcon,
-  ShoppingCart as ShoppingCartIcon,
-  Launch as LaunchIcon,
-  Description as DescriptionIcon,
+  Lightbulb as LightbulbIcon
 } from '@mui/icons-material';
-import { Material, MaterialStatus } from '../../../../shared/types';
+import { Material, MaterialStatus, ProductReference } from '../../../../shared/types';
+import { api } from '../../../../shared/services/api';
 
 interface MaterialCardProps {
   material: Material;
   onEdit?: (material: Material) => void;
   onApprove?: (materialId: string) => void;
   onReject?: (materialId: string) => void;
+  onDelete?: (materialId: string) => void;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
 }
 
 const MaterialCard: React.FC<MaterialCardProps> = ({
@@ -50,27 +49,26 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
   onEdit,
   onApprove,
   onReject,
+  onDelete,
+  expanded,
+  onExpandedChange,
 }) => {
+  const [localExpanded, setLocalExpanded] = React.useState(false);
+  const isExpanded = expanded !== undefined ? expanded : localExpanded;
+  const handleAccordionChange = (_e: any, newExpanded: boolean) => {
+    if (onExpandedChange) onExpandedChange(newExpanded);
+    else setLocalExpanded(newExpanded);
+  };
+
   const getStatusIcon = (material: Material) => {
-    // More flexible logic to detect AI materials
     const isAIGenerated = material.aiSuggested || 
       (material.currentVersion?.specs as any)?.createdBy === 'AI' ||
       material.status === MaterialStatus.SUGGESTED;
     
-    // AI Suggested: if it's AI-generated and not yet approved
     if (isAIGenerated && material.status === MaterialStatus.SUGGESTED) {
       return (
         <Box 
-          sx={{ 
-            width: 20, 
-            height: 20, 
-            borderRadius: '50%', 
-            bgcolor: 'info.main', 
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
+          sx={{ width: 20, height: 20, borderRadius: '50%', bgcolor: 'info.main', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           title="AI Suggested"
         >
           <SmartToyIcon sx={{ fontSize: 12 }} />
@@ -78,43 +76,23 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
       );
     }
     
-    // User Validated: seulement si status === 'approved'
     if (material.status === MaterialStatus.APPROVED) {
       return (
         <Box 
-          sx={{ 
-            width: 20, 
-            height: 20, 
-            borderRadius: '50%', 
-            bgcolor: 'success.main', 
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-          title="User Validated"
+          sx={{ width: 20, height: 20, borderRadius: '50%', bgcolor: 'success.main', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          title="Approved"
         >
           <CheckCircleIcon sx={{ fontSize: 12 }} />
         </Box>
       );
     }
     
-    // User Added by default (if not AI and not approved)
     if (material.status !== MaterialStatus.REJECTED && 
         material.status !== MaterialStatus.ORDERED && 
         material.status !== MaterialStatus.RECEIVED) {
       return (
         <Box 
-          sx={{ 
-            width: 20, 
-            height: 20, 
-            borderRadius: '50%', 
-            bgcolor: 'warning.main', 
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
+          sx={{ width: 20, height: 20, borderRadius: '50%', bgcolor: 'warning.main', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           title="User Added"
         >
           <PersonAddIcon sx={{ fontSize: 12 }} />
@@ -122,7 +100,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
       );
     }
     
-    return null; // No icon for other statuses
+    return null;
   };
 
   const getTypeIcon = (type?: string, name?: string) => {
@@ -207,7 +185,9 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
     const nonTechnicalFields = [
       'action', 'quantity', 'notes', 'status', 'createdBy', 'createdAt', 
       'updatedAt', 'id', 'materialRequirementId', 'projectId', 'componentId',
-      'versionNumber', 'aiSuggested', 'suggestedAlternatives'
+      'versionNumber', 'aiSuggested', 'suggestedAlternatives',
+      // Masquer explicitement les pins (gérées uniquement par l'IA côté wiring)
+      'pins'
     ];
 
     const technicalSpecs: any = {};
@@ -216,7 +196,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
       const lowerKey = key.toLowerCase();
       
       // Exclure les champs non-techniques
-      if (!nonTechnicalFields.some(field => lowerKey.includes(field.toLowerCase()))) {
+      if (!nonTechnicalFields.some(field => lowerKey === field.toLowerCase() || lowerKey.includes(field.toLowerCase()))) {
         technicalSpecs[key] = value;
       }
     });
@@ -239,12 +219,14 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
   };
 
   // Extraire les informations de référence de produit
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const getProductReference = () => {
     const specs = material.currentVersion?.specs as any;
     return specs?.productReference || material.productReference;
   };
 
   // Générer des liens de recherche fiables
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const generateWorkingPurchaseUrl = (productReference: any) => {
     if (!productReference) return null;
     
@@ -282,8 +264,36 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
   };
 
   const technicalSpecs = getFilteredTechnicalSpecs(material.requirements);
-  const productReference = getProductReference();
-  const workingPurchaseUrl = generateWorkingPurchaseUrl(productReference);
+  // const productReference = getProductReference(); // unused
+  // const workingPurchaseUrl = generateWorkingPurchaseUrl(productReference); // unused
+
+  // References suggestion modal state
+  const [isSuggesting, setIsSuggesting] = React.useState(false);
+  const [suggestedRefs, setSuggestedRefs] = React.useState<ProductReference[]>([]);
+  const [showRefsModal, setShowRefsModal] = React.useState(false);
+  const canSuggestRefs = material.status === MaterialStatus.APPROVED;
+
+  React.useEffect(() => {
+    if (!canSuggestRefs && showRefsModal) {
+      setShowRefsModal(false);
+      setSuggestedRefs([]);
+    }
+  }, [canSuggestRefs, showRefsModal]);
+
+  const handleSuggestReferences = async () => {
+    if (!canSuggestRefs) return;
+    try {
+      setIsSuggesting(true);
+      const resp = await api.projects.suggestPurchaseReferences(material.id);
+      setSuggestedRefs(Array.isArray(resp.references) ? resp.references : []);
+      setShowRefsModal(true);
+    } catch (e) {
+      setSuggestedRefs([]);
+      setShowRefsModal(true);
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
 
   return (
     <Card sx={{ border: '1px solid', borderColor: 'divider' }}>
@@ -300,18 +310,10 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Typography variant="body2" color="text.secondary">
-                  {material.type || 'Component'}
+                  {getMaterialNotes()}
                 </Typography>
                 {material.quantity && material.quantity > 0 && (
-                  <Typography variant="body2" sx={{ 
-                    bgcolor: 'primary.light', 
-                    color: 'primary.contrastText',
-                    px: 1,
-                    py: 0.5,
-                    borderRadius: 1,
-                    fontSize: '0.75rem',
-                    fontWeight: 600
-                  }}>
+                  <Typography variant="body2" sx={{ bgcolor: 'primary.light', color: 'primary.contrastText', px: 1, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 600 }}>
                     Qty: {material.quantity}
                   </Typography>
                 )}
@@ -319,124 +321,44 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
             </Box>
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
-            {/* Edit button */}
-            <IconButton 
-              size="small" 
-              onClick={() => onEdit?.(material)}
-              sx={{ color: 'primary.main' }}
-              title="Edit"
-            >
+            {onEdit && (
+              <IconButton size="small" onClick={() => onEdit(material)} title="Edit">
               <EditIcon />
-            </IconButton>
-            
-            {/* Approve button - only for suggested materials */}
-            {material.status === MaterialStatus.SUGGESTED && (
-              <IconButton 
-                size="small" 
-                onClick={() => onApprove?.(material.id)}
-                sx={{ color: 'success.main' }}
-                title="Approve"
-              >
-                <BuildIcon />
               </IconButton>
             )}
-            
-            {/* Reject button (was Delete) */}
-            <IconButton 
-              size="small" 
-              onClick={() => onReject?.(material.id)}
-              sx={{ color: 'error.main' }}
-              title="Reject"
-            >
+            {/* Toggle Approve/Disapprove */}
+            {(onApprove || onReject) && (
+              material.status === MaterialStatus.APPROVED ? (
+                <IconButton size="small" color="warning" onClick={() => onReject?.(material.id)} title="Disapprove">
+                  <CheckCircleIcon />
+                </IconButton>
+              ) : (
+                <IconButton size="small" color="success" onClick={() => onApprove?.(material.id)} title="Approve">
+                  <CheckCircleIcon />
+                </IconButton>
+              )
+            )}
+            {/* Delete */}
+            {onDelete && (
+              <IconButton size="small" color="error" onClick={() => onDelete(material.id)} title="Delete">
               <DeleteIcon />
             </IconButton>
+            )}
           </Box>
         </Box>
 
-        {/* Notes au lieu de description répétée */}
-        {getMaterialNotes() && (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {getMaterialNotes()}
-          </Typography>
-        )}
-
-        {/* Product Reference Section */}
-        {productReference && (
-          <Box sx={{ mb: 2, p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <ShoppingCartIcon sx={{ fontSize: 16 }} />
-              Référence Produit Suggérée
-            </Typography>
-            
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-              <Chip 
-                size="small" 
-                label={productReference.manufacturer} 
-                sx={{ bgcolor: 'primary.light', color: 'primary.contrastText' }}
-              />
-              <Chip 
-                size="small" 
-                label={productReference.estimatedPrice} 
-                sx={{ bgcolor: 'success.light', color: 'success.contrastText' }}
-              />
-              <Chip 
-                size="small" 
-                label={productReference.supplier} 
-                sx={{ bgcolor: 'info.light', color: 'info.contrastText' }}
-              />
-            </Box>
-            
-            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-              {productReference.name}
-            </Typography>
-            
-            {productReference.partNumber && (
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Référence: {productReference.partNumber}
-              </Typography>
-            )}
-            
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {workingPurchaseUrl && (
-                <Button
-                  size="small"
-                  variant="contained"
-                  color="primary"
-                  startIcon={<ShoppingCartIcon />}
-                  endIcon={<LaunchIcon />}
-                  component={Link}
-                  href={workingPurchaseUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  sx={{ textTransform: 'none' }}
-                  title={`Rechercher "${productReference.name}" sur ${productReference.supplier}`}
-                >
-                  Rechercher & Acheter
+        {/* Suggest references (APPROVED only) */}
+        {canSuggestRefs && (
+          <Box sx={{ mb: 2, display: 'flex', gap: 1 }}>
+            <Button variant="outlined" size="small" onClick={handleSuggestReferences} disabled={isSuggesting}>
+              {isSuggesting ? 'Searching…' : 'Suggest references'}
                 </Button>
-              )}
-              
-              {productReference.datasheet && (
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<DescriptionIcon />}
-                  endIcon={<LaunchIcon />}
-                  component={Link}
-                  href={productReference.datasheet}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  sx={{ textTransform: 'none' }}
-                >
-                  Datasheet
-                </Button>
-              )}
-            </Box>
           </Box>
         )}
 
-        {/* Specifications - Seulement les techniques */}
+        {/* Specifications */}
         {Object.keys(technicalSpecs).length > 0 && (
-          <Accordion sx={{ boxShadow: 'none', border: '1px solid', borderColor: 'divider' }}>
+          <Accordion sx={{ boxShadow: 'none', border: '1px solid', borderColor: 'divider' }} expanded={isExpanded} onChange={handleAccordionChange}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                 Specifications
@@ -446,48 +368,13 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
               <Grid container spacing={2}>
                 {Object.entries(technicalSpecs).map(([key, value]) => (
                   <Grid item xs={12} sm={6} md={4} key={key}>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 1, 
-                      p: 1.5, 
-                      bgcolor: 'background.paper',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 1,
-                      '&:hover': {
-                        bgcolor: 'action.hover'
-                      }
-                    }}>
-                      <Box sx={{
-                        width: 16,
-                        height: 16,
-                        borderRadius: '50%',
-                        bgcolor: getSpecIcon(key).color,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'white',
-                        fontSize: '10px'
-                      }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: 1, '&:hover': { bgcolor: 'action.hover' } }}>
+                      <Box sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: getSpecIcon(key).color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '10px' }}>
                         {getSpecIcon(key).icon}
                       </Box>
                       <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2" sx={{ 
-                          fontWeight: 600, 
-                          color: 'text.secondary',
-                          fontSize: '0.75rem',
-                          textTransform: 'capitalize'
-                        }}>
-                          {key}:
-                        </Typography>
-                        <Typography variant="body2" sx={{ 
-                          fontWeight: 500,
-                          fontSize: '0.875rem',
-                          color: 'text.primary'
-                        }}>
-                          {String(value)}
-                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'capitalize' }}>{key}:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.875rem', color: 'text.primary' }}>{String(value)}</Typography>
                       </Box>
                     </Box>
                   </Grid>
@@ -495,6 +382,38 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
               </Grid>
             </AccordionDetails>
           </Accordion>
+        )}
+
+        {/* Suggested references modal */}
+        {showRefsModal && (
+          <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>Suggested references</Typography>
+            {suggestedRefs.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">No references found.</Typography>
+            ) : (
+              <Grid container spacing={1}>
+                {suggestedRefs.map((ref) => (
+                  <Grid key={ref.name + (ref.partNumber || '')} item xs={12}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, border: '1px dashed', borderColor: 'divider', borderRadius: 1 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{ref.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">{ref.manufacturer} · {ref.estimatedPrice} · {ref.supplier}</Typography>
+                        {ref.partNumber && (<Typography variant="caption" color="text.secondary">PN: {ref.partNumber}</Typography>)}
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {ref.purchaseUrl && (
+                          <Button size="small" variant="outlined" href={ref.purchaseUrl} target="_blank">Buy</Button>
+                        )}
+                      </Box>
+                    </Box>
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+            <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+              <Button size="small" onClick={() => setShowRefsModal(false)}>Close</Button>
+            </Box>
+          </Box>
         )}
       </CardContent>
     </Card>

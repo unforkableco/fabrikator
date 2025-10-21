@@ -1,30 +1,77 @@
 import { prisma } from '../../prisma/prisma.service';
 import { ProjectStatus } from '../../types';
+import {
+  AccountInactiveError,
+  InsufficientCreditsError,
+  ProjectLimitReachedError,
+  ProjectNotFoundError,
+} from './project.errors';
+
+interface ProjectCreateInput {
+  name: string;
+  description?: string;
+  status?: string;
+}
 
 export class ProjectService {
-  /**
-   * Get all projects
-   */
-  async getAllProjects() {
+  async getAllProjects(accountId: string) {
     try {
-      return await prisma.project.findMany();
+      return await prisma.project.findMany({
+        where: { ownerId: accountId },
+        orderBy: { createdAt: 'desc' },
+      });
     } catch (error) {
       console.error('Error in getAllProjects:', error);
       throw error;
     }
   }
 
-  /**
-   * Create a new project
-   */
-  async createProject(projectData: { name: string; description?: string; status?: string }) {
+  async createProject(accountId: string, projectData: ProjectCreateInput) {
     try {
-      return await prisma.project.create({
-        data: {
-          name: projectData.name,
-          description: projectData.description,
-          status: projectData.status || ProjectStatus.PLANNING
+      return await prisma.$transaction(async (tx) => {
+        const account = await tx.account.findUnique({ where: { id: accountId } });
+        if (!account) {
+          throw new Error('ACCOUNT_NOT_FOUND');
         }
+
+        if (account.status !== 'active') {
+          throw new AccountInactiveError();
+        }
+
+        const projectCount = await tx.project.count({ where: { ownerId: accountId } });
+        if (projectCount >= account.maxProjects) {
+          throw new ProjectLimitReachedError();
+        }
+
+        if (account.credits <= 0) {
+          throw new InsufficientCreditsError();
+        }
+
+        const project = await tx.project.create({
+          data: {
+            name: projectData.name,
+            description: projectData.description,
+            status: projectData.status || ProjectStatus.PLANNING,
+            ownerId: accountId,
+          },
+        });
+
+        await tx.account.update({
+          where: { id: accountId },
+          data: {
+            credits: { decrement: 1 },
+          },
+        });
+
+        await tx.accountCreditTransaction.create({
+          data: {
+            accountId,
+            amount: -1,
+            reason: `Project ${project.id} creation`,
+          },
+        });
+
+        return project;
       });
     } catch (error) {
       console.error('Error in createProject:', error);
@@ -32,13 +79,13 @@ export class ProjectService {
     }
   }
 
-  /**
-   * Get a project by its ID
-   */
-  async getProjectById(id: string) {
+  async getProjectById(accountId: string, projectId: string) {
     try {
-      return await prisma.project.findUnique({
-        where: { id }
+      return await prisma.project.findFirst({
+        where: {
+          id: projectId,
+          ownerId: accountId,
+        },
       });
     } catch (error) {
       console.error('Error in getProjectById:', error);
@@ -46,18 +93,20 @@ export class ProjectService {
     }
   }
 
-  /**
-   * Update a project
-   */
-  async updateProject(id: string, projectData: { name?: string; description?: string; status?: string }) {
+  async updateProject(accountId: string, projectId: string, projectData: ProjectCreateInput) {
     try {
+      const existing = await this.getProjectById(accountId, projectId);
+      if (!existing) {
+        throw new ProjectNotFoundError();
+      }
+
       return await prisma.project.update({
-        where: { id },
+        where: { id: projectId },
         data: {
           name: projectData.name,
           description: projectData.description,
-          status: projectData.status
-        }
+          status: projectData.status,
+        },
       });
     } catch (error) {
       console.error('Error in updateProject:', error);
@@ -65,37 +114,35 @@ export class ProjectService {
     }
   }
 
-  /**
-   * Delete a project
-   */
-  async deleteProject(id: string) {
+  async deleteProject(accountId: string, projectId: string) {
     try {
-      // Cascade deletion of related relationships
-      // 1. Delete changeLogs related to component versions
+      const existing = await this.getProjectById(accountId, projectId);
+      if (!existing) {
+        throw new ProjectNotFoundError();
+      }
+
       await prisma.changeLog.deleteMany({
         where: {
           compVersion: {
             component: {
-              projectId: id
-            }
-          }
-        }
+              projectId,
+            },
+          },
+        },
       });
 
-      // 2. Supprimer les changeLogs liés aux versions des schémas de câblage
       await prisma.changeLog.deleteMany({
         where: {
           wireVersion: {
             wiringSchema: {
-              projectId: id
-            }
-          }
-        }
+              projectId,
+            },
+          },
+        },
       });
 
-      // 3. Delete the project (other cascade relations will be handled automatically)
       return await prisma.project.delete({
-        where: { id }
+        where: { id: projectId },
       });
     } catch (error) {
       console.error('Error in deleteProject:', error);
@@ -103,17 +150,23 @@ export class ProjectService {
     }
   }
 
-  /**
-   * Add a message to a project
-   */
-  async addMessageToProject(projectId: string, message: { 
-    context: string, 
-    content: string, 
-    sender: string, 
-    mode: string,
-    suggestions?: any 
-  }) {
+  async addMessageToProject(
+    accountId: string,
+    projectId: string,
+    message: {
+      context: string;
+      content: string;
+      sender: string;
+      mode: string;
+      suggestions?: any;
+    },
+  ) {
     try {
+      const project = await this.getProjectById(accountId, projectId);
+      if (!project) {
+        throw new ProjectNotFoundError();
+      }
+
       return await prisma.message.create({
         data: {
           projectId,
@@ -121,8 +174,8 @@ export class ProjectService {
           content: message.content,
           sender: message.sender,
           mode: message.mode,
-          suggestions: message.suggestions || null
-        } as any
+          suggestions: message.suggestions || null,
+        } as any,
       });
     } catch (error) {
       console.error('Error in addMessageToProject:', error);
@@ -130,14 +183,22 @@ export class ProjectService {
     }
   }
 
-  /**
-   * Update a message
-   */
-  async updateMessage(messageId: string, updates: { suggestions?: any }) {
+  async updateMessage(accountId: string, messageId: string, updates: { suggestions?: any }) {
     try {
+      const message = await prisma.message.findFirst({
+        where: {
+          id: messageId,
+          project: { ownerId: accountId },
+        },
+      });
+
+      if (!message) {
+        throw new ProjectNotFoundError('Message not found');
+      }
+
       return await prisma.message.update({
         where: { id: messageId },
-        data: updates
+        data: updates,
       });
     } catch (error) {
       console.error('Error in updateMessage:', error);
@@ -145,18 +206,16 @@ export class ProjectService {
     }
   }
 
-  /**
-   * Get project messages (chat)
-   */
-  async getProjectMessages(projectId: string, context: string, limit: number) {
+  async getProjectMessages(accountId: string, projectId: string, context: string, limit: number) {
     try {
       return await prisma.message.findMany({
-        where: { 
+        where: {
           projectId,
-          context 
+          context,
+          project: { ownerId: accountId },
         },
         orderBy: { createdAt: 'desc' },
-        take: limit
+        take: limit,
       });
     } catch (error) {
       console.error('Error in getProjectMessages:', error);
@@ -164,46 +223,42 @@ export class ProjectService {
     }
   }
 
-  /**
-   * Update the status of a suggestion in a message
-   */
-  async updateSuggestionStatus(projectId: string, messageId: string, suggestionId: string, status: 'accepted' | 'rejected') {
+  async updateSuggestionStatus(
+    accountId: string,
+    projectId: string,
+    messageId: string,
+    suggestionId: string,
+    status: 'accepted' | 'rejected',
+  ) {
     try {
-      // Retrieve the message with its suggestions
       const message = await prisma.message.findFirst({
-        where: { 
+        where: {
           id: messageId,
-          projectId 
-        }
+          projectId,
+          project: { ownerId: accountId },
+        },
       });
 
       if (!message || !message.suggestions) {
         return null;
       }
 
-      // Parse the suggestions
       const suggestions = Array.isArray(message.suggestions) ? message.suggestions : [];
-      
-      // Find and update the suggestion
-      const updatedSuggestions = suggestions.map((suggestion: any) => {
-        if (suggestion.id === suggestionId) {
-          return {
-            ...suggestion,
-            status: status
-          };
-        }
-        return suggestion;
-      });
+      const updatedSuggestions = suggestions.map((suggestion: any) =>
+        suggestion.id === suggestionId
+          ? {
+              ...suggestion,
+              status,
+            }
+          : suggestion,
+      );
 
-      // Update the message with the new suggestions
-      const updatedMessage = await prisma.message.update({
+      return await prisma.message.update({
         where: { id: messageId },
         data: {
-          suggestions: updatedSuggestions
-        }
+          suggestions: updatedSuggestions,
+        },
       });
-
-      return updatedMessage;
     } catch (error) {
       console.error('Error in updateSuggestionStatus:', error);
       throw error;

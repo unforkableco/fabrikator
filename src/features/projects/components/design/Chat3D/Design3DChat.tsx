@@ -84,6 +84,8 @@ export const Design3DChat: React.FC<Design3DChatProps> = ({ projectId }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scene3D = useScene3D(projectId);
 
+  // No language detection on frontend
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -211,7 +213,7 @@ export const Design3DChat: React.FC<Design3DChatProps> = ({ projectId }) => {
 
       case 'generate':
         // TODO: Trigger parametric or AI generation
-        console.log('Generate component:', suggestion);
+        // generate action triggered
         break;
 
       case 'modify':

@@ -39,36 +39,31 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
   onConnectionDelete
 }) => {
   const getComponentName = (componentId: string): string => {
-    console.log('Looking for component:', componentId, 'in components:', components);
     const component = components.find(c => c.id === componentId);
-    console.log('Found component:', component);
     return component?.name || 'Unknown Component';
   };
 
   const getPinName = (componentId: string, pinId: string): string => {
-    // D'abord essayer de trouver le composant par ID exact
+    // First try to find component by exact ID
     let component = components.find(c => c.id === componentId);
     
-    // Si pas trouvé, essayer de trouver par nom (cas où l'ID est un ID de matériau)
+    // If not found, try by name (case where ID might be a material ID)
     if (!component) {
       component = components.find(c => c.name.toLowerCase().includes(componentId.toLowerCase()) || 
                                       componentId.toLowerCase().includes(c.name.toLowerCase()));
     }
     
-    if (!component) {
-      console.log('Component not found for ID:', componentId, 'Available components:', components.map(c => ({ id: c.id, name: c.name })));
-      return 'Unknown Component Pin';
-    }
+    if (!component) return 'Unknown Component Pin';
     
-    // Chercher la broche par ID exact
+    // Look up pin by exact ID
     let pin = component.pins.find(p => p.id === pinId);
     
-    // Si pas trouvé, chercher par nom
+    // If not found, try by name
     if (!pin) {
       pin = component.pins.find(p => p.name === pinId);
     }
     
-    // Si toujours pas trouvé, chercher par correspondance partielle
+    // If still not found, try partial match
     if (!pin) {
       const pinIdLower = pinId.toLowerCase();
       pin = component.pins.find(p => 
@@ -81,8 +76,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
       );
     }
     
-    console.log('Looking for pin:', pinId, 'in component:', component.name, 'found pin:', pin);
-    return pin?.name || pin?.id || pinId; // Retourner le nom original si pas trouvé
+    return pin?.name || pin?.id || pinId; // Return original name if not found
   };
 
   const getWireTypeColor = (wireType: WiringConnection['wireType']): string => {
@@ -116,7 +110,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
       <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
         <CableIcon sx={{ fontSize: 48, mb: 2, opacity: 0.3 }} />
         <Typography variant="h6" gutterBottom>
-          No connections in the schema
+          No connections in the diagram
         </Typography>
         <Typography variant="body2">
           Click on component pins to create connections
@@ -134,14 +128,14 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
       borderRadius: 1,
       bgcolor: 'background.paper',
       maxHeight: '100%',
-      height: '100%', // Utilise toute la hauteur disponible
+      height: '100%',
       overflow: 'hidden'
     }}>
-      {/* Zone de défilement pour la liste */}
+      {/* Scroll area for the list */}
       <Box sx={{ 
         flex: 1,
         overflow: 'auto',
-        maxHeight: 'none', // Pas de limite de hauteur pour éviter l'espace blanc
+        maxHeight: 'none',
         minHeight: 0
 }}>
         <List sx={{ p: 0 }}>
@@ -240,7 +234,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
                           borderRadius: 1,
                           alignSelf: 'center'
                         }}
-                        title={`Couleur: ${connection.wireColor}`}
+                        title={`Color: ${connection.wireColor}`}
                       />
                     </Box>
                   </Box>
@@ -268,7 +262,7 @@ const ConnectionsList: React.FC<ConnectionsListProps> = ({
           </List>
         </Box>
         
-
+        
       </Box>
   );
 };
