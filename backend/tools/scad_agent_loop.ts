@@ -23,9 +23,19 @@ let lastStlPath: string | undefined;
 const exportedStls: string[] = [];
 const MAX_STEPS = Number(process.env.SCAD_AGENT_MAX_STEPS || 60);
 const MAX_IDLE_ROUNDS = Number(process.env.SCAD_AGENT_MAX_IDLE || 3);
+const SESSION_LOG_DIR = path.resolve(__dirname, '../../openscadmcp/work/sessions', SESSION_ID, 'logs');
+fs.mkdirSync(SESSION_LOG_DIR, { recursive: true });
+const AGENT_LOG = path.join(SESSION_LOG_DIR, 'agent.log');
+
+function writeLog(entry: any) {
+  try {
+    fs.appendFileSync(AGENT_LOG, JSON.stringify({ t: new Date().toISOString(), ...entry }) + '\n');
+  } catch {}
+}
 
 async function post<T>(endpoint: string, body: any): Promise<T> {
   console.log(`[agent->mcp] POST ${endpoint} body=`, body);
+  writeLog({ dir: 'agent->mcp', endpoint, body });
   const res = await fetch(`${MCP_URL}${endpoint}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -33,10 +43,12 @@ async function post<T>(endpoint: string, body: any): Promise<T> {
   });
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
+    writeLog({ dir: 'mcp->agent', endpoint, status: res.status, error: txt });
     throw new Error(`${endpoint} ${res.status} ${txt}`);
   }
   const json = (await res.json()) as T;
   console.log(`[mcp->agent] ${endpoint} resp=`, json);
+  writeLog({ dir: 'mcp->agent', endpoint, status: 200, resp: json });
   return json;
 }
 
@@ -61,6 +73,7 @@ const chatTools = tools.map((t: any) => ({
 
 async function executeTool(name: string, args: any): Promise<any> {
   console.log(`[agent] exec tool ${name} args=`, args);
+  writeLog({ tool: name, args });
   switch (name) {
     case 'get_libs': return await post('/tools/get_libs', { sessionId: SESSION_ID });
     case 'write_scad': {
@@ -70,7 +83,13 @@ async function executeTool(name: string, args: any): Promise<any> {
     }
     case 'run_scad': {
       // Always run the canonical file
-      const body = { sessionId: SESSION_ID, ...args, entry: SCAD_FILE };
+      // If caller is trying to produce STL via run_scad, redirect to export_artifacts
+      const want = String(args?.out || args?.outName || '').toLowerCase();
+      if (want.endsWith('.stl')) {
+        const exp = await post('/tools/export_artifacts', { sessionId: SESSION_ID, entry: args?.entry || SCAD_FILE, outName: args?.outName || args?.out });
+        return exp;
+      }
+      const body = { sessionId: SESSION_ID, ...args, entry: args?.entry || SCAD_FILE };
       const res = await post('/tools/run_scad', body);
       return res;
     }
@@ -78,9 +97,15 @@ async function executeTool(name: string, args: any): Promise<any> {
     case 'set_transform': return await post('/tools/set_transform', { sessionId: SESSION_ID, ...args });
     case 'set_params': return await post('/tools/set_params', { sessionId: SESSION_ID, ...args });
     case 'remove_part': return await post('/tools/remove_part', { sessionId: SESSION_ID, ...args });
-    case 'render_preview': return await post('/tools/render_preview', { sessionId: SESSION_ID, ...args });
+    case 'render_preview': {
+      // Require explicit entry part file name; default to the canonical if omitted
+      const body = { sessionId: SESSION_ID, entry: args?.entry || SCAD_FILE, outName: args?.outName };
+      return await post('/tools/render_preview', body);
+    }
     case 'export_artifacts': {
-      const res = await post('/tools/export_artifacts', { sessionId: SESSION_ID, ...args });
+      // Require explicit entry; default to canonical if not provided
+      const body = { sessionId: SESSION_ID, entry: args?.entry || SCAD_FILE, outName: args?.outName };
+      const res = await post('/tools/export_artifacts', body);
       if (res && (res as any).stl) {
         const stlPath = String((res as any).stl);
         lastStlPath = stlPath;
@@ -94,7 +119,7 @@ async function executeTool(name: string, args: any): Promise<any> {
       // If .scad or empty, export first
       if (!p || p.endsWith('.scad')) {
         if (!lastStlPath) {
-          const exp = await post('/tools/export_artifacts', { sessionId: SESSION_ID });
+          const exp = await post('/tools/export_artifacts', { sessionId: SESSION_ID, entry: SCAD_FILE });
           lastStlPath = String((exp as any).stl || '');
         }
         const outName = require('path').basename(lastStlPath || 'assembly.stl');
@@ -175,8 +200,17 @@ async function main() {
       const name = tc.function?.name || tc.name;
       let args: any = tc.function?.arguments || tc.arguments || '{}';
       if (typeof args === 'string') { try { args = JSON.parse(args); } catch {} }
-      const result = await executeTool(name, args);
-      messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
+      try {
+        const result = await executeTool(name, args);
+        messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
+      } catch (e: any) {
+        // Surface the failure immediately and stop executing remaining tool calls
+        const errPayload = { ok: false, error: String(e?.message || e) };
+        messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(errPayload) });
+        // Nudge the model to correct
+        messages.push({ role: 'user', content: [{ type: 'text', text: 'A tool call failed. Please correct the error and retry with the appropriate tool(s).' }] });
+        break;
+      }
     }
   }
 }

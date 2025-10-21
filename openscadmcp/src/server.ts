@@ -193,11 +193,11 @@ app.post('/tools/remove_part', (req, res) => {
 app.post('/tools/render_preview', (_req, res) => {
   const sessionId = String((_req.body && _req.body.sessionId) || 'default');
   const { scad: scadDir, out: outDir, scenePath } = sessionDirs(sessionId);
-  const scene = loadScene(scenePath);
-  const scadText = generateScad(scene);
-  const scadPath = path.join(scadDir, 'assembly.scad');
-  fs.writeFileSync(scadPath, scadText);
-  const outName = baseNameSafe((_req.body && _req.body.outName) || 'preview.png');
+  // Require an explicit entry scad file
+  const entryName = baseNameSafe((_req.body && _req.body.entry) || '');
+  if (!entryName) { res.status(400).json({ error: 'entry required' }); return; }
+  const scadPath = path.join(scadDir, entryName);
+  const outName = baseNameSafe((_req.body && _req.body.outName) || `${entryName.replace(/\.scad$/,'')}_preview.png`);
   const png = path.join(outDir, outName);
   const r = runOpenSCAD(scadPath, png, ['--imgsize=600,400', '--viewall', '--autocenter', '--projection=perspective', '--preview=throwntogether']);
   res.json({ status: r.status, png, exists: fs.existsSync(png) });
@@ -205,12 +205,12 @@ app.post('/tools/render_preview', (_req, res) => {
 
 app.post('/tools/export_artifacts', (_req, res) => {
   const sessionId = String((_req.body && _req.body.sessionId) || 'default');
-  const { scad: scadDir, out: outDir, scenePath } = sessionDirs(sessionId);
-  const scene = loadScene(scenePath);
-  const scadText = generateScad(scene);
-  const scadPath = path.join(scadDir, baseNameSafe((_req.body && _req.body.entry) || 'assembly.scad'));
-  fs.writeFileSync(scadPath, scadText);
-  const stl = path.join(outDir, baseNameSafe((_req.body && _req.body.outName) || 'assembly.stl'));
+  const { scad: scadDir, out: outDir } = sessionDirs(sessionId);
+  // Require explicit entry; this endpoint exports a specific part file
+  const entryName = baseNameSafe((_req.body && _req.body.entry) || '');
+  if (!entryName) { res.status(400).json({ error: 'entry required' }); return; }
+  const scadPath = path.join(scadDir, entryName);
+  const stl = path.join(outDir, baseNameSafe((_req.body && _req.body.outName) || `${entryName.replace(/\.scad$/,'')}.stl`));
   const r = runOpenSCAD(scadPath, stl, []);
   res.json({ status: r.status, stl, exists: fs.existsSync(stl) });
 });
