@@ -1,0 +1,1 @@
+export { Design3DChat } from './Design3DChat';

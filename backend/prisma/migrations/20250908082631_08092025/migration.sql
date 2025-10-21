@@ -1,0 +1,2 @@
+-- Placeholder migration file restored to unblock future migrations.
+-- Original migration contents were not available in the repository.
