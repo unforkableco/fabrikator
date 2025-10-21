@@ -6,30 +6,40 @@ import theme from './theme';
 
 // Layout
 import { AppLayout } from '../shared/components/layout';
+import { AuthProvider } from '../shared/contexts/AuthContext';
+import { RequireAuth } from '../shared/components/auth/RequireAuth';
 
 // Pages
 import HomePage from '../pages/HomePage';
 import NewProjectPage from '../pages/NewProjectPage';
 import ProjectPage from '../features/projects/pages/ProjectPage';
+import LoginPage from '../pages/LoginPage';
+import ProfilePage from '../pages/ProfilePage';
 
 function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
-        <AppLayout>
+      <AuthProvider>
+        <Router
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
           <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/project/new" element={<NewProjectPage />} />
-            <Route path="/project/:id" element={<ProjectPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route element={<RequireAuth />}>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/project/new" element={<NewProjectPage />} />
+                <Route path="/project/:id" element={<ProjectPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+              </Route>
+            </Route>
           </Routes>
-        </AppLayout>
-      </Router>
+        </Router>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

@@ -96,6 +96,40 @@ export interface ProductReference {
   datasheet?: string;
 }
 
+// Normalized technical specification for a material/component
+export interface MaterialSpec {
+  id?: string;
+  componentId?: string;
+  name?: string;
+  type?: string;
+  description?: string;
+  quantity?: number;
+  requirements?: { [key: string]: string | number };
+  // Nouveau: description des broches déclarées par l'IA ou l'utilisateur
+  // - null: non électronique / pas d'alimentation requise
+  // - string[]: liste des noms de broches disponibles
+  pins?: string[] | null;
+  estimatedUnitCost?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Normalized procurement reference (1-n per component)
+export interface PurchaseReference {
+  id: string;
+  componentId: string;
+  name: string;
+  manufacturer: string;
+  supplier: string;
+  purchaseUrl: string;
+  estimatedPrice: string;
+  partNumber?: string;
+  datasheet?: string;
+  status: 'suggested' | 'selected' | 'ordered' | 'received';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface Material {
   id: string;
   name?: string;
@@ -108,12 +142,16 @@ export interface Material {
   aiSuggested?: boolean;
   suggestedAlternatives?: SelectedPart[];
   status?: MaterialStatus;
-  productReference?: ProductReference;
+  productReference?: ProductReference; // legacy single reference for backward compatibility
   // New backend structure support
   projectId?: string;
   currentVersionId?: string;
   currentVersion?: CompVersion;
   versions?: CompVersion[];
+  // Normalized fields
+  materialSpec?: MaterialSpec | null;
+  purchaseReferences?: PurchaseReference[];
+  estimatedUnitCost?: string;
 }
 
 export interface SelectedPart {
@@ -163,7 +201,23 @@ export enum PartStatus {
   SELECTED = 'selected',
   ORDERED = 'ordered',
   RECEIVED = 'received'
-} 
+}
+
+export interface AccountSummary {
+  id: string;
+  email: string;
+  credits: number;
+  maxProjects: number;
+  status: string;
+  role: string;
+  projectsUsed: number;
+  projectsRemaining: number;
+}
+
+export interface LoginResponse {
+  token: string;
+  account: AccountSummary;
+}
 
 // Wiring specific interfaces
 export interface WiringConnection {

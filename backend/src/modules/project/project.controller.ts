@@ -3,6 +3,12 @@ import { ProjectService } from './project.service';
 import { AIService } from '../../services/ai.service';
 import { MaterialService } from '../material/material.service';
 import { WiringService } from '../wiring/wiring.service';
+import {
+  AccountInactiveError,
+  InsufficientCreditsError,
+  ProjectLimitReachedError,
+  ProjectNotFoundError,
+} from './project.errors';
 
 export class ProjectController {
   private projectService: ProjectService;
@@ -20,9 +26,13 @@ export class ProjectController {
   /**
    * Get all projects
    */
-  async getAllProjects(_: Request, res: Response) {
+  async getAllProjects(req: Request, res: Response) {
     try {
-      const projects = await this.projectService.getAllProjects();
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const projects = await this.projectService.getAllProjects(req.account.id);
       res.json(projects);
     } catch (error) {
       console.error('Error getting all projects:', error);
@@ -35,8 +45,12 @@ export class ProjectController {
    */
   async getProjectById(req: Request, res: Response) {
     try {
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const { id } = req.params;
-      const project = await this.projectService.getProjectById(id);
+      const project = await this.projectService.getProjectById(req.account.id, id);
       
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
@@ -54,10 +68,14 @@ export class ProjectController {
    */
   async updateProject(req: Request, res: Response) {
     try {
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const { id } = req.params;
       const projectData = req.body;
       
-      const project = await this.projectService.updateProject(id, projectData);
+      const project = await this.projectService.updateProject(req.account.id, id, projectData);
       
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
@@ -65,6 +83,9 @@ export class ProjectController {
       
       res.json(project);
     } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        return res.status(404).json({ error: error.message, code: error.code });
+      }
       console.error('Error updating project:', error);
       res.status(500).json({ error: 'Failed to update project' });
     }
@@ -75,10 +96,17 @@ export class ProjectController {
    */
   async deleteProject(req: Request, res: Response) {
     try {
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const { id } = req.params;
-      await this.projectService.deleteProject(id);
+      await this.projectService.deleteProject(req.account.id, id);
       res.status(204).send();
     } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        return res.status(404).json({ error: error.message, code: error.code });
+      }
       console.error('Error deleting project:', error);
       res.status(500).json({ error: 'Failed to delete project' });
     }
@@ -89,6 +117,10 @@ export class ProjectController {
    */
   async createFromPrompt(req: Request, res: Response) {
     try {
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const { prompt } = req.body;
       
       if (!prompt) {
@@ -124,11 +156,14 @@ export class ProjectController {
         status: 'planning'
       };
       
-      const project = await this.projectService.createProject(projectData);
+      const project = await this.projectService.createProject(req.account.id, projectData);
       
       // Return the created project
       res.status(201).json(project);
     } catch (error) {
+      if (error instanceof ProjectLimitReachedError || error instanceof InsufficientCreditsError || error instanceof AccountInactiveError) {
+        return res.status(error.statusCode).json({ error: error.message, code: error.code });
+      }
       console.error('Error creating project from prompt:', error);
       res.status(500).json({ error: 'Failed to create project from prompt' });
     }
@@ -139,6 +174,10 @@ export class ProjectController {
    */
   async addMessageToProject(req: Request, res: Response) {
     try {
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const { id } = req.params;
       const { context, content, sender, mode, suggestions } = req.body;
       
@@ -146,7 +185,7 @@ export class ProjectController {
         return res.status(400).json({ error: 'Message content, sender and mode are required' });
       }
       
-      const message = await this.projectService.addMessageToProject(id, {
+      const message = await this.projectService.addMessageToProject(req.account.id, id, {
         context: context || 'materials',
         content,
         sender,
@@ -156,6 +195,9 @@ export class ProjectController {
       
       res.status(201).json(message);
     } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        return res.status(404).json({ error: error.message, code: error.code });
+      }
       console.error('Error adding message to project:', error);
       res.status(500).json({ error: 'Failed to add message to project' });
     }
@@ -166,10 +208,14 @@ export class ProjectController {
    */
   async updateMessage(req: Request, res: Response) {
     try {
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const { messageId } = req.params;
       const updates = req.body;
       
-      const updatedMessage = await this.projectService.updateMessage(messageId, updates);
+      const updatedMessage = await this.projectService.updateMessage(req.account.id, messageId, updates);
       
       if (!updatedMessage) {
         return res.status(404).json({ error: 'Message not found' });
@@ -177,6 +223,9 @@ export class ProjectController {
       
       res.json(updatedMessage);
     } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        return res.status(404).json({ error: error.message, code: error.code });
+      }
       console.error('Error updating message:', error);
       res.status(500).json({ error: 'Failed to update message' });
     }
@@ -187,10 +236,19 @@ export class ProjectController {
    */
   async getProjectMessages(req: Request, res: Response) {
     try {
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const { id } = req.params;
       const { context = 'materials', limit = 10 } = req.query;
       
-      const messages = await this.projectService.getProjectMessages(id, context as string, Number(limit));
+      const messages = await this.projectService.getProjectMessages(
+        req.account.id,
+        id,
+        context as string,
+        Number(limit)
+      );
       
       // Trier par ordre chronologique (plus anciens en premier) pour l'affichage
       const sortedMessages = messages.reverse();
@@ -207,15 +265,19 @@ export class ProjectController {
    */
   async askProjectQuestion(req: Request, res: Response) {
     try {
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const { id } = req.params;
-      const { question } = req.body;
+      const { question, context: reqContext, persist } = req.body;
       
       if (!question) {
         return res.status(400).json({ error: 'Question is required' });
       }
       
       // Retrieve complete project information
-      const project = await this.projectService.getProjectById(id);
+      const project = await this.projectService.getProjectById(req.account.id, id);
       
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
@@ -237,13 +299,55 @@ export class ProjectController {
         console.warn('No wiring found for project:', id);
       }
       
+      const context = typeof reqContext === 'string' && reqContext.trim() ? reqContext : 'materials';
+
+      // Retrieve recent chat history for Ask context
+      const history = await this.projectService.getProjectMessages(req.account.id, id, context, 20);
+      const chatHistory = history
+        .reverse() // oldest first
+        .map((m: any): { role: 'user' | 'assistant'; content: string } => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: String(m.content || '')
+        }));
+      
       // Ask AI to answer the question with complete context
       const answer = await this.aiService.answerProjectQuestion({
         project: project,
         materials: materials,
         wiring: wiring,
-        userQuestion: question
+        userQuestion: question,
+        chatHistory
       });
+      
+      // Optional persistence of Ask conversation
+      // persist can be 'ai' or 'both'; context defaults to 'materials' if not provided
+      if (persist === 'both') {
+        try {
+          await this.projectService.addMessageToProject(req.account.id, id, {
+            context,
+            content: question,
+            sender: 'user',
+            mode: 'ask',
+            suggestions: null
+          });
+        } catch (e) {
+          console.warn('Failed to persist user Ask message:', e);
+        }
+      }
+
+      if (persist === 'ai' || persist === 'both') {
+        try {
+          await this.projectService.addMessageToProject(req.account.id, id, {
+            context,
+            content: answer,
+            sender: 'ai',
+            mode: 'ask',
+            suggestions: null
+          });
+        } catch (e) {
+          console.warn('Failed to persist AI Ask message:', e);
+        }
+      }
       
       res.json({ answer });
     } catch (error) {
@@ -257,6 +361,10 @@ export class ProjectController {
    */
   async updateSuggestionStatus(req: Request, res: Response) {
     try {
+      if (!req.account) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
       const { id, messageId, suggestionId } = req.params;
       const { status } = req.body;
       
@@ -267,9 +375,10 @@ export class ProjectController {
       console.log(`Updating suggestion ${suggestionId} in message ${messageId} to status: ${status}`);
       
       const updatedMessage = await this.projectService.updateSuggestionStatus(
-        id, 
-        messageId, 
-        suggestionId, 
+        req.account.id,
+        id,
+        messageId,
+        suggestionId,
         status
       );
       
@@ -279,6 +388,9 @@ export class ProjectController {
       
       res.json(updatedMessage);
     } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        return res.status(404).json({ error: error.message, code: error.code });
+      }
       console.error('Error updating suggestion status:', error);
       res.status(500).json({ error: 'Failed to update suggestion status' });
     }

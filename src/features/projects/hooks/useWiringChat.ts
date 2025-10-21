@@ -13,6 +13,10 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [componentsToPlaceIds, setComponentsToPlaceIds] = useState<string[]>([]);
+  const [componentsToPlaceById, setComponentsToPlaceById] = useState<Record<string, { id: string; name: string; type: string; pins: string[] | null }>>({});
+
+  // No language detection on frontend
 
   // Load chat messages on startup
   const loadChatMessages = useCallback(async () => {
@@ -20,7 +24,7 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
     
     try {
       setIsLoadingMessages(true);
-      const dbMessages = await api.projects.getChatMessages(projectId, 'wiring', 10);
+      const dbMessages = await api.projects.getChatMessages(projectId, 'wiring', 100);
       
       // Convert DB messages to ChatMessage format
       const chatMessages: ChatMessage[] = dbMessages.map(msg => ({
@@ -34,7 +38,7 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
       
       setMessages(chatMessages);
     } catch (error) {
-      console.error('Error loading wiring chat messages:', error);
+      // silent
     } finally {
       setIsLoadingMessages(false);
     }
@@ -67,17 +71,14 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
         suggestions: savedMessage.suggestions ? savedMessage.suggestions as WiringSuggestion[] : undefined
       };
     } catch (error) {
-      console.error('Error saving wiring chat message:', error);
+      // silent
       return null;
     }
   };
 
   // Handle chat messages with wiring-specific AI agent
   const handleSendChatMessage = async (message: string, mode: 'ask' | 'agent') => {
-    if (!projectId) {
-      console.error('Project ID is required for wiring chat');
-      return;
-    }
+    if (!projectId) return;
 
     // Add user message with temporary ID
     const userMessage: ChatMessage = {
@@ -100,6 +101,8 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
     }
     
     setIsGenerating(true);
+    // Reset components to place while generating a new response
+    setComponentsToPlaceIds([]);
 
     try {
       let aiResponse: string;
@@ -108,22 +111,37 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
       if (mode === 'ask') {
         // Ask mode - Answer questions about wiring
         try {
-          const response = await api.projects.askQuestion(projectId, `[WIRING CONTEXT] ${message}`);
-          aiResponse = response.answer;
+          const askRes = await api.projects.askQuestion(projectId, `[WIRING CONTEXT] ${message}`, 'wiring', 'ai');
+          aiResponse = askRes.answer;
         } catch (error) {
-          console.error('Error asking wiring question:', error);
+          // silent
           aiResponse = `Sorry, I encountered an error analyzing your wiring question. Could you rephrase it?`;
         }
       } else {
         // Agent mode - Generate wiring suggestions and modifications
-        console.log('Sending wiring agent message:', message);
+        // silent
         
         try {
           // Use wiring-specific API endpoint for suggestions
           // ✅ Transmettre le diagramme actuel à l'IA pour analyse des connexions existantes
           const response = await api.wiring.generateWiringSuggestions(projectId, message, diagram);
-          console.log('Wiring agent response:', response);
+          // silent
           
+          // Capture components to place (ids only) for toolbar filtering
+          if (response && Array.isArray(response.componentsToPlace)) {
+            const ids = response.componentsToPlace
+              .map((c: any) => c && typeof c.id === 'string' ? c.id : null)
+              .filter((id: any): id is string => Boolean(id));
+            setComponentsToPlaceIds(ids);
+            const byId: Record<string, { id: string; name: string; type: string; pins: string[] | null }> = {};
+            response.componentsToPlace.forEach((c: any) => {
+              if (c && c.id) {
+                byId[c.id] = { id: c.id, name: c.name, type: c.type, pins: Array.isArray(c.pins) ? c.pins : (c.pins === null ? null : []) };
+              }
+            });
+            setComponentsToPlaceById(byId);
+          }
+
           if (response && response.suggestions && Array.isArray(response.suggestions)) {
             // Adapt suggestions to handle old and new formats
             const suggestions = response.suggestions.map((suggestion: any, index: number) => {
@@ -170,7 +188,7 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
             aiResponse = 'I understood your wiring request. I am working on analyzing the appropriate connections.';
           }
         } catch (error) {
-          console.error('Error with wiring agent:', error);
+          // silent
           aiResponse = 'Sorry, I encountered an error analyzing your wiring request. Please try again.';
         }
       }
@@ -186,17 +204,18 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
       };
       setMessages(prev => [...prev, aiMessage]);
 
-      // Save the AI message and get real UUID
-      const savedAiMessage = await saveChatMessage(aiMessage);
-      if (savedAiMessage) {
-        // Update the message with the real UUID from database
-        setMessages(prev => prev.map(msg => 
-          msg.id === aiMessage.id ? savedAiMessage : msg
-        ));
+      // Persist AI message only when not Ask (Ask AI message is persisted by backend)
+      if (mode !== 'ask') {
+        const savedAiMessage = await saveChatMessage(aiMessage);
+        if (savedAiMessage) {
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessage.id ? savedAiMessage : msg
+          ));
+        }
       }
 
     } catch (error) {
-      console.error('Error sending wiring chat message:', error);
+      // silent
       
       // Add error message
       const errorMessage: ChatMessage = {
@@ -250,6 +269,8 @@ export const useWiringChat = ({ projectId, diagram }: UseWiringChatProps) => {
     handleSendChatMessage,
     handleStopGeneration,
     updateMessageSuggestions,
-    loadChatMessages
+    loadChatMessages,
+    componentsToPlaceIds,
+    componentsToPlaceById
   };
 }; 

@@ -15,4 +15,7 @@ router.get('/:id/versions', materialController.getMaterialVersions.bind(material
 router.put('/:id', materialController.updateMaterialStatus.bind(materialController));
 router.delete('/:id', materialController.deleteMaterial.bind(materialController));
 
+// Suggest purchase references (no persistence)
+router.post('/:id/references/suggest', materialController.suggestPurchaseReferences.bind(materialController));
+
 export const materialRouter = router;

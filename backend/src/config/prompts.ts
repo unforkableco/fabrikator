@@ -3,7 +3,7 @@ export const prompts = {
   materialsSearchSimple: `For project "{{projectName}}" ({{projectDescription}}), user wants: {{userPrompt}}
 
 List needed electronics components in JSON format:
-{"explanation": {"summary": "brief", "reasoning": "why"}, "components": [{"type": "name", "details": {"quantity": 1, "notes": "use", "action": "new", "technicalSpecs": {}, "productReference": {"name": "product", "manufacturer": "brand", "estimatedPrice": "$0"}}}]}`,
+{"explanation": {"summary": "brief", "reasoning": "why"}, "components": [{"type": "name", "details": {"quantity": 1, "notes": "use", "action": "new", "estimatedUnitCost": "$0.00", "technicalSpecs": {}}}]}`,
   projectAnalysis: `
   Analyze the following project description and provide a comprehensive analysis in both structured and human-readable format:
   {{description}}
@@ -11,6 +11,16 @@ List needed electronics components in JSON format:
   Generate only:
   1. A concise, impactful "name" for the project
   2. A detailed "description" that rephrases and enriches the provided description
+
+  **LANGUAGE REQUIREMENT (MANDATORY):**
+  - Use English only for ALL output fields (name, description, analysis).
+  - No other language is allowed anywhere in the JSON or text.
+
+  **DIY-FIRST POLICY (MANDATORY):**
+  - This project must be approached as DIY (do-it-yourself). Prefer self-built, modular solutions over buying pre-assembled kits.
+  - Do NOT recommend pre-assembled kits or pre-built chassis/frames for any product category (e.g., RC cars, drones, robots). Instead, outline modular subassemblies and commodity parts (e.g., motors, ESCs, servos, bearings, springs, shafts, fasteners, aluminum extrusions, sheets, rods).
+  - Assume 3D-printable parts (mounts, brackets, enclosures, plates) will be designed and printed; exclude them from sourcing recommendations unless they are not realistically 3D-printable at required strength/tolerance.
+  - Only include metal load-bearing structures when strictly necessary and not 3D-printable (e.g., coil springs, steel shafts, bearings, aluminum profiles). Justify necessity clearly.
 
   **Your response must be strictly a JSON object**:
   {
@@ -43,7 +53,9 @@ List needed electronics components in JSON format:
     - DIY-friendly wire management
     - Breadboard and prototype compatibility
 
-    **OUTPUT JSON:**
+    **OUTPUT JSON (STRICT ENGLISH ONLY):**
+    - All fields and values MUST be in English.
+    - Respond with valid JSON only (no prose, no markdown).
     {
       "explanation": "Analysis and recommendations for the wiring setup",
       "suggestions": [
@@ -63,6 +75,8 @@ List needed electronics components in JSON format:
         }
       ]
     }
+
+    IMPORTANT: When choosing fromPin/toPin, you MUST read pin names from the materials' specs ("pins" in technicalSpecs or requirements.pins provided by the materials phase) and use those exact canonical short names.
   `,
 
   chatResponse: `
@@ -84,83 +98,115 @@ List needed electronics components in JSON format:
   `,
 
   materialsSearch: `
-    Project: {{projectName}} - {{projectDescription}}
-    Current materials: {{currentMaterials}}
-    User request: {{userPrompt}}
+  Project: {{projectName}} - {{projectDescription}}
+  Current materials: {{currentMaterials}}
+  Current materials (full specs): {{currentMaterialsFullSpecs}}
+  User request: {{userPrompt}}
 
-    Analyze and suggest the most elegant, minimal solution.
-    Consider what's truly needed vs what's over-engineered.
+  Analyze and suggest the most elegant, minimal solution.
+  Consider what's truly needed vs what's over-engineered.
 
-    **IMPORTANT ACTIONS LOGIC:**
-    - **"new"**: Create a completely new component that doesn't exist in current materials
-    - **"keep"**: Keep an existing component unchanged (include it in response with same specs)
-    - **"update"**: Modify specifications of an existing component (create new version)
-    - **"remove"**: Remove/delete an existing component from the project (IMPORTANT: when user asks to remove something, use this action)
+  **LANGUAGE REQUIREMENT (MANDATORY):**
+  - Use English only for ALL output. No other language is allowed.
+  - All JSON fields, values, and prose inside the JSON must be in English.
 
-    **CRITICAL: Respond precisely to user requests:**
-    1. Analyze the user's request to determine what components they want to add, modify, keep, or remove
-    2. For each existing component, decide if it should be kept, updated, or removed based on the user's request
-    3. Include ALL components that need action in your response with the appropriate action
-    4. Provide clear explanations in the notes for each decision made
+  **DIY-FIRST POLICY (MANDATORY):**
+  - Do NOT include pre-assembled kits or pre-built chassis/frames (across all product types, e.g., RC cars, drones, robots). Break them down into modular, commodity parts instead (motors, ESCs, servos, bearings, springs, shafts, fasteners, aluminum extrusions, rods, sheets).
+  - Prefer self-built structures. Assume 3D-printable mounts, brackets, plates, and enclosures will be designed and printed later (exclude from materials).
+  - Include metal load-bearing elements only when not realistically 3D-printable at required strength/tolerance (e.g., coil springs, steel shafts, bearings, aluminum profiles). Justify necessity in notes.
 
-    **PRODUCT REFERENCES: For each component (except removed ones), also suggest a specific real product reference that the user could purchase if they prefer not to build from scratch. Include:**
-    - Exact product name and model number (use realistic, commonly available products)
-    - Manufacturer/brand
-    - Purchase link (note: these will be converted to search links, so focus on accurate product names)
-    - Current approximate price range
-    - The technical specifications should match the suggested product reference
-    
-    Use specific, searchable product names that exist in the market.
+  **IMPORTANT ACTIONS LOGIC:**
+  - **"new"**: Create a completely new component that doesn't exist in current materials
+  - **"keep"**: Keep an existing component unchanged (include it in response with same specs)
+  - **"update"**: Modify specifications of an existing component (create new version)
+  - **"remove"**: Remove/delete an existing component from the project (IMPORTANT: when user asks to remove something, use this action)
 
-    **OUTPUT JSON:**
-    {
-      "explanation": {
-        "summary": "brief summary of changes made",
-        "reasoning": "detailed rationale behind decisions", 
-        "changes": [{"type": "added|removed|updated|kept", "component": "name", "reason": "why"}],
-        "impact": "overall effect",
-        "nextSteps": "suggested actions"
-      },
-      "components": [
-        {
-          "type": "component category (MUST MATCH exactly the type from current materials for keep/update/remove actions)",
-          "details": {
-            "quantity": number,
+  **CRITICAL: Respond precisely to user requests:**
+  1. Analyze the user's request to determine what components they want to add, modify, keep, or remove
+  2. For each existing component, decide if it should be kept, updated, or removed based on the user's request
+  3. Include ALL components that need action in your response with the appropriate action
+  4. Provide clear explanations in the notes for each decision made
+
+  **TECHNICAL CONSTRAINTS (MUST MATCH):**
+  - Align ALL suggested technical specs with the corresponding "requirements" fields found in Current materials.
+  - Use explicit, measurable values with units (e.g., 5V, 2A, 1080p, 60Hz, 100x50x20 mm).
+  - If a requirement key exists (e.g., ports.hdmi.count, power.total_W, interfaces.usb.type, dimensions.width_mm), your technicalSpecs MUST include that key with a compatible or greater value.
+  - If a requirement cannot be satisfied, set the component action to "remove" or propose an "update" to another component that unlocks feasibility, and explain explicitly why.
+
+  **PINS ENRICHMENT (MANDATORY):**
+  - For EACH electronic component, add "pins" inside technicalSpecs as a canonical list of pin names (string[]), or set it to null ONLY for non-electronic components.
+  - Pins MUST use short, standard denominations (no long names, no vendor-specific aliases):
+    - Power: VCC, GND, 3V3, 5V, VIN
+    - I2C: SDA, SCL
+    - SPI: MOSI, MISO, SCK, CS (or SS)
+    - UART/Serial: TX, RX
+    - Analog inputs: A0, A1, A2, ...
+    - Digital GPIO (arduino-like): D0, D1, D2, ...
+    - MCU GPIO (esp32-like): GPIO0, GPIO1, ... (use real available numbers when known)
+    - Sensors (generic): VCC, GND, DATA (or SIGNAL)
+    - Relays: IN, COM, NO, NC
+    - Speakers: SPK+, SPK-
+  - Choose pins that match the component type and its technical capabilities. Do NOT invent non-existing pins.
+  - If the component does not require power or is non-electronic (mechanical/structural), set pins to null.
+  - STRICT REQUIREMENT: any electronic/electrical component MUST include a non-empty pins[] derived from its technical specifications and standard interfaces. Do not hardcode examples; infer pins implicitly from the component's type and specs (e.g., power sources expose positive/negative terminals; actuators expose power/control as applicable; regulators expose input/output/ground; communication-capable devices expose their bus pins). Use the canonical short names above where they apply.
+
+  (Product reference suggestions are handled by a dedicated sourcing step; do not include purchasing info here.)
+
+  **STRICTLY FORBIDDEN IN technicalSpecs:**
+  - Any URLs or links (purchase, manual, datasheet, documentation) and any fields named or containing: link, links, url, purchase, buy, manual, datasheet.
+  - Do NOT embed purchase information inside technicalSpecs. Keep technicalSpecs purely technical.
+
+  **3D PRINTING POLICY (MANDATORY):**
+  - Do NOT add 3D-printable mechanical parts to materials (e.g., base/stand/socle, mounts, brackets, spacers, plates, frames, enclosures/housings, cable guides, knobs, cosmetic covers). These belong to the 3D design and printing phase, not sourcing.
+  - Exception: Include metal chassis or load-bearing structural parts that are not realistically 3D-printed at the required strength/tolerances. Prefer standard profiles (e.g., aluminum extrusions) or steel parts only when strictly necessary.
+  - When a support/mount/enclosure is needed, assume it will be designed and 3D-printed; do not list it as a material component.
+
+  **OUTPUT JSON:**
+  {
+    "explanation": {
+      "summary": "brief summary of changes made",
+      "reasoning": "detailed rationale behind decisions",
+      "changes": [{"type": "added|removed|updated|kept", "component": "name", "reason": "why"}],
+      "impact": "overall effect",
+      "nextSteps": "suggested actions"
+    },
+    "components": [
+      {
+        "type": "component category (MUST MATCH exactly the type from current materials for keep/update/remove actions)",
+        "details": {
+          "quantity": number,
             "notes": "specific role and function in this project OR reason for removal",
-            "action": "keep|update|new|remove",
-            "technicalSpecs": {
-              // COMPREHENSIVE technical specifications from the suggested product reference
-              // Include ALL applicable: electrical, mechanical, performance, interface, environmental specs
-              // FOR REMOVE actions: can be empty object {} or omitted
-            },
-            "productReference": {
-              "name": "exact product name and model",
-              "manufacturer": "brand/manufacturer name",
-              "purchaseUrl": "direct link to purchase the product",
-              "estimatedPrice": "price with currency (e.g., $15.99 USD)",
-              "supplier": "supplier name (e.g., Adafruit, SparkFun, Amazon)",
-              "partNumber": "manufacturer part number if available",
-              "datasheet": "link to datasheet if available"
-              // FOR REMOVE actions: this entire object can be omitted
-            }
+          "action": "keep|update|new|remove",
+          "estimatedUnitCost": "$12.34",
+          "technicalSpecs": {
+            // COMPREHENSIVE technical specifications, using measurable fields and units
+            // MUST satisfy corresponding requirements keys from current materials when present
+            // Must be one key and one value for each requirement key from current materials
+            // No URLs/links or purchasing info allowed here
+            // PINS ENRICHMENT (MANDATORY):
+            //   Include a key "pins" with value:
+            //   - string[] of canonical short pin names (see conventions above), or
+            //   - null for non-electronic components
+            // Examples: ["VCC","GND","SDA","SCL"] or ["VCC","GND","TX","RX"] or ["D0","D1","A0","A1"] or ["GPIO0","GPIO2","3V3","GND"], or null
           }
         }
-      ]
-    }
+      }
+    ]
+  }
 
-    **GUIDELINES:**
+  **GUIDELINES:**
     - Always respond to user requests by analyzing what they want to change
     - Include components with appropriate actions based on user intent
     - For remove actions, focus on explanation in "notes" field
     - Provide EXHAUSTIVE technical specifications matching the suggested product reference (except for removed items)
+    - ALWAYS provide estimatedUnitCost for each component (use a realistic single-unit price string such as "$4.50" or "€4.50")
     - Include electrical, mechanical, performance, connectivity, and environmental specs when relevant
-    - Always include a real product reference with valid purchase information (except for removed items)
-    - Use reputable electronics suppliers for purchase links
+    - Do NOT include purchase links or datasheet/manual URLs in technicalSpecs
     - Don't duplicate existing components unless upgrading
     - Always include meaningful usage notes
     - Be thorough in component selection and specifications
     - Prefer products that are widely available and well-documented
-    - Include datasheet links when possible for technical reference
+    - Use explicit numeric comparisons (>=, ==) when mapping to requirement keys and state these in notes
 `,
 
   wiringOptimalCircuit: `
@@ -219,7 +265,12 @@ List needed electronics components in JSON format:
     7. ✅ RESPOND TO USER'S SPECIFIC REQUEST - don't ignore their prompt
     8. ✅ CHECK FOR DUPLICATE CONNECTIONS - don't suggest connections that already exist
     9. ✅ USE APPROPRIATE ACTIONS: "add" for new connections, "remove" for deletions, "update" for modifications
+    10. ✅ WHEN MULTIPLE IDENTICAL COMPONENTS EXIST (e.g., two analog joysticks), YOU MUST USE DISTINCT IDS for each physical instance. Do NOT reuse the same component id to represent two separate physical devices. Select different ids from the materials list for each instance.
     
+    **STRICT COMPONENT ELIGIBILITY:**
+    - NEVER connect non-electronic components (mechanical/structural parts such as "enclosure", "mount", "bracket", "plate", "frame", "cover", fasteners).
+    - Only electronic components (power, MCUs, sensors, displays, relays, drivers, modules) can have pins.
+
     **SMART PIN DETECTION FROM TECHNICAL SPECIFICATIONS:**
     You MUST analyze the technical specifications of each component to determine the available pins. 
     Look for these patterns in the component specifications:
@@ -233,11 +284,11 @@ List needed electronics components in JSON format:
        - UART/Serial → TX, RX pins
     4. **Power Pins**: Look for voltage specs → VCC, GND, 3V3, 5V, VIN
     5. **Component-Specific Pins**:
-       - Arduino Uno: 14 digital pins (D0-D13), 6 analog pins (A0-A5), VCC, GND, 3V3, 5V
+       - Arduino Uno: D0-D13, A0-A5, VCC, GND, 3V3, 5V
        - ESP32: GPIO0-GPIO39 (excluding flash pins 6-11), VCC, GND, 3V3, EN
        - Sensors: Usually VCC, GND, DATA/SIGNAL/OUT
        - Displays: VCC, GND, plus communication pins (SDA/SCL for I2C, or SPI pins)
-       - Relays: VCC, GND, IN/SIGNAL, COM, NO, NC
+       - Relays: VCC, GND, IN, COM, NO, NC
     
     **EXAMPLE ANALYSIS:**
     - If specs show "14 digital I/O pins" → Use D0, D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11, D12, D13
@@ -267,7 +318,8 @@ List needed electronics components in JSON format:
     4. Does the destination pin exist on the real component based on its technical specifications?
     5. Are the pin types compatible (3.3V ↔ 3.3V, digital ↔ digital, etc.)?
     
-    **STRICT JSON RESPONSE FORMAT (MUST BE VALID JSON - NO JAVASCRIPT EXPRESSIONS):**
+    **STRICT JSON RESPONSE FORMAT (MUST BE VALID JSON - NO JAVASCRIPT EXPRESSIONS, ENGLISH ONLY):**
+    - All fields and values MUST be in English.
     {
       "explanation": "Analysis of current circuit and suggestions based on user request: [USER_REQUEST]",
       "suggestions": [
@@ -343,18 +395,6 @@ List needed electronics components in JSON format:
     - **ADD**: Missing essential connections (power, control, data)
     - **REMOVE**: Redundant, incorrect, or conflicting connections
     - **UPDATE**: Connections with wrong pins or wire types
-    
-    **EXAMPLES OF WHEN TO REMOVE CONNECTIONS:**
-    - Duplicate power connections to the same component
-    - Sensors connected to wrong pin types (digital sensor on analog pin)
-    - Multiple components sharing the same GPIO pin incorrectly
-    - Unnecessary ground loops
-    - Wrong wire types (data wire used for power)
-    
-    **EXAMPLES OF WHEN TO UPDATE CONNECTIONS:**
-    - Change analog sensor from digital pin to analog pin
-    - Fix incorrect wire colors or types
-    - Optimize pin assignments for better organization
   `,
   
   userPrompt: `
@@ -1123,5 +1163,109 @@ List needed electronics components in JSON format:
     - Use double quotes for all keys and string values.
     - No trailing commas or comments.
     - Do not wrap JSON, do not include backticks.
+  `,
+
+  // Impact analysis when a single component's spec changes
+  materialsImpactReview: `
+  ROLE: You are a hardware BOM dependency planner. When one component's specification changes, you evaluate cascading impacts on the rest of the BOM.
+
+  Project: {{projectName}} - {{projectDescription}}
+  Previous component (before change): {{previousComponent}}
+  Updated component (after change): {{updatedComponent}}
+  Current materials (with specs): {{currentMaterials}}
+
+  STRICT POLICY:
+  - ONLY propose changes that are DIRECTLY and CONCRETELY required by the updated component's changed fields.
+  - If no other component must change, return an EMPTY components array (no changes).
+  - Do NOT emit generic text; always specify measurable/technical changes.
+
+  REQUIRED METHOD:
+  1) Compute CHANGED KEYS by diffing previous vs updated component specs (deep compare on spec fields and quantities).
+  2) For each other component, decide if a change is MANDATORY. Only then include it with action="update|new|remove".
+  3) For every included component, provide CONCRETE specsPatch (set/remove) that precisely implements needed compatibility (numbers/units/port counts/connector types/cable counts/wire gauge/PSU wattage, etc.).
+  4) Provide a short, explicit impact reason referencing the CHANGED KEYS.
+
+  HARD RULES:
+  - If you cannot point to specific changed keys (by name) that force a change, do NOT include that component.
+  - HMI/UX or Enclosure changes are allowed ONLY if tied to explicit changed fields (e.g., increased thermal TDP_W requires ventilation area increase; new display_count requires bezel changes with exact dimensions).
+  - Quantities/values MUST be numeric and actionable.
+  - Prefer UPDATE over NEW when an existing component of the same type can be adapted. Use NEW only when no existing part fits. Use REMOVE only if strictly required.
+  - Keep type naming consistent with current materials for updates/removals.
+
+  OUTPUT JSON (STRICT):
+  {
+    "explanation": {
+      "summary": "brief impact summary OR 'no change'",
+      "reasoning": "why these dependencies change (reference CHANGED KEYS)",
+      "changedKeys": ["list", "of", "updated", "spec", "keys"],
+      "noChange": boolean
+    },
+    "components": [
+      {
+        "type": "component category (match existing types for updates)",
+        "details": {
+          "quantity": number,
+          "action": "update|new|remove",
+          "notes": "1 sentence referencing CHANGED KEYS",
+          "specsPatch": {
+            "set": { /* deep-partial to MERGE into existing specs (only changed keys) */ },
+            "remove": [ /* array of dot-paths to delete, e.g., "ports.hdmi" */ ]
+          },
+          "productReference": {
+            "name": "(optional) realistic product name",
+            "manufacturer": "",
+            "purchaseUrl": "",
+            "estimatedPrice": "$0.00",
+            "supplier": "",
+            "partNumber": "",
+            "datasheet": ""
+          }
+        }
+      }
+    ]
+  }
+
+  VALIDATION BEFORE RETURN:
+  - If components.length === 0, set explanation.noChange = true and provide a meaningful summary.
+  - If components.length > 0, ensure EVERY item has at least one numeric/spec field that changed because of specific CHANGED KEYS.
+  - NEVER output generic updates without concrete fields.
+  `,
+
+  productReferenceSearch: `
+  ROLE: You are a sourcing assistant. Given a validated component spec, propose real, purchasable product references that match the technical requirements.
+
+  Project: {{projectName}} - {{projectDescription}}
+  Component: {{componentType}} - {{componentName}}
+  Validated specs (requirements): {{requirements}}
+  Full project context (materials simplified): {{currentMaterials}}
+  Full project context (materials full specs): {{currentMaterialsFullSpecs}}
+
+  NAMING RULES (ENGLISH):
+  - Use precise, standardized component names without vendor references (e.g., "DC-DC step-down converter 5V 3A" not "LM2596 module").
+  - Include key measurable attributes in name when relevant (e.g., voltage, current, ports, interfaces, size): "Microcontroller board, 3.3V, 32-bit, 48 GPIO, 2x I2C, 3x UART".
+  - Avoid ambiguous terms; prefer exact denominations commonly used in electronics.
+
+  OUTPUT JSON STRICT ONLY (RETURN 2-3 BEST REFERENCES):
+  {
+    "references": [
+      {
+        "name": "exact product name and model",
+        "manufacturer": "brand/manufacturer name",
+        "purchaseUrl": "https://... absolute URL to product or high-quality vendor search",
+        "estimatedPrice": "$12.34",
+        "supplier": "supplier name",
+        "partNumber": "manufacturer part number if available",
+        "datasheet": "https://... absolute URL to datasheet if available",
+        "compatibilityScore": 0-100,
+        "mismatchNotes": ["optional short notes if partial mismatch"]
+      }
+    ]
+  }
+
+  RULES:
+  - Prefer reputable suppliers and widely available products.
+  - Use ABSOLUTE https URLs only. Never return localhost, relative URLs, or placeholders.
+  - Ensure the reference matches key constraints from requirements and relevant project context (power budget, interfaces, ports, physical constraints) where applicable.
+  - If unsure, include mismatchNotes explaining remaining assumptions.
   `,
 };

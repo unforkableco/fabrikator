@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Project, Material, ProjectRequirements, Message } from '../types/index';
+import { Project, Material, ProjectRequirements, Message, ProductReference, AccountSummary, LoginResponse } from '../types/index';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -16,7 +16,7 @@ apiClient.interceptors.request.use(
     // Add auth token if available
     const token = localStorage.getItem('authToken');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      (config.headers as any).Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -37,6 +37,23 @@ apiClient.interceptors.response.use(
 );
 
 export const api = {
+  auth: {
+    login: async (credentials: { email: string; password: string }): Promise<LoginResponse> => {
+      const response = await apiClient.post('/auth/login', credentials);
+      return response.data;
+    },
+  },
+
+  accounts: {
+    getMe: async (): Promise<AccountSummary> => {
+      const response = await apiClient.get('/accounts/me');
+      return response.data;
+    },
+    updatePassword: async (payload: { currentPassword: string; newPassword: string }): Promise<void> => {
+      await apiClient.put('/accounts/me/password', payload);
+    },
+  },
+
   projects: {
     getAll: async (): Promise<Project[]> => {
       const response = await apiClient.get('/projects');
@@ -67,11 +84,24 @@ export const api = {
       return response.data;
     },
 
-    updateMaterial: async (materialId: string, material: Partial<Material>): Promise<Material> => {
+    updateMaterial: async (materialId: string, material: Partial<Material>): Promise<any> => {
       const response = await apiClient.put(`/materials/${materialId}`, {
         action: 'update',
         ...material
       });
+      return response.data;
+    },
+
+    updateMaterialAndReviewImpact: async (materialId: string, material: Partial<Material>): Promise<{ component: Material; impactSuggestions?: any }> => {
+      const response = await apiClient.put(`/materials/${materialId}`, {
+        action: 'update',
+        ...material
+      });
+      return response.data;
+    },
+
+    suggestPurchaseReferences: async (materialId: string): Promise<{ references: ProductReference[] }> => {
+      const response = await apiClient.post(`/materials/${materialId}/references/suggest`);
       return response.data;
     },
 
@@ -165,9 +195,16 @@ export const api = {
     },
 
     // Chat IA - Mode Ask (simple Q&A)
-    askQuestion: async (projectId: string, question: string): Promise<{answer: string}> => {
+    askQuestion: async (
+      projectId: string,
+      question: string,
+      context?: string,
+      persist?: 'ai' | 'both'
+    ): Promise<{answer: string}> => {
       const response = await apiClient.post(`/projects/${projectId}/ask`, {
-        question: question
+        question,
+        context,
+        persist
       });
       return response.data;
     },

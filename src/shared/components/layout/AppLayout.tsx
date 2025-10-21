@@ -10,24 +10,26 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  Chip,
+  Box,
 } from '@mui/material';
 import {
   Home as HomeIcon,
   Add as AddIcon,
   Build as BuildIcon,
   HelpOutline as HelpIcon,
+  Logout as LogoutIcon,
+  AccountCircle as AccountCircleIcon,
 } from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
-interface AppLayoutProps {
-  children: React.ReactNode;
-}
-
-export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
+export const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [helpModalOpen, setHelpModalOpen] = React.useState(false);
   const [helpMessage, setHelpMessage] = React.useState('');
+  const { account, logout } = useAuth();
 
   const handleOpenHelpModal = () => {
     setHelpModalOpen(true);
@@ -134,9 +136,25 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               startIcon={<AddIcon />}
               onClick={() => navigate('/project/new')}
               sx={{ textTransform: 'none' }}
+              disabled={Boolean(account && (account.projectsRemaining <= 0 || account.credits <= 0))}
             >
               New Project
             </Button>
+
+            {account && (
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Chip
+                  label={`Projects ${account.projectsUsed}/${account.maxProjects}`}
+                  color={account.projectsRemaining > 0 ? 'default' : 'warning'}
+                  size="small"
+                />
+                <Chip
+                  label={`Credits ${account.credits}`}
+                  color={account.credits > 0 ? 'default' : 'warning'}
+                  size="small"
+                />
+              </Box>
+            )}
 
             <IconButton 
               color="inherit"
@@ -144,6 +162,25 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               title="Help"
             >
               <HelpIcon />
+            </IconButton>
+
+            <IconButton
+              color="inherit"
+              onClick={() => navigate('/profile')}
+              title="Profile"
+            >
+              <AccountCircleIcon />
+            </IconButton>
+
+            <IconButton
+              color="inherit"
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
+              title="Logout"
+            >
+              <LogoutIcon />
             </IconButton>
           </div>
         </Toolbar>
@@ -190,8 +227,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
       {/* Contenu principal */}
       <div style={{ flexGrow: 1, backgroundColor: '#fafafa' }}>
-        {children}
+        <Outlet />
       </div>
     </div>
   );
-}; 
+};

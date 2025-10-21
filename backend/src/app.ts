@@ -10,6 +10,9 @@ import design3dRouter from './modules/design3d/design3d.router';
 import chatRouter from './modules/chat/chat.router';
 import designPreviewRouter from './modules/design-preview/design-preview.router';
 import { ProjectController } from './modules/project/project.controller';
+import { authRouter } from './modules/auth/auth.router';
+import { accountRouter } from './modules/account/account.router';
+import { authenticate } from './middleware/auth.middleware';
 import './workers/index';
 
 // Create Express application
@@ -46,16 +49,19 @@ app.use('/scripts', express.static(path.join(process.cwd(), 'scripts')));
 const projectController = new ProjectController();
 
 // Routes
-app.use('/api/projects', projectRouter);
-app.use('/api/materials', materialRouter);
-app.use('/api/wiring', wiringRouter);
-app.use('/api/scenes', sceneRouter);
-app.use('/api/components3d', design3dRouter);
-app.use('/api/chat', chatRouter);
-app.use('/api/design-previews', designPreviewRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/accounts', accountRouter);
+
+app.use('/api/projects', authenticate, projectRouter);
+app.use('/api/materials', authenticate, materialRouter);
+app.use('/api/wiring', authenticate, wiringRouter);
+app.use('/api/scenes', authenticate, sceneRouter);
+app.use('/api/components3d', authenticate, design3dRouter);
+app.use('/api/chat', authenticate, chatRouter);
+app.use('/api/design-previews', authenticate, designPreviewRouter);
 
 // Direct message routes
-app.put('/api/messages/:messageId', projectController.updateMessage.bind(projectController));
+app.put('/api/messages/:messageId', authenticate, projectController.updateMessage.bind(projectController));
 
 // Health check endpoint for Docker
 app.get('/api/health', (req, res) => {

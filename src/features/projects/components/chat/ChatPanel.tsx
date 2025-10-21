@@ -23,7 +23,7 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { TypingAnimation } from './';
-import api from '../../../../shared/services/api';
+import { api } from '../../../../shared/services/api';
 
 interface ChatMessage {
   id: string;
@@ -54,10 +54,12 @@ interface BaseSuggestion {
 
 interface ChatPanelProps {
   messages: ChatMessage[];
-  onSendMessage: (message: string, mode: 'ask' | 'agent') => void;
-  onStopGeneration: () => void;
-  onAcceptSuggestion: (messageId: string, suggestionId: string) => void;
-  onRejectSuggestion: (messageId: string, suggestionId: string) => void;
+  onSendMessage: (message: string, mode: 'ask' | 'agent') => void | Promise<void>;
+  onStopGeneration: () => void | Promise<void>;
+  onAcceptSuggestion: (messageId: string, suggestionId: string) => void | Promise<void>;
+  onRejectSuggestion: (messageId: string, suggestionId: string) => void | Promise<void>;
+  onAcceptAllSuggestions?: (messageId: string, suggestionIds: string[]) => void | Promise<void>;
+  onRejectAllSuggestions?: (messageId: string, suggestionIds: string[]) => void | Promise<void>;
   isGenerating?: boolean;
   context?: 'materials' | 'wiring' | 'general';
   projectId?: string;
@@ -69,6 +71,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   onStopGeneration,
   onAcceptSuggestion,
   onRejectSuggestion,
+  onAcceptAllSuggestions,
+  onRejectAllSuggestions,
   isGenerating = false,
   context,
   projectId
@@ -133,7 +137,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       localStorage.setItem(storageKey, JSON.stringify(validStates));
       
     } catch (error) {
-      console.warn('Error loading suggestion states:', error);
+      // silent
       setSuggestionStates({});
     }
   }, [messages, storageKey]);
@@ -145,7 +149,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       
       // Nettoyer seulement si c'est le bon projet et contexte
       if (eventProjectId === projectId && eventContext === context) {
-        console.log('🧹 Force clearing all suggestion states for new generation');
+        // cleared suggestion states
         
         // ✅ Nettoyage complet et agressif
         setSuggestionStates({}); // Completely clear the state
@@ -161,11 +165,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         
         possibleKeys.forEach(key => {
           localStorage.removeItem(key);
-          console.log(`🧹 Cleared localStorage key: ${key}`);
         });
         
         // ✅ Forcer le re-render pour éviter la contamination
-        console.log('🧹 All suggestion states cleared successfully');
       }
     };
 
@@ -188,9 +190,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Scroll uniquement pour les nouveaux messages ou pendant la génération
+  const prevMsgLenRef = useRef<number>(0);
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isGenerating]);
+    const prevLen = prevMsgLenRef.current;
+    if (isGenerating) {
+      scrollToBottom();
+    } else if (messages.length > prevLen) {
+      scrollToBottom();
+    }
+    prevMsgLenRef.current = messages.length;
+  }, [messages.length, isGenerating]);
 
   const handleSendMessage = () => {
     if (inputMessage.trim() && !isGenerating) {
@@ -222,9 +232,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       localStorage.setItem(storageKey, JSON.stringify(newStates));
       
       // Appeler la fonction parent
-      onAcceptSuggestion(messageId, suggestionId);
+      await Promise.resolve(onAcceptSuggestion(messageId, suggestionId));
     } catch (error) {
-      console.error('Error updating suggestion status:', error);
+      // silent
     }
   };
 
@@ -244,10 +254,77 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       localStorage.setItem(storageKey, JSON.stringify(newStates));
       
       // Appeler la fonction parent
-      onRejectSuggestion(messageId, suggestionId);
+      await Promise.resolve(onRejectSuggestion(messageId, suggestionId));
     } catch (error) {
-      console.error('Error updating suggestion status:', error);
+      // silent
     }
+  };
+
+  const renderBulkSuggestionActions = (message: ChatMessage) => {
+    if (!projectId) return null;
+    const pending = message.suggestions?.filter(s => !suggestionStates[s.id]) || [];
+    if (pending.length <= 1) return null;
+
+    const handleAcceptAll = async () => {
+      for (const s of pending) {
+        try {
+          await api.projects.updateSuggestionStatus(projectId, message.id, s.id, 'accepted');
+        } catch (e) {
+          // silent
+        }
+      }
+
+      if (typeof onAcceptAllSuggestions === 'function') {
+        await Promise.resolve(onAcceptAllSuggestions(message.id, pending.map(p => p.id)));
+      } else {
+        for (const s of pending) {
+          if (!suggestionStates[s.id]) {
+            await handleAcceptSuggestion(message.id, s.id);
+          }
+        }
+      }
+
+      const newStates = { ...suggestionStates } as any;
+      pending.forEach(p => { newStates[p.id] = 'accepted'; });
+      setSuggestionStates(newStates);
+      localStorage.setItem(storageKey, JSON.stringify(newStates));
+    };
+
+    const handleRejectAll = async () => {
+      for (const s of pending) {
+        try {
+          await api.projects.updateSuggestionStatus(projectId, message.id, s.id, 'rejected');
+        } catch (e) {
+          // silent
+        }
+      }
+
+      if (typeof onRejectAllSuggestions === 'function') {
+        await Promise.resolve(onRejectAllSuggestions(message.id, pending.map(p => p.id)));
+      } else {
+        for (const s of pending) {
+          if (!suggestionStates[s.id]) {
+            await handleRejectSuggestion(message.id, s.id);
+          }
+        }
+      }
+
+      const newStates = { ...suggestionStates } as any;
+      pending.forEach(p => { newStates[p.id] = 'rejected'; });
+      setSuggestionStates(newStates);
+      localStorage.setItem(storageKey, JSON.stringify(newStates));
+    };
+
+    return (
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <Button size="small" variant="contained" color="success" onClick={handleAcceptAll}>
+          Accept all ({pending.length})
+        </Button>
+        <Button size="small" variant="outlined" color="error" onClick={handleRejectAll}>
+          Reject all ({pending.length})
+        </Button>
+      </Box>
+    );
   };
 
   const renderSuggestion = (suggestion: BaseSuggestion, messageId: string) => {
@@ -255,21 +332,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     const isAccepted = suggestionState === 'accepted';
     const isRejected = suggestionState === 'rejected';
     
-    // Debug - check suggestions state
-    console.log('🔍 Rendering suggestion:', {
-      id: suggestion.id,
-      title: suggestion.title,
-      status: suggestion.status, // ✅ Utiliser status au lieu de validated
-      suggestionState,
-      isAccepted,
-      isRejected,
-      shouldShowButtons: !isAccepted && !isRejected
-    });
+    // Debug removed
     
     // DEBUG TEMPORARY - Clean localStorage if necessary
     if (suggestion.id.includes('debug-clear')) {
       localStorage.removeItem(storageKey);
-      console.log('🧹 Cleared localStorage for:', storageKey);
     }
     
     return (
@@ -686,10 +753,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
                     {/* Suggestions */}
                     {message.suggestions && message.suggestions.length > 0 && (
-                      <Box sx={{ mt: 1 }}>
+                      <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {context !== 'wiring' && renderBulkSuggestionActions(message)}
+
                         {message.suggestions.map(suggestion => 
                           renderSuggestion(suggestion, message.id)
                         )}
+
+                        {context === 'wiring' && renderBulkSuggestionActions(message)}
                       </Box>
                     )}
                   </Box>

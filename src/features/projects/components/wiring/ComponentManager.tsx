@@ -23,8 +23,6 @@ export const useComponentManager = ({
   const { saveWiringDiagram } = useWiring(projectId);
 
   const handleComponentAdd = async (component: WiringComponent) => {
-    console.log('➕ Adding component to diagram:', component);
-    console.log('Current diagram:', diagram);
     
     let finalDiagram: WiringDiagram;
     
@@ -41,7 +39,7 @@ export const useComponentManager = ({
           version: 1
         }
       };
-      console.log('Created new diagram:', finalDiagram);
+      // silent
       onDiagramUpdate(finalDiagram);
     } else {
       finalDiagram = {
@@ -52,42 +50,40 @@ export const useComponentManager = ({
           updatedAt: new Date().toISOString()
         }
       };
-      console.log('Updated diagram:', finalDiagram);
+      // silent
       onDiagramUpdate(finalDiagram);
     }
     
-    // Sauvegarder le diagramme après ajout de composant
+    // Save diagram after component add
     try {
-      console.log('💾 Saving diagram after component add...');
+      // silent
       await saveWiringDiagram(finalDiagram);
-      console.log('✅ Diagram saved successfully after component add');
+      // silent
     } catch (error) {
-      console.error('❌ Failed to save diagram after component add:', error);
+      // silent
     }
     
     onWiringUpdated?.();
   };
 
   const handleConnectionAdd = async (connection: WiringConnection) => {
-    console.log('🔌 Adding manual connection:', connection);
-    console.log('Current diagram:', diagram);
-    console.log('Available materials:', materials);
+    // silent
     
     let finalDiagram: WiringDiagram;
     
     if (!diagram) {
-      // Créer un nouveau diagramme en utilisant TOUS les matériaux disponibles
+      // Create a new diagram using ALL available materials
       const allComponents: WiringComponent[] = [];
       
-      // Créer des composants pour TOUS les matériaux disponibles
+      // Create components for ALL available materials
       materials.forEach((material, index) => {
         const component = createComponentFromMaterial(material, index);
         allComponents.push(component);
       });
       
-      console.log('Created all available components:', allComponents);
+      // silent
       
-      // Mapper les broches de la connexion avant de l'ajouter
+      // Map connection pins before adding
       const fromComponent = allComponents.find(c => c.id === connection.fromComponent);
       const toComponent = allComponents.find(c => c.id === connection.toComponent);
       
@@ -99,12 +95,9 @@ export const useComponentManager = ({
         mappedConnection.toPin = mapPinName(connection.toPin, toComponent.pins);
       }
       
-      console.log('Mapped connection pins:', {
-        original: { fromPin: connection.fromPin, toPin: connection.toPin },
-        mapped: { fromPin: mappedConnection.fromPin, toPin: mappedConnection.toPin }
-      });
+      // silent
       
-      // Créer le nouveau diagramme avec tous les composants
+      // Create the new diagram with all components
       finalDiagram = {
         id: `diagram-${Date.now()}`,
         components: allComponents,
@@ -117,22 +110,22 @@ export const useComponentManager = ({
         }
       };
       
-      console.log('Created new diagram with all materials:', finalDiagram);
+      // silent
       onDiagramUpdate(finalDiagram);
     } else {
-      // Vérifier si les composants de la connexion existent déjà
+      // Check if connection components already exist
       const fromExists = diagram.components.find(c => c.id === connection.fromComponent);
       const toExists = diagram.components.find(c => c.id === connection.toComponent);
       
       let updatedComponents = [...diagram.components];
       
-      // Créer SEULEMENT les composants manquants (ne devrait pas arriver si on utilise tous les matériaux)
+      // Create ONLY missing components (should not happen if using all materials)
       if (!fromExists) {
         const material = materials.find(m => m.id === connection.fromComponent);
         if (material) {
           const component = createComponentFromMaterial(material, updatedComponents.length);
           updatedComponents.push(component);
-          console.log('Added missing fromComponent:', component.name);
+          // silent
         }
       }
       
@@ -141,11 +134,11 @@ export const useComponentManager = ({
         if (material) {
           const component = createComponentFromMaterial(material, updatedComponents.length);
           updatedComponents.push(component);
-          console.log('Added missing toComponent:', component.name);
+          // silent
         }
       }
       
-      // Mapper les broches de la connexion
+      // Map connection pins
       const fromComponent = updatedComponents.find(c => c.id === connection.fromComponent);
       const toComponent = updatedComponents.find(c => c.id === connection.toComponent);
       
@@ -157,12 +150,9 @@ export const useComponentManager = ({
         mappedConnection.toPin = mapPinName(connection.toPin, toComponent.pins);
       }
       
-      console.log('Mapped connection pins:', {
-        original: { fromPin: connection.fromPin, toPin: connection.toPin },
-        mapped: { fromPin: mappedConnection.fromPin, toPin: mappedConnection.toPin }
-      });
+      // silent
       
-      // Ajouter la connexion
+      // Add the connection
       finalDiagram = {
         ...diagram,
         components: updatedComponents,
@@ -173,17 +163,17 @@ export const useComponentManager = ({
         }
       };
       
-      console.log('Updated existing diagram with connection:', finalDiagram);
+      // silent
       onDiagramUpdate(finalDiagram);
     }
     
-    // Sauvegarder le diagramme après ajout de connexion manuelle
+    // Save diagram after manual connection add
     try {
-      console.log('💾 Saving diagram after manual connection add...');
+      // silent
       await saveWiringDiagram(finalDiagram);
-      console.log('✅ Diagram saved successfully after manual connection add');
+      // silent
     } catch (error) {
-      console.error('❌ Failed to save diagram after manual connection add:', error);
+      // silent
     }
     
     onWiringUpdated?.();
@@ -191,7 +181,7 @@ export const useComponentManager = ({
 
   const handleConnectionUpdate = async (connectionId: string, updates: Partial<WiringConnection>) => {
     if (diagram) {
-      console.log('📝 Updating connection:', connectionId, 'with:', updates);
+      // silent
       
       const updatedConnections = diagram.connections.map(conn =>
         conn.id === connectionId ? { ...conn, ...updates } : conn
@@ -207,13 +197,13 @@ export const useComponentManager = ({
       
       onDiagramUpdate(updatedDiagram);
       
-      // Sauvegarder le diagramme après mise à jour
+      // Save diagram after update
       try {
-        console.log('💾 Saving diagram after connection update...');
+        // silent
         await saveWiringDiagram(updatedDiagram);
-        console.log('✅ Diagram saved successfully after update');
+        // silent
       } catch (error) {
-        console.error('❌ Failed to save diagram after update:', error);
+        // silent
       }
       
       onWiringUpdated?.();
@@ -222,8 +212,6 @@ export const useComponentManager = ({
 
   const handleConnectionDelete = async (connectionId: string) => {
     if (diagram) {
-      const connectionToDelete = diagram.connections.find(conn => conn.id === connectionId);
-      console.log('🗑️ Deleting connection:', connectionToDelete);
       
       const updatedDiagram = {
         ...diagram,
@@ -234,16 +222,16 @@ export const useComponentManager = ({
         }
       };
       
-      console.log('🔄 Updated diagram after deletion:', updatedDiagram.connections.length, 'connections remaining');
+      // silent
       onDiagramUpdate(updatedDiagram);
       
-      // Sauvegarder le diagramme après suppression
+      // Save diagram after deletion
       try {
-        console.log('💾 Saving diagram after connection deletion...');
+        // silent
         await saveWiringDiagram(updatedDiagram);
-        console.log('✅ Diagram saved successfully after deletion');
+        // silent
       } catch (error) {
-        console.error('❌ Failed to save diagram after deletion:', error);
+        // silent
       }
       
       onWiringUpdated?.();
@@ -252,15 +240,8 @@ export const useComponentManager = ({
 
   const handleComponentDelete = async (componentId: string) => {
     if (diagram) {
-      const componentToDelete = diagram.components.find(comp => comp.id === componentId);
-      const connectionsToDelete = diagram.connections.filter(
-        conn => conn.fromComponent === componentId || conn.toComponent === componentId
-      );
       
-      console.log('🗑️ Deleting component:', componentToDelete?.name);
-      console.log('🗑️ This will also delete', connectionsToDelete.length, 'connections');
-      
-      // Supprimer le composant et toutes ses connexions
+      // Delete component and all its connections
       const updatedDiagram = {
         ...diagram,
         components: diagram.components.filter(comp => comp.id !== componentId),
@@ -273,16 +254,16 @@ export const useComponentManager = ({
         }
       };
       
-      console.log('🔄 Updated diagram after component deletion:', updatedDiagram.components.length, 'components,', updatedDiagram.connections.length, 'connections');
+      // silent
       onDiagramUpdate(updatedDiagram);
       
-      // Sauvegarder le diagramme après suppression
+      // Save diagram after deletion
       try {
-        console.log('💾 Saving diagram after component deletion...');
+        // silent
         await saveWiringDiagram(updatedDiagram);
-        console.log('✅ Diagram saved successfully after component deletion');
+        // silent
       } catch (error) {
-        console.error('❌ Failed to save diagram after component deletion:', error);
+        // silent
       }
       
       onWiringUpdated?.();

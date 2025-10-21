@@ -100,9 +100,10 @@ export class ChatService {
     console.log('Context:', context);
     
     // Build the system prompt using the configured template
-    const systemPrompt = prompts.design3DChat
+    const basePrompt = prompts.design3DChat
       .replace('{{context}}', context)
       .replace('{{message}}', message);
+    const systemPrompt = basePrompt;
 
     const messages = [
       {

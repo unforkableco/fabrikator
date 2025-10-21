@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, startTransition } from 'react';
 import { Box, Typography, Button, Card } from '@mui/material';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import { Material } from '../../../../shared/types';
@@ -29,6 +29,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   onRejectSelected,
   onMaterialsUpdated,
 }) => {
+  // Language handling is fully delegated to the backend/AI. No frontend detection.
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
@@ -36,9 +37,47 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [pendingSuggestions, setPendingSuggestions] = useState<any[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isInitialLoaded, setIsInitialLoaded] = useState<boolean>(false);
+
+  // Local view state for immediate UI updates
+  const [displayMaterials, setDisplayMaterials] = useState<Material[]>(materials);
+  const [lastEditedAtById, setLastEditedAtById] = useState<Record<string, number>>({});
+  const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+  const OPTIMISTIC_HOLD_MS = 1200;
+
+  React.useEffect(() => {
+    if (materials && materials.length >= 0) {
+      setIsInitialLoaded(true);
+    }
+  }, [materials]);
+
+  React.useEffect(() => {
+    const now = Date.now();
+    setDisplayMaterials(prev => {
+      const prevById = new Map(prev.map(m => [m.id, m]));
+      return materials.map(incoming => {
+        const editedAt = lastEditedAtById[incoming.id];
+        if (editedAt && (now - editedAt) < OPTIMISTIC_HOLD_MS) {
+          const optimistic = prevById.get(incoming.id) || incoming;
+          return {
+            ...incoming,
+            name: optimistic.name,
+            type: optimistic.type,
+            description: optimistic.description,
+            requirements: optimistic.requirements,
+          } as Material;
+        }
+        return incoming;
+      });
+    });
+  }, [materials, lastEditedAtById]);
 
   // Rejected materials are now automatically filtered on the backend
-  const activeMaterials = materials;
+  const activeMaterials = displayMaterials;
+
+  const handleToggleExpanded = (id: string, expanded: boolean) => {
+    setExpandedById(prev => ({ ...prev, [id]: expanded }));
+  };
 
   // Load messages on startup
   const loadChatMessages = useCallback(async () => {
@@ -47,7 +86,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     try {
       setIsLoadingMessages(true);
       console.log('Loading chat messages for project:', projectId);
-      const dbMessages = await api.projects.getChatMessages(projectId, 'materials', 10);
+      const dbMessages = await api.projects.getChatMessages(projectId, 'materials', 100);
       
       console.log('Raw DB messages:', dbMessages);
       
@@ -207,11 +246,32 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
 
   const handleSaveEditedMaterial = async (materialId: string, updatedMaterial: Partial<Material>) => {
     try {
-      // Use the API directly to update the material
-      await api.projects.updateMaterial(materialId, updatedMaterial);
+      // Optimistic update
+      setDisplayMaterials(prev => prev.map(m => {
+        if (m.id !== materialId) return m;
+        return {
+          ...m,
+          name: updatedMaterial.name ?? m.name,
+          type: updatedMaterial.type ?? m.type,
+          description: updatedMaterial.description ?? m.description,
+          requirements: updatedMaterial.requirements ?? m.requirements,
+        } as Material;
+      }));
+      setLastEditedAtById(prev => ({ ...prev, [materialId]: Date.now() }));
+
       setShowEditDialog(false);
       setEditingMaterial(null);
+
+      // Persist in background
+      api.projects.updateMaterial(materialId, updatedMaterial)
+        .catch((err) => console.error('Failed to persist material update:', err));
+
+      // Transition non bloquante pour le refresh serveur
+      setTimeout(() => {
+        startTransition(() => {
       onMaterialsUpdated?.();
+        });
+      }, 350);
     } catch (error) {
       console.error('Error updating material:', error);
     }
@@ -253,8 +313,8 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         console.log('Sending ask question:', message);
         
         try {
-          const response = await api.projects.askQuestion(projectId, message);
-          aiResponse = response.answer;
+          const askRes = await api.projects.askQuestion(projectId, message, 'materials', 'ai');
+          aiResponse = askRes.answer;
         } catch (error) {
           console.error('Error asking question:', error);
           aiResponse = `Sorry, I encountered an error trying to answer your question. Could you rephrase or try again?`;
@@ -264,13 +324,13 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         console.log('Sending agent message:', message);
         
         // First retrieve suggestions without applying them
-        const response = await api.projects.previewMaterialSuggestions(projectId, message);
-        console.log('Agent response:', response);
+        const agentPreview = await api.projects.previewMaterialSuggestions(projectId, message);
+        console.log('Agent response:', agentPreview);
         
-        if (response && response.components && Array.isArray(response.components)) {
-          const responseWithExplanation = response as any; // Type assertion pour accéder à explanation
+        if (agentPreview && agentPreview.components && Array.isArray(agentPreview.components)) {
+          const responseWithExplanation = agentPreview as any; // Type assertion pour accéder à explanation
           // Transform suggestions for the diff
-          const suggestions = response.components.map((component: any) => ({
+          const suggestions = agentPreview.components.map((component: any) => ({
             action: component.details?.action || 'new',
             type: component.type,
             details: component.details,
@@ -289,29 +349,9 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           const filteredSuggestions = suggestions.filter(s => s.action !== 'keep');
           
           const newChatSuggestions = filteredSuggestions.map((suggestion, index) => {
-            // Create an informative title with action and details
-            let title = suggestion.type;
-            let description = '';
-            
-            if (suggestion.action === 'new') {
-              title = `➕ Add ${suggestion.type}`;
-              description = suggestion.details?.notes || `New component: ${suggestion.type}`;
-              if (suggestion.details?.quantity) {
-                description += ` (Qty: ${suggestion.details.quantity})`;
-              }
-            } else if (suggestion.action === 'update') {
-              title = `🔄 Update ${suggestion.type}`;
-              description = suggestion.details?.notes || `Modify existing: ${suggestion.type}`;
-              if (suggestion.currentMaterial?.name) {
-                description += ` (Current: ${suggestion.currentMaterial.name})`;
-              }
-            } else if (suggestion.action === 'remove') {
-              title = `❌ Remove ${suggestion.type}`;
-              description = suggestion.details?.notes || `Remove component: ${suggestion.type}`;
-              if (suggestion.currentMaterial?.name) {
-                description += ` (${suggestion.currentMaterial.name})`;
-              }
-            }
+            // Use raw AI data for title/description (no localization)
+            const title = suggestion.type;
+            const description = suggestion.details?.description || suggestion.details?.notes || '';
             
             return {
               id: `suggestion-${Date.now()}-${index}`,
@@ -330,39 +370,31 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           
           // Use detailed AI explanation if available
           if (responseWithExplanation.explanation) {
-            let explanationText = `${responseWithExplanation.explanation.summary}\n\n`;
-            
+            let explanationText = `${responseWithExplanation.explanation.summary || ''}\n\n`;
             if (responseWithExplanation.explanation.reasoning) {
               explanationText += `${responseWithExplanation.explanation.reasoning}\n\n`;
             }
-            
             if (responseWithExplanation.explanation.changes && responseWithExplanation.explanation.changes.length > 0) {
-              explanationText += 'Changes made:\n';
-              responseWithExplanation.explanation.changes.forEach((change: any, index: number) => {
-                const emoji = change.type === 'added' ? '✅' : 
-                            change.type === 'removed' ? '❌' : 
-                            change.type === 'updated' ? '🔄' : '⚪';
+              explanationText += 'Changes:\n';
+              responseWithExplanation.explanation.changes.forEach((change: any) => {
+                const emoji = change.type === 'added' ? '✅' : change.type === 'removed' ? '❌' : change.type === 'updated' ? '🔄' : '⚪';
                 explanationText += `${emoji} ${change.component} - ${change.reason}\n`;
               });
               explanationText += '\n';
             }
-            
             if (responseWithExplanation.explanation.impact) {
               explanationText += `Impact: ${responseWithExplanation.explanation.impact}\n\n`;
             }
-            
             if (responseWithExplanation.explanation.nextSteps) {
               explanationText += `Recommendations: ${responseWithExplanation.explanation.nextSteps}`;
             }
-            
-            aiResponse = explanationText;
+            aiResponse = explanationText.trim();
           } else {
-            // Fallback to generic message if no detailed explanation
-          const materialCount = suggestions.length;
-          aiResponse = `I have analyzed your request and prepared ${materialCount === 1 ? '1 suggestion' : `${materialCount} suggestions`} for modifications. Please review the proposed changes below and choose to accept or reject the modifications.`;
+            const materialCount = suggestions.length;
+            aiResponse = `I have prepared ${materialCount} suggestion(s). Please review below.`;
           }
         } else {
-                      aiResponse = 'I understand your component modification request. I am working on analyzing your needs and will suggest appropriate components.';
+          aiResponse = 'Working on analyzing your request and suggestions.';
         }
       }
 
@@ -381,30 +413,8 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         const filteredPendingSuggestions = pendingSuggestions.filter(s => s.action !== 'keep');
         
         chatSuggestions = filteredPendingSuggestions.map((suggestion, index) => {
-          // Create an informative title with action and details (same logic as above)
-          let title = suggestion.type;
-          let description = '';
-          
-          if (suggestion.action === 'new') {
-            title = `➕ Add ${suggestion.type}`;
-            description = suggestion.details?.notes || `New component: ${suggestion.type}`;
-            if (suggestion.details?.quantity) {
-              description += ` (Qty: ${suggestion.details.quantity})`;
-            }
-          } else if (suggestion.action === 'update') {
-            title = `🔄 Update ${suggestion.type}`;
-            description = suggestion.details?.notes || `Modify existing: ${suggestion.type}`;
-            if (suggestion.currentMaterial?.name) {
-              description += ` (Current: ${suggestion.currentMaterial.name})`;
-            }
-          } else if (suggestion.action === 'remove') {
-            title = `❌ Remove ${suggestion.type}`;
-            description = suggestion.details?.notes || `Remove component: ${suggestion.type}`;
-            if (suggestion.currentMaterial?.name) {
-              description += ` (${suggestion.currentMaterial.name})`;
-            }
-          }
-          
+          const title = suggestion.type;
+          const description = suggestion.details?.description || suggestion.details?.notes || '';
           return {
             id: `suggestion-${Date.now()}-${index}`,
             title,
@@ -431,13 +441,14 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
 
       setMessages(prev => [...prev, aiMessage]);
       
-      // Save AI message to database and get the real ID
-      const savedAiMessage = await saveChatMessage(aiMessage);
-      if (savedAiMessage) {
-        // Update the message with the database ID
-        setMessages(prev => prev.map(msg => 
-          msg.id === aiMessage.id ? savedAiMessage : msg
-        ));
+      // Persist AI message only when not Ask (Ask AI message is persisted by backend)
+      if (mode !== 'ask') {
+        const savedAiMessage = await saveChatMessage(aiMessage);
+        if (savedAiMessage) {
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessage.id ? savedAiMessage : msg
+          ));
+        }
       }
     } catch (error) {
       console.error('Error sending chat message:', error);
@@ -560,45 +571,28 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
   };
 
   return (
-    <Box sx={{ display: 'flex', gap: 3, height: '100%' }}>
-      {/* Materials List - Left Side */}
+    <Box sx={{ display: 'flex', gap: 2 }}>
       <Box sx={{ flex: 2 }}>
-        {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h5" component="h2" sx={{ fontWeight: 600 }}>
-            Required Components
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<PlaylistAddIcon />}
-            onClick={() => setShowAddDialog(true)}
-            sx={{ textTransform: 'none' }}
-          >
-            Add Component
-          </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="h5" fontWeight={600}>
+              Materials
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <StatusLegend />
+            <Button
+              variant="contained"
+              startIcon={<PlaylistAddIcon />}
+              onClick={() => setShowAddDialog(true)}
+            >
+              Add Material
+            </Button>
+          </Box>
         </Box>
 
-        {/* Status Legend */}
-        <StatusLegend />
-
-        {/* Materials List */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {activeMaterials.length === 0 ? (
-            <Card sx={{ p: 4, textAlign: 'center' }}>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                No components added yet
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Add components to your project to get started
-              </Typography>
-              <Button
-                variant="contained"
-                startIcon={<PlaylistAddIcon />}
-                onClick={() => setShowAddDialog(true)}
-              >
-                Add First Component
-              </Button>
-            </Card>
+        {(!isInitialLoaded && isLoading) ? (
+          <Card sx={{ p: 2 }}>Loading materials...</Card>
           ) : (
             activeMaterials.map((material) => (
               <MaterialCard
@@ -607,10 +601,12 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
                 onEdit={handleEditMaterial}
                 onApprove={onApproveSelected}
                 onReject={onRejectSelected}
+                onDelete={onDeleteMaterial}
+                expanded={expandedById[material.id] ?? false}
+                onExpandedChange={(exp) => handleToggleExpanded(material.id, exp)}
               />
             ))
           )}
-        </Box>
       </Box>
 
       {/* Chat Panel - Right Side */}
@@ -622,6 +618,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           onAcceptSuggestion={handleAcceptSuggestion}
           onRejectSuggestion={handleRejectSuggestion}
           isGenerating={isGenerating || isLoadingMessages}
+          context="materials"
           projectId={projectId}
         />
         
@@ -643,6 +640,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
           setEditingMaterial(null);
         }}
         onSave={handleSaveEditedMaterial}
+        onRefetch={onMaterialsUpdated}
       />
     </Box>
   );
