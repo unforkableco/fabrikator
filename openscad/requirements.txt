@@ -1,0 +1,5 @@
+numpy==1.26.4
+trimesh==4.4.7
+# Keep minimal, Python 3.9 compatible; add more only if needed for measurements
+# shapely, scipy, rtree, networkx, pyglet are optional for our use-cases
+

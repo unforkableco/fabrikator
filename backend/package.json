@@ -13,9 +13,14 @@
     "db:generate": "prisma generate",
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
-    "cad:gen": "ts-node tools/generate_and_run.ts tools/analysis_latest.txt",
-    "cad:spec": "ts-node tools/analyze_cad_image.ts tools/image2.png --notes \"design of a desktop coffee cup warmer, with ON led indicator, on/off button and a USBC port for power\" ",
-    "cad:upload": "ts-node tools/upload_vector_store.ts"
+    "cad:gen": "ts-node tools/generate_and_run.ts tools/analysis_latest.txt --image backend/tools/image.png",
+    "cad:gen-experimental": "ts-node tools/generate_and_run_experimental.ts tools/analysis_latest.txt --image backend/tools/image.png",
+    "cad:gen-experimental-resume": "ts-node tools/generate_and_run_experimental.ts tools/analysis_latest.txt --image backend/tools/image.png --resume",
+    "cad:spec": "ts-node tools/generate_device_description.ts \"A Quadcopter drone with 4 arms and a central body\"",
+    "cad:preview": "ts-node tools/generate_device_image.ts tools/analysis_latest.txt",
+    "cad:upload": "ts-node tools/upload_vector_store.ts",
+    "scad:demo": "ts-node tools/scad_agent.ts demo",
+    "scad:agent": "ts-node tools/scad_agent_loop.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
@@ -28,7 +33,7 @@
     "ioredis": "^5.4.1",
     "multer": "^2.0.2",
     "node-fetch": "^2.7.0",
-    "openai": "^4.73.0",
+    "openai": "^6.5.0",
     "pg": "^8.11.3",
     "undici": "^7.15.0",
     "uuid": "^9.0.0"

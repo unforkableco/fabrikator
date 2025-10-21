@@ -1,0 +1,37 @@
+# name repo_url [ref]
+
+# BOSL2 (already installed by install.sh, included here for completeness)
+BOSL2 https://github.com/BelfrySCAD/BOSL2.git
+
+# dotSCAD
+dotSCAD https://github.com/JustinSDK/dotSCAD.git
+
+# NopSCADlib
+NopSCADlib https://github.com/nophead/NopSCADlib.git
+
+# Round-Anything
+Round-Anything https://github.com/Irev-Dev/Round-Anything.git
+
+# threads.scad (removed from default install; add a public URL if needed)
+
+# Pathbuilder (removed from default install)
+
+# Constructive Library (correct URL)
+Constructive https://github.com/solidboredom/constructive.git
+
+# OpenSCAD-Snippet (assets and utilities)
+OpenSCAD-Snippet https://github.com/AngeloNicoli/OpenSCAD-Snippet.git
+
+# Mark's Enclosure Helper
+MarksEnclosureHelper https://github.com/sbambach/MarksEnclosureHelper.git
+
+# threads-scad (OpenSCAD threading library)
+threads-scad https://github.com/rcolyer/threads-scad.git
+
+# openscad-tray (rounded rectangular trays with subdividers)
+openscad-tray https://github.com/sofian/openscad-tray.git
+
+# YAPP Box (Yet Another Parametric Project Box)
+YAPP_Box https://github.com/mrWheel/YAPP_Box.git
+
+
